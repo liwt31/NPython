@@ -209,7 +209,7 @@ proc matchH(grammar: Grammar): GrammarNode =
 
 
 proc lexGrammar = 
-  let text = readFile("Grammar/Grammar")
+  let text = readFile("Grammar")
   let lines = text.splitLines()
   var 
     lineIdx = 0
