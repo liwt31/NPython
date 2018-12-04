@@ -12,11 +12,13 @@ type
     None
     Star
     Plus
+    Query
 
   GrammarNode* = ref object
     name: string
     children: seq[GrammarNode]
     repeat: Repeat
+    firstSet: HashSet[string]
 
   Grammar = ref object
     name*: string
@@ -56,6 +58,7 @@ proc matchH(grammar: Grammar): GrammarNode
 proc newGrammarNode(name: string): GrammarNode = 
   new(result)
   result.name = name
+  result.firstSet.init
 
 
 proc newGrammar(name: string, grammarString: string): Grammar = 
@@ -74,6 +77,10 @@ proc errorGrammar(grammar: Grammar) =
   quit(fmt"invalid syntax for {s[0..<c]} $${s[c]}$$ {s[c+1..^1]}")
 
 
+proc optional(node: GrammarNode): bool = 
+  node.repeat == Repeat.Star or node.repeat == Repeat.Query
+
+
 proc `$`*(grammerNode: GrammarNode): string = 
   var stringSeq: seq[string]
   var tail: string
@@ -84,6 +91,8 @@ proc `$`*(grammerNode: GrammarNode): string =
     tail = "*"
   of Repeat.Plus:
     tail = "+"
+  of Repeat.Query:
+    tail = "?"
   stringSeq.add(grammerNode.name & tail)
   for child in grammerNode.children:
     if child == nil:
@@ -91,6 +100,10 @@ proc `$`*(grammerNode: GrammarNode): string =
     for substr in split($(child), "\n"):
       stringSeq.add("    " & substr)
   result = stringSeq.join("\n")
+
+
+proc `$`*(grammar: Grammar): string =
+  result = [grammar.name & " " & grammar.grammarString, $(grammar.rootNode)].join("\n")
 
 
 proc getChar(grammar: Grammar): char =
@@ -110,17 +123,17 @@ proc matchA(grammar: Grammar): GrammarNode =
   if e != nil:
     case e.name
     of "+":
-      assert b.name != "C"
+      assert b.repeat == Repeat.None
       b.repeat = Repeat.Plus
     of "*":
-      assert b.name != "C"
+      assert b.repeat == Repeat.None
       b.repeat = Repeat.Star
     else:
       assert false
   if h != nil:
     result = newGrammarNode("A")
     result.children.add(b)
-    if h.name == "C" or h.name == "D" or h.children.len == 0: # if factored
+    if h.repeat != Repeat.None or h.name == "F" or h.children.len == 0: # if factored
       result.children.add(h)
     else:
       result.children = result.children.concat(h.children)
@@ -149,16 +162,14 @@ proc matchB(grammar: Grammar): GrammarNode =
 
 
 proc matchC(grammar: Grammar): GrammarNode =
-  var c = grammar.getChar()
-  case c
+  case grammar.getChar
   of '[':
     inc(grammar.cursor)
   else:
     errorGrammar(grammar)
   result = matchF(grammar)
-  result.name = "C"
-  c = grammar.getChar()
-  case c
+  result.repeat = Repeat.Query
+  case grammar.getChar
   of ']':
     inc(grammar.cursor)
   else:
@@ -208,9 +219,9 @@ proc matchF(grammar: Grammar): GrammarNode =
 proc matchG(grammar: Grammar): GrammarNode = 
   if grammar.exhausted:
     return
-  result = newGrammarNode("G")
   case grammar.getChar
   of '|':
+    result = newGrammarNode("G")
     inc(grammar.cursor)
     result.children.add(matchA(grammar))
     let g = matchG(grammar)
@@ -287,69 +298,44 @@ proc lexGrammar =
     grammarSeq.add(grammar)
 
 
+# left factoring the AST, take care of:
+#
+
+
 # forward
 proc genFirstSet(grammar: Grammar)
 
-proc addToFirstSet(key: string, value: string ) = 
-  if not firstSet.haskey(key):
-    firstSet[key] = initSet[string]()
-  if grammarNameSet.hasKey(value):
-    let g = grammarNameSet[value]
-    if not firstSet.hasKey(g.name):
-      genFirstSet(g)
-    if (firstSet[key] * firstSet[value]).len != 0:
-      echo firstSet[key]
-      echo firstSet[value]
-      echo key & "  " & value
-      #assert false
-    firstSet[key].incl(firstSet[value])
-  else:
-    if value in firstSet[key]:
-      echo firstSet[key]
-      echo key & "  " & value
-      #assert false
-    firstSet[key].incl(value)
 
+proc genFirstSet(node: GrammarNode, allChildren = false) =
+  if len(node.children) == 0:
+    if grammarNameSet.hasKey(node.name):
+      if not firstSet.hasKey(node.name):
+        genFirstSet(grammarNameSet[node.name])
+      node.firstSet.incl(firstSet[node.name])
+    else:
+      node.firstSet.incl(node.name)
+  else:
+    if allChildren:
+      for child in node.children:
+        genFirstSet(child, true)
+    case node.name
+    of "A":
+      for child in node.children:
+        genFirstSet(child)
+        node.firstSet.incl(child.firstSet)
+        if not child.optional:
+          break
+    of "F":
+      for child in node.children:
+        genFirstSet(child)
+        node.firstSet.incl(child.firstSet)
+    else:
+      assert false
+    
 
 proc genFirstSet(grammar: Grammar) =
-  var toVisit = @[grammar.rootNode]
-  let
-    name: string = grammar.name
-  # depth first (or depth only) search
-  while 0 < toVisit.len:
-    let curNode = toVisit.pop
-    assert curNode != nil
-    case curNode.name
-    of "A":
-      # observe: in Python grammar '*' never appear after the first lexeme
-      # however, brakets do appear as the first lexeme, but never in 
-      # succusesion
-      let firstChild = curNode.children[0]
-      case firstChild.name
-      of "C":
-        if curNode.children.len == 1:
-          echo grammar.grammarString
-          echo grammar.rootNode
-          echo curNode.name
-          assert false
-        toVisit.add(firstChild)
-        case curNode.children[1].name
-        of "C":
-          assert false
-        of "D":
-          toVisit.add(curNode.children[1])
-        else:
-          addToFirstSet(grammar.name, curNode.children[1].name)
-      of "D":
-        tovisit.add(firstChild)
-      else:
-        addToFirstSet(grammar.name, firstChild.name)
-    of "C", "F":
-      toVisit = toVisit.concat(curNode.children)
-    of "B", "D", "E", "G", "H": # shouldn't appear in AST
-      assert false 
-    else:
-      addToFirstSet(grammar.name, curNode.name)
+  genFirstSet(grammar.rootNode)
+  firstSet[grammar.name] = grammar.rootNode.firstSet
 
 
 proc genFirstSet =
@@ -357,6 +343,9 @@ proc genFirstSet =
     if firstSet.hasKey(grammar.name):
       continue
     genFirstSet(grammar)
+  # generate first set for every node
+  for grammar in grammarSeq:
+    genFirstSet(grammar.rootNode, true)
 
 
 # make sure LL1 can work by detecting conflicts
@@ -366,21 +355,36 @@ proc validateFirstSet =
     while 0 < toVisit.len:
       var curNode = toVisit.pop
       assert curNode != nil
-      var accumulate: HashSet[string]
+      for child in curNode.children:
+        if child.name == "A" or child.name == "F":
+          toVisit.add(child)
       case curNode.name
       of "A": 
-        case curNode.children[0].name
-        of "C":
-          discard
-        else:
-          discard
-        # visit all nodes that are possible to expand
-        toVisit = toVisit.concat(curNode.children.filterIt(it.name.len == 1))
-      of "B", "G", "H": # shouldn't appear in AST
+        var i: int
+        while i < curNode.children.len:
+          var child = curNode.children[i]
+          var accumulate: HashSet[string]
+          accumulate.init
+          while child.optional:
+            if (accumulate * child.firstSet).len != 0:
+              echo grammar
+            else:
+              accumulate.incl(child.firstSet)
+            inc i
+            if not (i < curNode.children.len):
+              break
+            child = curNode.children[i]
+          inc i
+      of "F":
+        var accumulate: HashSet[string]
+        accumulate.init
+        for child in curNode.children:
+          if (child.firstSet * accumulate).len != 0:
+            echo grammar
+          else:
+            accumulate.incl(child.firstSet)
+      of "B", "C", "D", "E", "G", "H": # shouldn't appear in AST
         assert false
-      of "C", "D", "F":
-        discard
-        
       else:
         discard
 
@@ -406,9 +410,9 @@ genFirstTokenSet()
 when isMainModule:
   for grammar in grammarSeq:
     let name = grammar.name
-    echo name & grammar.grammarString
-    echo grammar.rootNode
-    echo "### " & toSeq(firstSet[name].items).join(" ")
+    #echo name & grammar.grammarString
+    #echo grammar.rootNode
+    #echo "### " & toSeq(firstSet[name].items).join(" ")
 
   
 
