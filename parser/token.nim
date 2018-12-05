@@ -62,6 +62,13 @@ type
     Encoding
 
 let strTokenMap* = {
+          "ENDMARKER" : Token.Endmarker,
+          "NAME"      : Token.Name,
+          "NUMBER"    : Token.Number,
+          "STRING"    : Token.String,
+          "NEWLINE"   : Token.Newline,
+          "INDENT"    : Token.Indent,
+          "DEDENT"    : Token.Dedent,
                    "(": Token.Lpar,
                    ")": Token.Rpar,
                    "[": Token.Lsqb,

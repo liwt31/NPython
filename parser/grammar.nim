@@ -15,10 +15,10 @@ type
     Query
 
   GrammarNode* = ref object
-    name: string
-    children: seq[GrammarNode]
-    repeat: Repeat
-    firstSet: HashSet[string]
+    name*: string
+    children*: seq[GrammarNode]
+    repeat*: Repeat
+    firstSet*: HashSet[string]
 
   Grammar = ref object
     name*: string
@@ -298,10 +298,6 @@ proc lexGrammar =
     grammarSeq.add(grammar)
 
 
-# left factoring the AST, take care of:
-#
-
-
 # forward
 proc genFirstSet(grammar: Grammar)
 
@@ -367,7 +363,7 @@ proc validateFirstSet =
           accumulate.init
           while child.optional:
             if (accumulate * child.firstSet).len != 0:
-              echo grammar
+              echo fmt"Conflict for {grammar.name} in A"
             else:
               accumulate.incl(child.firstSet)
             inc i
@@ -380,10 +376,10 @@ proc validateFirstSet =
         accumulate.init
         for child in curNode.children:
           if (child.firstSet * accumulate).len != 0:
-            echo grammar
+            echo fmt"Conflict for {grammar.name} in F"
           else:
             accumulate.incl(child.firstSet)
-      of "B", "C", "D", "E", "G", "H": # shouldn't appear in AST
+      of "B".."E", "G", "H": # shouldn't appear in AST
         assert false
       else:
         discard
