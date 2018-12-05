@@ -1,118 +1,130 @@
-from tables import newTable
+import macros
+import tables
+from strutils import splitLines
+from parseutils import parseUntil
 
-type
-  Token* {.pure.} = enum
-    Endmarker
-    Name
-    Number
-    String
-    Newline
-    Indent
-    Dedent
-    Lpar
-    Rpar
-    Lsqb
-    Rsqb
-    Colon
-    Comma
-    Semi
-    Plus
-    Minus
-    Star
-    Slash
-    Vbar
-    Amper
-    Less
-    Greater
-    Equal
-    Dot
-    Percent
-    Lbrace
-    Rbrace
-    Eqequal
-    Notequal
-    Lessequal
-    Greaterequal
-    Tilde
-    Circumflex
-    Leftshift
-    Rightshift
-    Doublestar
-    Plusequal
-    Minequal
-    Starequal
-    Slashequal
-    Percentequal
-    Amperequal
-    Vbarequal
-    Circumflexequal
-    Leftshiftequal
-    Rightshiftequal
-    Doublestarequal
-    Doubleslash
-    Doubleslashequal
-    At
-    Atequal
-    Rarrow
-    Ellipsis
-    Op
-    Errortoken
-    Comment
-    Nl
-    Encoding
 
-let strTokenMap* = {
-          "ENDMARKER" : Token.Endmarker,
-          "NAME"      : Token.Name,
-          "NUMBER"    : Token.Number,
-          "STRING"    : Token.String,
-          "NEWLINE"   : Token.Newline,
-          "INDENT"    : Token.Indent,
-          "DEDENT"    : Token.Dedent,
-                   "(": Token.Lpar,
-                   ")": Token.Rpar,
-                   "[": Token.Lsqb,
-                   "]": Token.Rsqb,
-                   ":": Token.Colon,
-                   ",": Token.Comma,
-                   ";": Token.Semi,
-                   "+": Token.Plus,
-                   "-": Token.Minus,
-                   "*": Token.Star,
-                   "/": Token.Slash,
-                   "|": Token.Vbar,
-                   "&": Token.Amper,
-                   "<": Token.Less,
-                   ">": Token.Greater,
-                   "=": Token.Equal,
-                   ".": Token.Dot,
-                   "%": Token.Percent,
-                   "{": Token.Lbrace,
-                   "}": Token.Rbrace,
-                   "==": Token.Eqequal,
-                   "!=": Token.Notequal,
-                   "<=": Token.Lessequal,
-                   ">=": Token.Greaterequal,
-                   "~": Token.Tilde,
-                   "^": Token.Circumflex,
-                   "<<": Token.Leftshift,
-                   ">>": Token.Rightshift,
-                   "**": Token.Doublestar,
-                   "+=": Token.Plusequal,
-                   "-=": Token.Minequal,
-                   "*=": Token.Starequal,
-                   "/=": Token.Slashequal,
-                   "%=": Token.Percentequal,
-                   "&=": Token.Amperequal,
-                   "|=": Token.Vbarequal,
-                   "^=": Token.Circumflexequal,
-                   "<<=": Token.Leftshiftequal,
-                   ">>=": Token.Rightshiftequal,
-                   "**=": Token.Doublestarequal,
-                   "//": Token.Doubleslash,
-                   "//=": Token.Doubleslashequal,
-                   "@": Token.At,
-                   "@=": Token.Atequal,
-                   "->": Token.Rarrow,
-                   "...": Token.Ellipsis
-                   }.newTable
+const
+  grammarFileName = "Grammar"
+
+  basicToken = @[
+              ("ENDMARKER" , "Endmarker"),
+              ("NAME"      , "Name"),
+              ("NUMBER"    , "Number"),
+              ("STRING"    , "String"),
+              ("NEWLINE"   , "Newline"),
+              ("INDENT"    , "Indent"),
+              ("DEDENT"    , "Dedent"),
+              ("("         , "Lpar"),
+              (")"         , "Rpar"),
+              ("["         , "Lsqb"),
+              ("]"         , "Rsqb"),
+              (":"         , "Colon"),
+              (","         , "Comma"),
+              (";"         , "Semi"),
+              ("+"         , "Plus"),
+              ("-"         , "Minus"),
+              ("*"         , "Star"),
+              ("/"         , "Slash"),
+              ("|"         , "Vbar"),
+              ("&"         , "Amper"),
+              ("<"         , "Less"),
+              (">"         , "Greater"),
+              ("="         , "Equal"),
+              ("."         , "Dot"),
+              ("%"         , "Percent"),
+              ("{"         , "Lbrace"),
+              ("}"         , "Rbrace"),
+              ("=="        , "Eqequal"),
+              ("!="        , "Notequal"),
+              ("<="        , "Lessequal"),
+              (">="        , "Greaterequal"),
+              ("~"         , "Tilde"),
+              ("^"         , "Circumflex"),
+              ("<<"        , "Leftshift"),
+              (">>"        , "Rightshift"),
+              ("**"        , "Doublestar"),
+              ("+="        , "Plusequal"),
+              ("-="        , "Minequal"),
+              ("*="        , "Starequal"),
+              ("/="        , "Slashequal"),
+              ("%="        , "Percentequal"),
+              ("&="        , "Amperequal"),
+              ("|="        , "Vbarequal"),
+              ("^="        , "Circumflexequal"),
+              ("<<="       , "Leftshiftequal"),
+              (">>="       , "Rightshiftequal"),
+              ("**="       , "Doublestarequal"),
+              ("//"        , "Doubleslash"),
+              ("//="       , "Doubleslashequal"),
+              ("@"         , "At"),
+              ("@="        , "Atequal"),
+              ("->"        , "Rarrow"),
+              ("..."       , "Ellipsi")
+  ]
+
+
+
+proc readGrammarToken: seq[string] {.compileTime.} = 
+  var textLines = slurp(grammarFileName).splitLines()
+  for line in textLines:
+    if line.len == 0:
+      continue
+    if line[0] in 'a'..'z':
+      var tokenString: string
+      discard line.parseUntil(tokenString, ':') # stoed in tokenString
+      result.add(tokenString)
+      
+
+const grammarTokenList = readGrammarToken()
+
+
+macro genTokenType(tokenTypeName, boundaryName: untyped): untyped = 
+  result = newStmtList()
+  var enumFields: seq[NimNode]
+  for t in basicToken:
+    enumFields.add(ident(t[1]))
+  enumFields.add(boundaryName)
+  for t in grammarTokenList:
+    enumFields.add(ident(t))
+  result.add(newEnum(
+    name = tokenTypeName,
+    fields = enumFields,
+    public = true,
+    pure = true
+  ))
+
+
+genTokenType(Token, boundary)
+
+
+template genHelperFunc(tokenTypeName, boundaryName: untyped): untyped = 
+  proc isTerminaltor*(node: tokenTypeName): bool = 
+    node < tokenTypeName.boundaryName
+
+  proc isNonTerminaltor*(node: tokenTypeName): bool = 
+    tokenTypeName.boundaryName < node
+
+
+genHelperFunc(Token, boundary)
+
+
+macro genMapTable(tokenTypeName, tableName: untyped): untyped = 
+  result = newStmtList()
+  let tableNode = nnkTableConstr.newTree()
+  for t in basicToken:
+    let tokenNode = newDotExpr(tokenTypeName, ident(t[1]))
+    tableNode.add(newColonExpr(newStrLitNode(t[0]), tokenNode))
+  for t in grammarTokenList:
+    let tokenNode = newDotExpr(tokenTypeName, ident(t))
+    tableNode.add(newColonExpr(newStrLitNode(t), tokenNode))
+    
+  let dotNode = newDotExpr(tableNode, newIdentNode("newTable"))
+  let letStmt = newLetStmt(tableName.postFix("*"), dotNode)
+  result.add(letStmt)
+
+
+genMapTable(Token, strTokenMap)
+
+when isMainModule:
+  echo strTokenMap
