@@ -1,7 +1,8 @@
 import macros
+import sets
 import tables
 from strutils import splitLines
-from parseutils import parseUntil
+from parseutils import parseUntil, skipUntil
 
 
 const
@@ -76,14 +77,44 @@ proc readGrammarToken: seq[string] {.compileTime.} =
       result.add(tokenString)
       
 
+proc readReserveName: seq[string] {.compileTime.} = 
+  let text = slurp(grammarFileName)
+  var nameSet = initSet[string]()
+  var idx = 0
+  while idx < text.len:
+    case text[idx]
+    of '\'':
+      inc idx
+      let l = text.skipUntil('\'', idx)
+      nameSet.incl(text[idx..<idx+l])
+      idx.inc(l+1)
+    of '#':
+      idx.inc(text.skipUntil('\n', idx))
+      inc idx
+    else:
+      inc idx
+   
+  for t in basicToken:
+    nameSet.excl(t[0])
+
+  for name in nameSet:
+    result.add(name)
+
+
 const grammarTokenList = readGrammarToken()
+
+
+const reserveNameList = readReserveName()
 
 
 macro genTokenType(tokenTypeName, boundaryName: untyped): untyped = 
   result = newStmtList()
   var enumFields: seq[NimNode]
+  enumFields.add(ident("NULLTOKEN"))
   for t in basicToken:
     enumFields.add(ident(t[1]))
+  for t in reserveNameList:
+    enumFields.add(ident(t))
   enumFields.add(boundaryName)
   for t in grammarTokenList:
     enumFields.add(ident(t))
@@ -99,10 +130,10 @@ genTokenType(Token, boundary)
 
 
 template genHelperFunc(tokenTypeName, boundaryName: untyped): untyped = 
-  proc isTerminaltor*(node: tokenTypeName): bool = 
+  proc isTerminator*(node: tokenTypeName): bool = 
     node < tokenTypeName.boundaryName
 
-  proc isNonTerminaltor*(node: tokenTypeName): bool = 
+  proc isNonTerminator*(node: tokenTypeName): bool = 
     tokenTypeName.boundaryName < node
 
 
@@ -115,7 +146,7 @@ macro genMapTable(tokenTypeName, tableName: untyped): untyped =
   for t in basicToken:
     let tokenNode = newDotExpr(tokenTypeName, ident(t[1]))
     tableNode.add(newColonExpr(newStrLitNode(t[0]), tokenNode))
-  for t in grammarTokenList:
+  for t in grammarTokenList & reserveNameList:
     let tokenNode = newDotExpr(tokenTypeName, ident(t))
     tableNode.add(newColonExpr(newStrLitNode(t), tokenNode))
     
@@ -127,4 +158,6 @@ macro genMapTable(tokenTypeName, tableName: untyped): untyped =
 genMapTable(Token, strTokenMap)
 
 when isMainModule:
+  echo grammarTokenList
+  echo reserveNameList
   echo strTokenMap

@@ -5,7 +5,7 @@ import strformat
 import sets
 import tables
 
-from token import strTokenMap, Token
+import token
 
 type
   Repeat {.pure.} = enum
@@ -15,22 +15,26 @@ type
     Query
 
   GrammarNode* = ref object
-    name*: string
-    children*: seq[GrammarNode]
     repeat*: Repeat
-    firstSet*: HashSet[string]
+    firstSet*: set[Token]
+    case kind: char
+    of 'a': # terminal
+      token: Token
+    of 'A'..'H': # non-terminal
+      children*: seq[GrammarNode]
+    else: # + * ?
+      discard
 
   Grammar = ref object
-    name*: string
+    token: Token
     grammarString: string
     rootNode*: GrammarNode
     cursor: int
 
 var 
   grammarSeq*: seq[Grammar]
-  grammarNameSet* =  initTable[string, Grammar]()
-  firstSet = initTable[string, HashSet[string]]()
-  firstTokenSet = initTable[string, HashSet[Token]]()
+  grammarSet* =  initTable[Token, Grammar]()
+  firstSet = initTable[Token, set[Token]]()
 
 
 # Grammar of EBNF used in python
@@ -55,15 +59,21 @@ proc matchG(grammar: Grammar): GrammarNode
 proc matchH(grammar: Grammar): GrammarNode  
 
 
-proc newGrammarNode(name: string): GrammarNode = 
-  new(result)
-  result.name = name
-  result.firstSet.init
+proc newGrammarNode(name: string, tokenString=""): GrammarNode = 
+  new result
+  case name[0]
+  of 'A'..'H', '+', '?', '*':
+    result.kind = name[0]
+  of 'a':
+    result.kind = 'a'
+    result.token = strTokenMap[tokenString]
+  else:
+    raise newException(ValueError, fmt"unknown name: {name}")
 
 
 proc newGrammar(name: string, grammarString: string): Grammar = 
-  new(result)
-  result.name = name
+  new result
+  result.token = strTokenMap[name]
   result.grammarString = grammarString
   result.rootNode = matchF(result)
   result.cursor = 0
@@ -74,17 +84,22 @@ proc errorGrammar(grammar: Grammar) =
     s = grammar.grammarString
     c = grammar.cursor
 
-  quit(fmt"invalid syntax for {s[0..<c]} $${s[c]}$$ {s[c+1..^1]}")
+  let msg = fmt"invalid syntax for {s[0..<c]} $${s[c]}$$ {s[c+1..^1]}"
+  raise newException(ValueError, msg)
 
 
 proc optional(node: GrammarNode): bool = 
   node.repeat == Repeat.Star or node.repeat == Repeat.Query
 
 
-proc `$`*(grammerNode: GrammarNode): string = 
+proc isTerminator(node: GrammarNode): bool = 
+  node.kind == 'a'
+
+
+proc `$`*(grammarNode: GrammarNode): string = 
   var stringSeq: seq[string]
   var tail: string
-  case grammerNode.repeat
+  case grammarNode.repeat
   of Repeat.None:
     discard
   of Repeat.Star:
@@ -93,8 +108,14 @@ proc `$`*(grammerNode: GrammarNode): string =
     tail = "+"
   of Repeat.Query:
     tail = "?"
-  stringSeq.add(grammerNode.name & tail)
-  for child in grammerNode.children:
+  var name: string
+  case grammarNode.kind
+  of 'a':
+    name = $grammarNode.token
+  else:
+    name = $grammarNode.kind
+  stringSeq.add(name & tail)
+  for child in grammarNode.children:
     if child == nil:
       continue
     for substr in split($(child), "\n"):
@@ -103,7 +124,7 @@ proc `$`*(grammerNode: GrammarNode): string =
 
 
 proc `$`*(grammar: Grammar): string =
-  result = [grammar.name & " " & grammar.grammarString, $(grammar.rootNode)].join("\n")
+  result = [$grammar.token & " " & grammar.grammarString, $(grammar.rootNode)].join("\n")
 
 
 proc getChar(grammar: Grammar): char =
@@ -121,11 +142,11 @@ proc matchA(grammar: Grammar): GrammarNode =
     e = matchE(grammar)
     h = matchH(grammar)
   if e != nil:
-    case e.name
-    of "+":
+    case e.kind
+    of '+':
       assert b.repeat == Repeat.None
       b.repeat = Repeat.Plus
-    of "*":
+    of '*':
       assert b.repeat == Repeat.None
       b.repeat = Repeat.Star
     else:
@@ -133,7 +154,7 @@ proc matchA(grammar: Grammar): GrammarNode =
   if h != nil:
     result = newGrammarNode("A")
     result.children.add(b)
-    if h.repeat != Repeat.None or h.name == "F" or h.children.len == 0: # if factored
+    if h.repeat != Repeat.None or h.kind == 'F' or h.isTerminator: # if factored
       result.children.add(h)
     else:
       result.children = result.children.concat(h.children)
@@ -153,12 +174,12 @@ proc matchB(grammar: Grammar): GrammarNode =
     grammar.cursor.inc(grammar.grammarString.skipUntil('\'', grammar.cursor))
     inc(grammar.cursor)
     let substr = grammar.grammarString[prev..grammar.cursor-2]
-    result = newGrammarNode(substr)
+    result = newGrammarNode("a", substr)
   else:
     let first = grammar.cursor
     grammar.cursor.inc(grammar.grammarString.skipWhile(IdentStartChars, grammar.cursor))
     let substr = grammar.grammarString[first..<grammar.cursor]
-    result = newGrammarNode(substr)
+    result = newGrammarNode("a", substr)
 
 
 proc matchC(grammar: Grammar): GrammarNode =
@@ -294,7 +315,7 @@ proc lexGrammar =
         colIdx = startColIdx
     inc(lineIdx)
     let grammar = newGrammar(name, grammarString)
-    grammarNameSet.add(name, grammar)
+    grammarSet.add(strTokenMap[name], grammar)
     grammarSeq.add(grammar)
 
 
@@ -303,25 +324,25 @@ proc genFirstSet(grammar: Grammar)
 
 
 proc genFirstSet(node: GrammarNode, allChildren = false) =
-  if len(node.children) == 0:
-    if grammarNameSet.hasKey(node.name):
-      if not firstSet.hasKey(node.name):
-        genFirstSet(grammarNameSet[node.name])
-      node.firstSet.incl(firstSet[node.name])
+  if node.isTerminator:
+    if not node.token.isTerminator:
+      if not firstSet.hasKey(node.token):
+        genFirstSet(grammarSet[node.token])
+      node.firstSet.incl(firstSet[node.token])
     else:
-      node.firstSet.incl(node.name)
+      node.firstSet.incl(node.token)
   else:
     if allChildren:
       for child in node.children:
         genFirstSet(child, true)
-    case node.name
-    of "A":
+    case node.kind
+    of 'A':
       for child in node.children:
         genFirstSet(child)
         node.firstSet.incl(child.firstSet)
         if not child.optional:
           break
-    of "F":
+    of 'F':
       for child in node.children:
         genFirstSet(child)
         node.firstSet.incl(child.firstSet)
@@ -331,12 +352,12 @@ proc genFirstSet(node: GrammarNode, allChildren = false) =
 
 proc genFirstSet(grammar: Grammar) =
   genFirstSet(grammar.rootNode)
-  firstSet[grammar.name] = grammar.rootNode.firstSet
+  firstSet[grammar.token] = grammar.rootNode.firstSet
 
 
 proc genFirstSet =
   for grammar in grammarSeq:
-    if firstSet.hasKey(grammar.name):
+    if firstSet.hasKey(grammar.token):
       continue
     genFirstSet(grammar)
   # generate first set for every node
@@ -351,19 +372,19 @@ proc validateFirstSet =
     while 0 < toVisit.len:
       var curNode = toVisit.pop
       assert curNode != nil
-      for child in curNode.children:
-        if child.name == "A" or child.name == "F":
-          toVisit.add(child)
-      case curNode.name
-      of "A": 
+      if not curNode.isTerminator:
+        for child in curNode.children:
+          if child.kind == 'A' or child.kind == 'F':
+            toVisit.add(child)
+      case curNode.kind
+      of 'A': 
         var i: int
         while i < curNode.children.len:
           var child = curNode.children[i]
-          var accumulate: HashSet[string]
-          accumulate.init
+          var accumulate: set[Token]
           while child.optional:
-            if (accumulate * child.firstSet).len != 0:
-              echo fmt"Conflict for {grammar.name} in A"
+            if (accumulate * child.firstSet).card != 0:
+              echo fmt"Conflict for {grammar.token} in A"
             else:
               accumulate.incl(child.firstSet)
             inc i
@@ -371,26 +392,17 @@ proc validateFirstSet =
               break
             child = curNode.children[i]
           inc i
-      of "F":
-        var accumulate: HashSet[string]
-        accumulate.init
+      of 'F':
+        var accumulate: set[Token]
         for child in curNode.children:
-          if (child.firstSet * accumulate).len != 0:
-            echo fmt"Conflict for {grammar.name} in F"
+          if (child.firstSet * accumulate).card != 0:
+            echo fmt"Conflict for {grammar.token} in F"
           else:
             accumulate.incl(child.firstSet)
-      of "B".."E", "G", "H": # shouldn't appear in AST
+      of 'B'..'E', 'G', 'H', '+', '*', '?': # shouldn't appear in AST
         assert false
       else:
         discard
-
-
-proc genFirstTokenSet = 
-  for k, v in firstSet.pairs:
-    let tokenSet = initSet[Token]()
-    for str in v.items:
-      #tokenSet.incl(strTokenMap[str])
-      discard
 
 
 lexGrammar()
@@ -399,13 +411,11 @@ genFirstSet()
 
 validateFirstSet()
 
-# maybe necessary or not... Currently not working
-genFirstTokenSet()
 
 
 when isMainModule:
   for grammar in grammarSeq:
-    let name = grammar.name
+    discard
     #echo name & grammar.grammarString
     #echo grammar.rootNode
     #echo "### " & toSeq(firstSet[name].items).join(" ")
