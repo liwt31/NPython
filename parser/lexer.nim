@@ -32,7 +32,7 @@ proc getNextToken(input: TaintedString, idx: int): (TokenNode, int) =
   return (TokenNode(token: Token.Name, content: "sdf"), idx+1)
 
 
-proc newTokenNode(token: Token, content = ""): TokenNode = 
+proc newTokenNode*(token: Token, content = ""): TokenNode = 
   new(result)
   result.token = token
   result.content = content
@@ -98,8 +98,6 @@ proc lex*(lexer: Lexer, input: TaintedString): seq[TokenNode] =
       var node: TokenNode
       (node, idx) = getNextToken(input, idx)
       result.add(node)
-
-  result.add(newTokenNode(Token.Endmarker))
 
 
 proc interactiveShell() = 

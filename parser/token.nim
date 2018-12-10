@@ -73,7 +73,7 @@ proc readGrammarToken: seq[string] {.compileTime.} =
       continue
     if line[0] in 'a'..'z':
       var tokenString: string
-      discard line.parseUntil(tokenString, ':') # stoed in tokenString
+      discard line.parseUntil(tokenString, ':') # stored in tokenString
       result.add(tokenString)
       
 
