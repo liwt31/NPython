@@ -24,9 +24,9 @@ type
     Finished
     Error
 
-  ParseNode = ref object
-    tokenNode: TokenNode
-    children: seq[ParseNode] # children in the CST
+  ParseNode* = ref object
+    tokenNode*: TokenNode
+    children*: seq[ParseNode] # children in the CST
     grammarNodeSeq: seq[GrammarNode]  # current state in NFA
 
 
@@ -58,7 +58,7 @@ proc newParseNode(tokenNode, firstToken: TokenNode): ParseNode =
   assert toAdd != nil
   result.children.add(toAdd)
 
-proc `$`(node: ParseNode): string = 
+proc `$`*(node: ParseNode): string = 
   if node.children.len == 0:
     return fmt"{node.tokenNode}"
   var stringSeq = @[$node.tokenNode]
@@ -122,7 +122,7 @@ proc applyToken(node: ParseNode, token: TokenNode): ParseStatus =
     ParseStatus.Normal
 
 
-proc parse(input: TaintedString, mode=Mode.File): ParseNode = 
+proc parse*(input: TaintedString, mode=Mode.File): ParseNode = 
   var tokenSeq = lexString(input)
   case mode
   of Mode.File:

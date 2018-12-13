@@ -4,7 +4,7 @@ from strutils import strip
 from os import commandLineParams
 import typetraits
 
-from token import Token
+from token import Token, TokenNode
 
 type
   TokenLexer = ref object 
@@ -12,18 +12,10 @@ type
     regex: Regex
     matcher: proc(str: string)
 
-  TokenNode* = ref object
-    token*: Token
-    content*: string
-
   Lexer = ref object
     indentLevel: int
 
   SyntaxError = object of Exception
-
-
-proc `$`*(node: TokenNode): string = 
-  fmt"<{node.token}> {node.content}"
 
 var regexName = re(r"\b[a-zA-Z_]+[a-zA-Z_0-9]*\b")
 var regexNumber = re(r"\b\d+\b")

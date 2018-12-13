@@ -1,4 +1,5 @@
 import macros
+import strformat
 import sets
 import tables
 from strutils import splitLines
@@ -101,7 +102,7 @@ proc readReserveName: seq[string] {.compileTime.} =
     result.add(name)
 
 
-const grammarTokenList = readGrammarToken()
+const grammarTokenList* = readGrammarToken()
 
 
 const reserveNameList = readReserveName()
@@ -156,6 +157,15 @@ macro genMapTable(tokenTypeName, tableName: untyped): untyped =
 
 
 genMapTable(Token, strTokenMap)
+
+
+type
+  TokenNode* = ref object
+    token*: Token
+    content*: string
+
+proc `$`*(node: TokenNode): string = 
+  fmt"<{node.token}> {node.content}"
 
 when isMainModule:
   echo grammarTokenList

@@ -11,6 +11,7 @@ import deques
 import token
 import utils/utils
 
+
 type
   Repeat* {.pure.} = enum
     None
@@ -39,6 +40,8 @@ type
     firstSet*: set[Token]
     cursor: int
 
+
+const grammarLines = slurp("Grammar").split("\n")
 
 
 var 
@@ -458,8 +461,7 @@ proc matchH(grammar: Grammar): GrammarNode =
 
 
 proc lexGrammar = 
-  let text = readFile("Grammar")
-  let lines = text.splitLines()
+  let lines = grammarLines
   var 
     lineIdx = 0
   while lineIdx < lines.len():
