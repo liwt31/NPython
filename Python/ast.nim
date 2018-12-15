@@ -6,250 +6,29 @@ import strutils
 import typetraits
 import strformat
 
-import parser/token
-import parser/parser
+# things like stmt* body are recognized as stmt * body and
+# a warning about spacing will be issued
+{.warning[Spacing]: off.} 
+include asdl
+{.warning[Spacing]: on.}
 
+import Parser/token
+import Parser/parser
+import Objects/pyobject
+import Objects/boolobject
 
-macro genSimpleInherit(parent: untyped, children: varargs[untyped]): untyped = 
-  result = nnkTypeSection.newTree()
-  for child in children:
-    let nn = nnkTypeDef.newTree(
-      ident("Ast" & child.strVal), 
-      newEmptyNode(),
-      nnkRefTy.newTree(
-       nnkObjectTy.newTree(
-         newEmptyNode(),
-         nnkOfInherit.newTree(parent),
-         newEmptyNode()
-       )
-      )
-    )
-    result.add(nn)
 
 
 type
-  # don't see why use a totally different language (ASDL) just to
-  # declare some types. OOP is much clearer and simpler.
-
-  AstNodeBase = ref object of RootObj
-
-  # Types start with "Asdl" name indicates a "symbol" in ASDL
-  # builtin types
-  AsdlIdentifier = ref object of AstNodeBase
+  AstNum = ref object of AsdlExpr
     value: string
 
-  AsdlMod = ref object of AstNodeBase
+method `$`(node: AstNum): string = 
+  $node.value
 
-  AsdlStmt = ref object of AstNodeBase
-    lineno, colOffset: int
-
-  AsdlExpr = ref object of AstNodeBase
-    lineno, colOffset: int
-  
-  AsdlExprContext = ref object of AstNodeBase
-
-  AsdlSlice = ref object of AstNodeBase
-
-  AsdlBoolop = ref object of AstNodeBase
-
-  AsdlOperator = ref object of AstNodeBase
-
-  AsdlUnaryop = ref object of AstNodeBase
-
-  AsdlCmpop = ref object of AstNodeBase
-
-  AsdlComprehension = ref object of AstNodeBase
-
-  AsdlExcepthandler = ref object of AstNodeBase
-
-  AsdlArguments = ref object of AstNodeBase
-
-  AsdlArg = ref object of AstNodeBase
-
-  AsdlKeyword = ref object of AstNodeBase
-
-  AsdlAlias = ref object of AstNodeBase
-
-  AsdlWithitem = ref object of AstNodeBase
-
-
-  # camel "Ast" and camel name indicate a "terminator" in ASDL
-  AstModule = ref object of AsdlMod
-    body: seq[AsdlStmt]
-
-  AstClassDef = ref object of AsdlStmt
-    name: AsdlIdentifier
-    bases: seq[AsdlExpr]
-    keywords: seq[AsdlKeyword]
-    body: seq[AsdlStmt]
-    decoratorList: seq[AsdlExpr]
-
-  AstAssign = ref object of AsdlStmt
-    targets: seq[AsdlExpr]
-    value: AsdlExpr
-
-  AstAugAssign = ref object of AsdlStmt
-    target: AsdlExpr
-    op: AsdlOperator
-    value: AsdlExpr
-
-  AstWhile = ref object of AsdlStmt
-    test: AsdlExpr
-    body: seq[AsdlStmt]
-    orelse: seq[AsdlStmt]
-
-  AstExpr = ref object of AsdlStmt
-    value: AsdlExpr
-
-  AstBinOp = ref object of AsdlExpr
-    left: AsdlExpr
-    op: AsdlOperator
-    right: AsdlExpr
-
-  AstCompare = ref object of AsdlExpr
-    left: AsdlExpr
-    ops: seq[AsdlCmpop]
-    comparators: seq[AsdlExpr]
-
-  AstCall = ref object of AsdlExpr
-    fun: AsdlExpr # supposed to be func but func is an identifier
-    args: seq[AsdlExpr]
-    keywords: seq[AsdlKeyword]
-
-  AstName = ref object of AsdlExpr
-    id: AsdlIdentifier
-    ctx: AsdlExprContext
-
-  AstNum = ref object of AsdlExpr
-    n: AsdlIdentifier
-
-
-# `Ast` is added as prefix for every children
-genSimpleInherit(AsdlExprContext, Load, Store, Del, AugLoad, AugStore, Param)
-
-genSimpleInherit(AsdlOperator, Add, Sub, Mult, Div, Mod, Pow) # not complete
-
-genSimpleInherit(AsdlCmpop, Eq, NotEq, Lt, LtE, Gt, GtE, Is, IsNot, In, NotIn)
-
-const tab = "   "
-
-
-macro astRepr(name, code: untyped): untyped = 
-  result = nnkMethodDef.newTree(
-    nnkAccQuoted.newTree(ident("$")),
-    newEmptyNode(),
-    newEmptyNode(),
-    nnkFormalParams.newTree(
-      ident("string"),
-      newIdentDefs(ident("node"), name)
-    ),
-    newEmptyNode(),
-    newEmptyNode(),
-    code
-  )
-
-
-
-proc indent(str: string, level=1): seq[string] = 
-  var indent: string 
-  for i in 0..<level:
-    indent &= tab
-  split(str, "\n").mapIt(indent & it)
-
-
-method `$`(node: AstNodeBase): string {.base.} =
-  "!!!DUMMY!!!"
-
-astRepr AstAdd:
-  "+"
-
-astRepr AstSub:
-  "-"
-
-astRepr AstMult:
-  "*"
-
-astRepr AstDiv:
-  "/"
-
-astRepr AstMod:
-  "%"
-
-astRepr AstPow:
-  "**"
-
-astRepr AstLt:
-  "<"
-
-astRepr AstGt:
-  ">"
-
-astRepr AstNum:
-  $(node.n.value)
-
-
-astRepr AstName:
-  $(node.id.value)
-
-method `$`(node: AstBinOp): string = 
-  var stringSeq = @["BinOp " & $(node.op)]
-  stringSeq.add(indent($(node.left)))
-  stringSeq.add(indent($(node.right)))
-  stringSeq.join("\n")
-
-
-method `$`(node: AstExpr): string = 
-  $(node.value)
-
-astRepr AstCompare:
-  var stringSeq = @["Compare"]
-  stringSeq.add(indent($node.left))
-  for i in 0..<node.ops.len:
-    stringSeq.add(indent($node.ops[i]))
-    stringSeq.add(indent($node.comparators[i]))
-  stringSeq.join("\n")
-
-astRepr AstCall:
-  var stringSeq = @["Call"]
-  stringSeq.add(indent($(node.fun)))
-  if 0 < node.args.len:
-    stringSeq.add(tab & "Args")
-    for arg in node.args:
-      stringSeq.add(indent($arg, 2))
-  if 0 < node.keywords.len:
-    stringSeq.add(tab & "Keywords")
-    for kw in node.keywords:
-      stringSeq.add(indent($kw, 2))
-  stringSeq.join("\n")
-
-astRepr AstModule:
-  var stringSeq = @["Module"]
-  for child in node.body:
-    stringSeq &= indent($(child))
-  stringSeq.join("\n")
-
-
-method `$`(node: AstAssign): string = 
-  var stringSeq = @["Assign"]
-  stringSeq.add(tab & "Target")
-  for target in node.targets:
-    stringSeq.add(indent($(target), 2))
-  stringSeq.add(tab & "value")
-  stringSeq.add(indent($(node.value), 2))
-  stringSeq.join("\n")
-
-astRepr AstWhile:
-  var stringSeq = @["While"]
-  stringSeq.add(tab & "Test")
-  stringSeq.add(tab & tab & $node.test)
-  stringSeq.add(tab & "Body")
-  for child in node.body:
-    stringSeq.add(indent($child, 2))
-  stringSeq.add(tab & "OrElse")
-  for child in node.orelse:
-    stringSeq.add(indent($child, 2))
-  stringSeq.join("\n")
-
+proc newIdentifier(value: string): AsdlIdentifier = 
+  result = new AsdlIdentifier
+  result.value = value
 
 proc newAstExpr(expr: AsdlExpr): AstExpr = 
   result = new AstExpr
@@ -257,13 +36,16 @@ proc newAstExpr(expr: AsdlExpr): AstExpr =
 
 proc newAstName(tokenNode: TokenNode): AstName = 
   result = new AstName
-  result.id = new AsdlIdentifier
-  result.id.value = tokenNode.content
+  result.id = newIdentifier(tokenNode.content)
 
 proc newAstNum(tokenNode: TokenNode): AstNum = 
   result = new AstNum
-  result.n = new AsdlIdentifier
-  result.n.value = tokenNode.content
+  result.value = tokenNode.content
+
+proc newAstConstant(obj: PyObject): AstConstant = 
+  result = new AstConstant
+  result.value = new AsdlConstant 
+  result.value.value = obj
 
 
 proc newBinOp(left: AsdlExpr, op: AsdlOperator, right: AsdlExpr): AstBinOp =
@@ -273,7 +55,10 @@ proc newBinOp(left: AsdlExpr, op: AsdlOperator, right: AsdlExpr): AstBinOp =
   result.right = right
 
 proc astDecorated(parseNode: ParseNode): AsdlStmt
-proc astFuncdef(parseNode: ParseNode): AsdlStmt
+proc astFuncdef(parseNode: ParseNode): AstFunctionDef
+proc astParameters(parseNode: ParseNode): AsdlArguments
+proc astTypedArgsList(parseNode: ParseNode): AsdlArguments
+proc astTfpdef(parseNode: ParseNode): AsdlArg
 
 proc astStmt(parseNode: ParseNode): seq[AsdlStmt]
 proc astSimpleStmt(parseNode: ParseNode): seq[AsdlStmt] 
@@ -293,7 +78,7 @@ proc astAssertStmt(parseNode: ParseNode): AsdlStmt
 
 proc astCompoundStmt(parseNode: ParseNode): AsdlStmt
 proc astAsyncStmt(parseNode: ParseNode): AsdlStmt
-proc astIfStmt(parseNode: ParseNode): AsdlStmt
+proc astIfStmt(parseNode: ParseNode): AstIf
 proc astWhileStmt(parseNode: ParseNode): AstWhile
 proc astForStmt(parseNode: ParseNode): AsdlStmt
 proc astTryStmt(parseNode: ParseNode): AsdlStmt
@@ -468,19 +253,39 @@ ast decorated, [AsdlStmt]:
 ast async_funcdef, [AsdlStmt]:
   discard
   
-ast funcdef, [AsdlStmt]:
-  discard
+# funcdef  'def' NAME parameters ['->' test] ':' suite
+ast funcdef, [AstFunctionDef]:
+  result = new AstFunctionDef
+  result.name = newIdentifier(parseNode.children[1].tokenNode.content)
+  result.args = astParameters(parseNode.children[2])
+  assert parseNode.children.len == 5 # no return type annotation
+  result.body = astSuite(parseNode.children[^1])
+  assert result != nil
 
+# parameters  '(' [typedargslist] ')'
+ast parameters, [AsdlArguments]:
+  result = astTypedArgsList(parseNode.children[1])
+  
+
+#  typedargslist: (tfpdef ['=' test] (',' tfpdef ['=' test])* [',' [
+#        '*' [tfpdef] (',' tfpdef ['=' test])* [',' ['**' tfpdef [',']]]
+#      | '**' tfpdef [',']]]
+#  | '*' [tfpdef] (',' tfpdef ['=' test])* [',' ['**' tfpdef [',']]]
+#  | '**' tfpdef [','])
+# 
+# Just one tfpdef should be easy enough
+ast typedargslist, [AsdlArguments]:
+  assert parseNode.children.len == 1
+  assert parseNode.children[0].tokenNode.token == Token.tfpdef
+  result = new AsdlArguments
+  result.args.add(astTfpdef(parseNode.children[0]))
+  
+# tfpdef  NAME [':' test]
+ast tfpdef, [AsdlArg]:
+  result = new AsdlArg
+  result.arg = newIdentifier(parseNode.children[0].tokenNode.content)
+  
 #[
-ast parameters:
-  discard
-  
-ast typedargslist:
-  discard
-  
-ast tfpdef:
-  discard
-  
 ast varargslist:
   discard
   
@@ -649,8 +454,15 @@ ast compound_stmt, [AsdlStmt]:
 ast async_stmt, [AsdlStmt]:
   discard
   
-ast if_stmt, [AsdlStmt]:
-  discard
+# if_stmt  'if' test ':' suite ('elif' test ':' suite)* ['else' ':' suite]
+ast if_stmt, [AstIf]:
+  result = new AstIf
+  result.test = astTest(parseNode.children[1])
+  result.body = astSuite(parseNode.children[3])
+  if parseNode.children.len == 4:  # simple if no else
+    return
+  assert parseNode.children.len == 7 # no elif
+  result.orelse = astSuite(parseNode.children[^1])
   
 # while_stmt  'while' test ':' suite ['else' ':' suite]
 ast while_stmt, [AstWhile]:
@@ -854,7 +666,7 @@ proc astAtomExpr(parseNode: ParseNode): AsdlExpr =
 #      '[' [testlist_comp] ']' |
 #      '{' [dictorsetmaker] '}' |
 #      NAME | NUMBER | STRING+ | '...' | 'None' | 'True' | 'False')
-proc astAtom(parseNode: ParseNode): AsdlExpr = 
+ast atom, [AsdlExpr]:
   assert parseNode.children.len == 1
   let child = parseNode.children[0]
   case child.tokenNode.token
@@ -862,6 +674,10 @@ proc astAtom(parseNode: ParseNode): AsdlExpr =
     result = newAstName(child.tokenNode)
   of Token.NUMBER:
     result = newAstNum(child.tokenNode)
+  of Token.True:
+    result = newAstConstant(pyTrueObj)
+  of Token.False:
+    result = newAstConstant(pyFalseObj)
   else:
     assert false
   
