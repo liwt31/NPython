@@ -10,14 +10,7 @@ import lexer
 import token
 import utils/utils
 
-
-
 type
-
-  Mode {.pure.} = enum
-    Single
-    File
-    Eval
 
   ParseStatus {.pure.} = enum
     Normal
@@ -123,20 +116,14 @@ proc applyToken(node: ParseNode, token: TokenNode): ParseStatus =
 
 
 proc parse*(input: TaintedString, mode=Mode.File): ParseNode = 
-  var tokenSeq = lexString(input)
-  case mode
-  of Mode.File:
-    tokenSeq.add(newTokenNode(Token.Newline))
-    tokenSeq.add(newTokenNode(Token.Endmarker))
-  of Mode.Single:
-    discard
-  of Mode.Eval:
-    tokenSeq.add(newTokenNode(Token.Endmarker))
+  var tokenSeq = lexString(input, mode)
   let firstToken = tokenSeq[0]
   #echo tokenSeq
   result = newParseNode(newTokenNode(Token.file_input), firstToken)
   for token in tokenSeq[1..^1]:
-    echo result.applyToken(token)
+    let status = result.applyToken(token)
+    echo fmt"{status}, {token}"
+
 
 when isMainModule:
   let args = commandLineParams()

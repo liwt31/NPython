@@ -1,4 +1,5 @@
 import macros
+import sequtils
 import strformat
 import sets
 import tables
@@ -62,7 +63,8 @@ const
               ("@"         , "At"),
               ("@="        , "Atequal"),
               ("->"        , "Rarrow"),
-              ("..."       , "Ellipsi")
+              ("..."       , "Ellipsi"),
+              ("<>"        , "PEP401"),
   ]
 
 
@@ -78,16 +80,16 @@ proc readGrammarToken: seq[string] {.compileTime.} =
       result.add(tokenString)
       
 
-proc readReserveName: seq[string] {.compileTime.} = 
+proc readReserveName: HashSet[string] {.compileTime.} = 
   let text = slurp(grammarFileName)
-  var nameSet = initSet[string]()
+  result = initSet[string]()
   var idx = 0
   while idx < text.len:
     case text[idx]
     of '\'':
       inc idx
       let l = text.skipUntil('\'', idx)
-      nameSet.incl(text[idx..<idx+l])
+      result.incl(text[idx..<idx+l])
       idx.inc(l+1)
     of '#':
       idx.inc(text.skipUntil('\n', idx))
@@ -96,16 +98,12 @@ proc readReserveName: seq[string] {.compileTime.} =
       inc idx
    
   for t in basicToken:
-    nameSet.excl(t[0])
-
-  for name in nameSet:
-    result.add(name)
-
+    result.excl(t[0])
 
 const grammarTokenList* = readGrammarToken()
 
 
-const reserveNameList = readReserveName()
+const reserveNameSet* = readReserveName()
 
 
 macro genTokenType(tokenTypeName, boundaryName: untyped): untyped = 
@@ -114,7 +112,7 @@ macro genTokenType(tokenTypeName, boundaryName: untyped): untyped =
   enumFields.add(ident("NULLTOKEN"))
   for t in basicToken:
     enumFields.add(ident(t[1]))
-  for t in reserveNameList:
+  for t in reserveNameSet:
     enumFields.add(ident(t))
   enumFields.add(boundaryName)
   for t in grammarTokenList:
@@ -147,7 +145,7 @@ macro genMapTable(tokenTypeName, tableName: untyped): untyped =
   for t in basicToken:
     let tokenNode = newDotExpr(tokenTypeName, ident(t[1]))
     tableNode.add(newColonExpr(newStrLitNode(t[0]), tokenNode))
-  for t in grammarTokenList & reserveNameList:
+  for t in grammarTokenList & toSeq(reserveNameSet.items):
     let tokenNode = newDotExpr(tokenTypeName, ident(t))
     tableNode.add(newColonExpr(newStrLitNode(t), tokenNode))
     
@@ -159,15 +157,26 @@ macro genMapTable(tokenTypeName, tableName: untyped): untyped =
 genMapTable(Token, strTokenMap)
 
 
+# token nodes that should have a content field
+const contentTokenSet* = {Token.Name, Token.Number, Token.String}
+
 type
   TokenNode* = ref object
-    token*: Token
-    content*: string
+    #token*: Token
+    case token*: Token
+    of contentTokenSet:
+      content*: string
+    else:
+      discard
 
 proc `$`*(node: TokenNode): string = 
-  fmt"<{node.token}> {node.content}"
+  case node.token
+  of contentTokenSet:
+    fmt"<{node.token}> {node.content}"
+  else:
+    fmt"<{node.token}>"
 
 when isMainModule:
   echo grammarTokenList
-  echo reserveNameList
+  echo reserveNameSet
   echo strTokenMap
