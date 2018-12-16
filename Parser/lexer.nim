@@ -7,6 +7,7 @@ import typetraits
 import tables
 
 import token
+from Objects/exceptions import SyntaxError
 
 type
 
@@ -104,9 +105,9 @@ proc getNextToken(lexer: Lexer, line: TaintedString, idx: var int): TokenNode =
     result = newTokenNode(Token.Newline)
     idx += 1
   else: # a dummy node
-    assert false
-    result = newTokenNode(Token.NULLTOKEN)
-    inc idx
+    raise newException(SyntaxError, "Unknown Character")
+    #result = newTokenNode(Token.NULLTOKEN)
+    #inc idx
   assert result != nil
 
 proc lex(lexer: Lexer, line: TaintedString): seq[TokenNode] = 

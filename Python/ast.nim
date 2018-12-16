@@ -339,7 +339,6 @@ ast small_stmt, [AsdlStmt]:
   
 # expr_stmt: testlist_star_expr (annassign | augassign (yield_expr|testlist) |
 #                      ('=' (yield_expr|testlist_star_expr))*)
-#proc astExprStmt(parseNode: ParseNode): AsdlStmt = 
 ast expr_stmt, [AsdlStmt]:
   let testlistStarExpr1 = astTestlistStarExpr(parseNode.children[0])
   if parseNode.children.len == 1:
@@ -362,7 +361,6 @@ ast expr_stmt, [AsdlStmt]:
 #  discard
   
 # testlist_star_expr  (test|star_expr) (',' (test|star_expr))* [',']
-#proc astTestlistStarExpr(parseNode: ParseNode): AsdlExpr = 
 ast testlist_star_expr, [AsdlExpr]:
   assert parseNode.children.len == 1
   assert parseNode.children[0].tokenNode.token == Token.test
