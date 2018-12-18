@@ -6,25 +6,13 @@ import strutils
 import typetraits
 import strformat
 
-# things like stmt* body are recognized as stmt * body and
-# a warning about spacing will be issued
-{.warning[Spacing]: off.} 
-include asdl
-{.warning[Spacing]: on.}
-
+import asdl
 import Parser/token
 import Parser/parser
 import Objects/pyobject
+import Objects/intobject
 import Objects/boolobject
 
-
-
-type
-  AstNum = ref object of AsdlExpr
-    value: string
-
-method `$`(node: AstNum): string = 
-  $node.value
 
 proc newIdentifier(value: string): AsdlIdentifier = 
   result = new AsdlIdentifier
@@ -37,10 +25,9 @@ proc newAstExpr(expr: AsdlExpr): AstExpr =
 proc newAstName(tokenNode: TokenNode): AstName = 
   result = new AstName
   result.id = newIdentifier(tokenNode.content)
-
-proc newAstNum(tokenNode: TokenNode): AstNum = 
-  result = new AstNum
-  result.value = tokenNode.content
+  # start in load because it's most common, 
+  # then we only need to take care of store (lhs of `=`)
+  result.ctx = new AstLoad
 
 proc newAstConstant(obj: PyObject): AstConstant = 
   result = new AstConstant
@@ -56,9 +43,9 @@ proc newBinOp(left: AsdlExpr, op: AsdlOperator, right: AsdlExpr): AstBinOp =
 
 proc astDecorated(parseNode: ParseNode): AsdlStmt
 proc astFuncdef(parseNode: ParseNode): AstFunctionDef
-proc astParameters(parseNode: ParseNode): AsdlArguments
-proc astTypedArgsList(parseNode: ParseNode): AsdlArguments
-proc astTfpdef(parseNode: ParseNode): AsdlArg
+proc astParameters(parseNode: ParseNode): AstArguments
+proc astTypedArgsList(parseNode: ParseNode): AstArguments
+proc astTfpdef(parseNode: ParseNode): AstArg
 
 proc astStmt(parseNode: ParseNode): seq[AsdlStmt]
 proc astSimpleStmt(parseNode: ParseNode): seq[AsdlStmt] 
@@ -109,24 +96,6 @@ proc astArgument(parseNode: ParseNode): AsdlExpr
 
 
 
-
-#[
-# base params AST for functions
-# some AST may have more params, see getParamsAst
-let paramsAstBase {.compileTime.} = @[
-  nnkBracketExpr.newTree( # function return type
-    ident("seq"),
-    ident("AstNodeBase")
-  ),  
-  newIdentDefs( # function argument (and type)
-    ident("parseNode"),
-    ident("ParseNode")
-    )
-  ]
-
-]#
-
-
 proc genParamsSeq(paramSeq: NimNode): seq[NimNode] {.compileTime.} = 
   expectKind(paramSeq, nnkBracket)
   assert 0 < paramSeq.len
@@ -140,6 +109,7 @@ proc genParamsSeq(paramSeq: NimNode): seq[NimNode] {.compileTime.} =
 
 
 proc genFuncDef(tokenIdent: NimNode, funcDef: NimNode): NimNode {.compileTime.} = 
+  # add assert type check for the function
   expectKind(funcDef, nnkStmtList)
   let assertType= nnkCommand.newTree(
     ident("assert"),
@@ -175,9 +145,6 @@ proc genFuncDef(tokenIdent: NimNode, funcDef: NimNode): NimNode {.compileTime.} 
 
 # DSL to simplify function defination
 macro ast(tokenName, paramSeq, funcDef: untyped): untyped = 
-  #let initResult = newAssignment(ident("result"), newCall("newAstNode", 
-  #  newDotExpr(ident("parseNode"), ident("tokenNode"))))
-  #let funcBody = newStmtList(initResult, funcDef)
   result = newProc(
     ident(fmt"ast_{tokenName}"), 
     genParamsSeq(paramSeq), 
@@ -222,6 +189,13 @@ macro childAst(child, astNode: untyped, tokens: varargs[Token]): untyped =
     )
   )
     
+method setStore(astNode: AstNodeBase) {.base.} = 
+  echo astNode
+  assert false
+
+method setStore(astNode: AstName) = 
+  astnode.ctx = new AstStore
+
 
 
 #[
@@ -263,7 +237,7 @@ ast funcdef, [AstFunctionDef]:
   assert result != nil
 
 # parameters  '(' [typedargslist] ')'
-ast parameters, [AsdlArguments]:
+ast parameters, [AstArguments]:
   result = astTypedArgsList(parseNode.children[1])
   
 
@@ -274,15 +248,15 @@ ast parameters, [AsdlArguments]:
 #  | '**' tfpdef [','])
 # 
 # Just one tfpdef should be easy enough
-ast typedargslist, [AsdlArguments]:
+ast typedargslist, [AstArguments]:
   assert parseNode.children.len == 1
   assert parseNode.children[0].tokenNode.token == Token.tfpdef
-  result = new AsdlArguments
+  result = new AstArguments
   result.args.add(astTfpdef(parseNode.children[0]))
   
 # tfpdef  NAME [':' test]
-ast tfpdef, [AsdlArg]:
-  result = new AsdlArg
+ast tfpdef, [AstArg]:
+  result = new AstArg
   result.arg = newIdentifier(parseNode.children[0].tokenNode.content)
   
 #[
@@ -350,6 +324,7 @@ ast expr_stmt, [AsdlStmt]:
   assert parseNode.children.len == 3
   let testlistStarExpr2 = astTestlistStarExpr(parseNode.children[2])
   var node = new AstAssign
+  testlistStarExpr1.setStore
   node.targets.add(testlistStarExpr1) 
   assert node.targets.len == 1
   node.value = testlistStarExpr2
@@ -671,7 +646,8 @@ ast atom, [AsdlExpr]:
   of Token.NAME:
     result = newAstName(child.tokenNode)
   of Token.NUMBER:
-    result = newAstNum(child.tokenNode)
+    let pyInt = newPyInt(child.tokenNode.content)
+    result = newAstConstant(pyInt)
   of Token.True:
     result = newAstConstant(pyTrueObj)
   of Token.False:
@@ -758,7 +734,7 @@ ast yield_arg:
   discard
 ]#
 
-proc ast(input: TaintedString): AstNodeBase = 
+proc ast*(input: TaintedString): AstModule = 
   let root = parse(input)
   astFileInput(root)
 

@@ -6,35 +6,35 @@ import strformat
 import Objects/pyobject
 
 type
-  AstNodeBase = ref object of RootObj
+  AstNodeBase* = ref object of RootObj
 
-  Asdlint = ref object of AstNodeBase
-    value: int
+  Asdlint* = ref object of AstNodeBase
+    value*: int
 
-  AsdlIdentifier = ref object of AstNodeBase
-    value: string
+  AsdlIdentifier* = ref object of AstNodeBase
+    value*: string
 
-  AsdlConstant = ref object of AstNodeBase
-    value: PyObject
+  AsdlConstant* = ref object of AstNodeBase
+    value*: PyObject
 
 
 proc genMember(member: NimNode): NimNode = 
   case member.kind
   of nnkCommand: # int x, etc
-    result = newIdentDefs(member[1], ident("Asdl" & $member[0]))
+    result = newIdentDefs(postFix(member[1], "*"), ident("Asdl" & $member[0]))
   of nnkInfix: # expr* a, etc
     let op = member[0]
     expectKind(op, nnkIdent)
     if op.strval == "*":
       result = newIdentDefs(
-                 member[2],
+                 postFix(member[2], "*"),
                  nnkBracketExpr.newTree(
                    ident("seq"),
                    ident("Asdl" & $member[1])
                  )
                )
     else: # don't mind `?`
-      result = newIdentDefs(member[2], ident("Asdl" & $member[1]))
+      result = newIdentDefs(postFix(member[2], "*"), ident("Asdl" & $member[1]))
   else:
     assert false
 
@@ -59,7 +59,10 @@ proc genType(def: NimNode, prefix: string, parent: string): NimNode =
       recList.add(genMember(def[i]))
 
   result = nnkTypeDef.newTree(
-    ident(prefix & getDefName(def)),
+    nnkPostFix.newTree(
+      ident("*"),
+      ident(prefix & getDefName(def)),
+    ),
     newEmptyNode(),
     nnkRefTy.newTree(
       nnkObjectTy.newTree(
@@ -71,18 +74,18 @@ proc genType(def: NimNode, prefix: string, parent: string): NimNode =
   )
 
 
-method `$`(node: AstNodeBase): string {.base.} = 
+method `$`*(node: AstNodeBase): string {.base.} = 
   # we don't want to stop here by raising errors or so
   # because printing a full tree might be helpful
   "!!!DUMMY!!!"
 
-method `$`(node: AsdlInt): string  = 
+method `$`*(node: AsdlInt): string  = 
   $node.value
 
-method `$`(node: AsdlIdentifier): string  = 
+method `$`*(node: AsdlIdentifier): string  = 
   $node.value
 
-method `$`(node: AsdlConstant): string  = 
+method `$`*(node: AsdlConstant): string  = 
   $node.value
 
 const tab = "   "
@@ -181,7 +184,10 @@ proc genMemberRepr(member: NimNode): NimNode =
 
 proc methodDeclare(prefix, name: string): NimNode = 
   result = nnkMethodDef.newTree(
-    nnkAccQuoted.newTree(ident("$")),
+    nnkPostFix.newTree(
+      ident("*"),
+      nnkAccQuoted.newTree(ident("$")),
+    ),
     newEmptyNode(),
     newEmptyNode(),
     nnkFormalParams.newTree(
@@ -257,6 +263,7 @@ macro genAsdlTypes(inputTree: untyped): untyped =
     for subType in child[1]:
       result.add(methodDeclare("Ast", getDefName(subType)))
 
+  # implementations
   for child in inputTree:
     result.add(genReprMethod(child[0], "Asdl"))
     for subType in child[1]:
@@ -371,23 +378,23 @@ genAsdlTypes:
 
   cmpop = (Eq, NotEq, Lt, LtE, Gt, GtE, Is, IsNot, In, NotIn)
 
-  comprehension(expr target, expr iter, expr* ifs, int is_async) = ()
+  comprehension = (Comprehension(expr target, expr iter, expr* ifs, int is_async))
 
   excepthandler(int lineno, int col_offset) = 
     (ExceptHandler(expr? type, identifier? name, stmt* body))
 
-  arguments(arg* args, arg? vararg, arg* kwonlyargs, 
-    expr* kw_defaults, arg? kwarg, expr* defaults) = ()
+  arguments = (Arguments(arg* args, arg? vararg, arg* kwonlyargs, 
+                expr* kw_defaults, arg? kwarg, expr* defaults))
 
-  arg(int lineno, int col_offset, identifier arg, expr? annotation) = ()
+  arg(int lineno, int col_offset) = (Arg(identifier arg, expr? annotation))
 
   # keyword arguments supplied to call (NULL identifier for **kwargs)
-  keyword(identifier? arg, expr value) = ()
+  keyword = (Keyword(identifier? arg, expr value))
 
   # import name with optional 'as' alias.
-  alias(identifier name, identifier? asname) = ()
+  alias = (Alias(identifier name, identifier? asname))
 
-  withitem(expr context_expr, expr? optional_vars) = ()
+  withitem = (Withitem(expr context_expr, expr? optional_vars))
 
 {.warning[Spacing]: on.}
 
@@ -400,4 +407,3 @@ when isMainModule:
   name.id = x
   name.ctx = new AstLoad
   echo name
-

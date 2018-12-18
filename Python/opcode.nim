@@ -37,6 +37,7 @@ macro genOpCode(code: untyped):  untyped =
 
 genOpCode:
   (
+    NULLCODE,
     POP_TOP,
     ROT_TWO,
     ROT_THREE,
@@ -161,7 +162,28 @@ genOpCode:
     EXCEPT_HANDLER,
   )
 
+type CmpOp* {.pure.} = enum
+  Lt, Le, Eq, Ne, Gt, Ge, In, NotIn, Is, IsNot
 
 proc hasArg*(opCode: OpCode): bool = 
-  opCode < OpCode.HaveArgument
+  OpCode.HaveArgument < opCode
 
+proc genHasArgSet: set[OpCode] {.compileTime.} = 
+  for opCode in OpCode:
+    if opCode.hasArg:
+      result.incl(opCode)
+
+const hasArgSet* = genHasArgSet()
+
+const jumpSet* = {
+    OpCode.JUMP_FORWARD,
+    OpCode.JUMP_IF_FALSE_OR_POP,
+    OpCode.JUMP_IF_TRUE_OR_POP,
+    OpCode.JUMP_ABSOLUTE,
+    OpCode.POP_JUMP_IF_FALSE,
+    OpCode.POP_JUMP_IF_TRUE,
+    }
+
+
+when isMainModule:
+  echo OpCode.StoreName in hasArgSet
