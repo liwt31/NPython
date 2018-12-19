@@ -6,13 +6,14 @@ import strformat
 import tables
 
 import Objects/pyobject
-import Objects/strings
+import Objects/stringobject
+import Objects/codeobject
 import ast
 import asdl
 import opcode
 
 type
-  Instr= ref object of RootObj
+  Instr = ref object of RootObj
     opCode*: OpCode
     lineNo: int
 
@@ -48,6 +49,7 @@ type
   Compiler = ref object
     units: seq[CompilerUnit]
     
+#[
 method `$`(instr: Instr): string {. base, noSideEffect .} = 
   $instr.opCode
 
@@ -63,8 +65,10 @@ proc `$`(cb: BasicBlock): string =
     s.add(fmt"{offset:>10} {instr}")
   s.join("\n")
 
+
 proc `$`(cu: CompilerUnit): string = 
   cu.blocks.join("\n\n")
+  ]#
 
 
 # lineNo not implementated
@@ -106,6 +110,14 @@ proc newCompiler: Compiler =
   result.units.add(newCompilerUnit())
 
 
+method toArray(instr: Instr): array[2, int] {.base.} = 
+  result = [int(instr.opCode), -1]
+
+
+method toArray(instr: ArgInstr): array[2, int] =
+  result = [int(instr.opCode), instr.opArg]
+
+
 proc constantId(cu: CompilerUnit, pyObject: PyObject): int = 
   result = cu.constants.find(pyObject)
   if result != -1:
@@ -124,7 +136,7 @@ proc varId(ste: SymTableEntry, varName: string): int =
 
 proc varId(ste: SymTableEntry, asdl: AsdlIdentifier): int = 
   let varName = asdl.value
-  ste.varId(varName)
+  ste.varId(varName.nimString)
 
 
 # the top compiler unit
@@ -138,23 +150,37 @@ proc tste(c: Compiler): SymTableEntry =
 
 
 # the top code block
-proc tcb(c: Compiler): BasicBlock = 
-  c.tcu.blocks[^1]
+proc tcb(cu: CompilerUnit): BasicBlock = 
+  cu.blocks[^1]
 
+#[
+proc tcb(c: Compiler): BasicBlock = 
+  c.tcu.tcb
+]#
 
 proc len(cb: BasicBlock): int = 
   cb.instrSeq.len
 
 
+proc addOp(cu: CompilerUnit, instr: Instr) = 
+  cu.blocks[^1].instrSeq.add(instr)
+
+
 proc addOp(c: Compiler, instr: Instr) = 
-  c.tcb.instrSeq.add(instr)
+  c.tcu.addOp(instr)
 
 
 proc addBlock(c: Compiler, cb: BasicBlock) = 
   c.tcu.blocks.add(cb)
 
 
-proc assemble(cu: CompilerUnit) = 
+proc addLoadConst(cu: CompilerUnit, pyObject: PyObject) = 
+  let arg = cu.constantId(pyObject)
+  let instr = newArgInstr(OpCode.LoadConst, arg)
+  cu.addOp(instr)
+
+
+proc assemble(cu: CompilerUnit): PyCodeObject = 
   for i in 0..<cu.blocks.len-1:
     let last_block = cu.blocks[i]
     let this_block = cu.blocks[i+1]
@@ -164,15 +190,25 @@ proc assemble(cu: CompilerUnit) =
       if instr of JumpInstr:
         let jumpInstr = JumpInstr(instr)
         jumpInstr.opArg = jumpInstr.target.offset
+  if cu.tcb.seenReturn == false:
+    cu.addLoadConst(pyNone)
+    cu.addOp(newInstr(OpCode.ReturnValue))
+  result = new PyCodeObject
+  for cb in cu.blocks:
+    for instr in cb.instrSeq:
+      result.code.add(instr.toArray())
+  result.constants = cu.constants
+  result.names = newSeq[string](cu.ste.sym2id.len)
+  for sym, id in cu.ste.sym2id:
+    result.names[id] = sym
 
 
+#[
 proc assemble(c: Compiler) = 
   for cu in c.units:
     cu.assemble
-  if c.tcb.seenReturn == false:
-    let arg = c.tcu.constantId(pyNone)
-    c.addOp(newArgInstr(OpCode.LoadConst, arg))
-    c.addOp(newInstr(OpCode.ReturnValue))
+]#
+
 
 proc astOp2opCode(op: AsdlOperator): OpCode = 
   if op of AstAdd:
@@ -218,6 +254,20 @@ template compileSeq(c: Compiler, s: untyped) =
 
 method compile(c: Compiler, astNode: AstNodeBase) {.base.} = 
   echo "WARNING, ast node compile method not implemented"
+
+
+compileMethod FunctionDef:
+  assert astNode.decorator_list.len == 0
+  assert astNode.returns == nil
+  c.units.add(newCompilerUnit())
+  c.compileSeq(astNode.body)
+  let co = c.units.pop.assemble
+  c.tcu.addLoadConst(co)
+  c.tcu.addLoadConst(astNode.name.value)
+  # simplest case with argument as 0 (no flag)
+  c.addOp(newArgInstr(OpCode.MakeFunction, 0))
+  c.addOp(newArgInstr(OpCode.StoreName, c.tste.varId(astNode.name)))
+
 
 compileMethod While:
   assert astNode.orelse.len == 0
@@ -278,9 +328,7 @@ compileMethod Call:
 
 
 compileMethod Constant:
-  let arg = c.tcu.constantId(astNode.value.value)
-  let instr = newArgInstr(OpCode.LoadConst, arg)
-  c.addOp(instr)
+  c.tcu.addLoadConst(astNode.value.value)
 
 
 compileMethod Name:
@@ -324,6 +372,7 @@ when isMainModule:
   let astRoot = ast(input)
   echo astRoot
   let c = compile(astRoot)
-  c.assemble
-  echo c.tcu
+  let co = c.tcu.assemble
+  #echo c.tcu
+  echo co
 

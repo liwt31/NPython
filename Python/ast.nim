@@ -12,15 +12,18 @@ import Parser/parser
 import Objects/pyobject
 import Objects/intobject
 import Objects/boolobject
+import Objects/stringobject
 
-
-proc newIdentifier(value: string): AsdlIdentifier = 
-  result = new AsdlIdentifier
-  result.value = value
 
 proc newAstExpr(expr: AsdlExpr): AstExpr = 
   result = new AstExpr
   result.value = expr
+
+
+proc newIdentifier*(value: string): AsdlIdentifier = 
+  result = new AsdlIdentifier
+  result.value = newPyString(value)
+
 
 proc newAstName(tokenNode: TokenNode): AstName = 
   result = new AstName
@@ -33,6 +36,7 @@ proc newAstConstant(obj: PyObject): AstConstant =
   result = new AstConstant
   result.value = new AsdlConstant 
   result.value.value = obj
+
 
 
 proc newBinOp(left: AsdlExpr, op: AsdlOperator, right: AsdlExpr): AstBinOp =

@@ -4,6 +4,7 @@ import strutils
 import strformat
 
 import Objects/pyobject
+import Objects/stringobject
 
 type
   AstNodeBase* = ref object of RootObj
@@ -12,7 +13,7 @@ type
     value*: int
 
   AsdlIdentifier* = ref object of AstNodeBase
-    value*: string
+    value*: PyStringObj
 
   AsdlConstant* = ref object of AstNodeBase
     value*: PyObject
@@ -400,8 +401,7 @@ genAsdlTypes:
 
 
 when isMainModule:
-  var x = new AsdlIdentifier
-  x.value = "sdf"
+  var x = newIdentifier("sdf")
   echo x
   var name = new AstName
   name.id = x
