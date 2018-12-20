@@ -110,12 +110,12 @@ proc newCompiler: Compiler =
   result.units.add(newCompilerUnit())
 
 
-method toArray(instr: Instr): array[2, int] {.base.} = 
-  result = [int(instr.opCode), -1]
+method toTuple(instr: Instr): (int, int) {.base.} = 
+  (int(instr.opCode), -1)
 
 
-method toArray(instr: ArgInstr): array[2, int] =
-  result = [int(instr.opCode), instr.opArg]
+method toTuple(instr: ArgInstr): (int, int) =
+  (int(instr.opCode), instr.opArg)
 
 
 proc constantId(cu: CompilerUnit, pyObject: PyObject): int = 
@@ -196,11 +196,11 @@ proc assemble(cu: CompilerUnit): PyCodeObject =
   result = new PyCodeObject
   for cb in cu.blocks:
     for instr in cb.instrSeq:
-      result.code.add(instr.toArray())
+      result.code.add(instr.toTuple())
   result.constants = cu.constants
-  result.names = newSeq[string](cu.ste.sym2id.len)
+  result.names = newSeq[PyStringObject](cu.ste.sym2id.len)
   for sym, id in cu.ste.sym2id:
-    result.names[id] = sym
+    result.names[id] = sym.newPystring
 
 
 #[
@@ -256,6 +256,10 @@ method compile(c: Compiler, astNode: AstNodeBase) {.base.} =
   echo "WARNING, ast node compile method not implemented"
 
 
+compileMethod Module:
+  c.compileSeq(astNode.body)
+
+
 compileMethod FunctionDef:
   assert astNode.decorator_list.len == 0
   assert astNode.returns == nil
@@ -293,6 +297,11 @@ compileMethod If:
   c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next))
   c.compileSeq(astNode.body)
   if hasOrElse:
+    # for now JumpForward is the same as JumpAbsolute
+    # because we have no relative jump yet
+    # we only have absolute jump
+    # we use jump forward just to keep in sync with
+    # CPython implementation
     c.addOp(newJumpInstr(OpCode.JumpForward, ending))
     c.addBlock(next)
     c.compileSeq(astNode.orelse)
@@ -358,10 +367,12 @@ compileMethod Eq:
   c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.Eq)))
 
 
-proc compile(astNode: AstModule): Compiler = 
-  result = newCompiler()
-  for stmt in astNode.body:
-    result.compile(stmt)
+proc compile*(input: TaintedString): PyCodeObject = 
+  let astRoot = ast(input)
+  echo astRoot
+  let c = newCompiler()
+  c.compile(astRoot)
+  result = c.tcu.assemble
 
 
 when isMainModule:
@@ -369,10 +380,5 @@ when isMainModule:
   if len(args) < 1:
     quit("No arg provided")
   let input = readFile(args[0])
-  let astRoot = ast(input)
-  echo astRoot
-  let c = compile(astRoot)
-  let co = c.tcu.assemble
-  #echo c.tcu
-  echo co
+  echo compile(input)
 

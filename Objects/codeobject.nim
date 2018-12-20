@@ -2,14 +2,19 @@ import strformat
 import strutils
 
 import pyobject
+import stringobject
 import Python/opcode
 
 
 type
   PyCodeObject* = ref object of PyObject
-    code*: seq[array[2, int]]
+    code*: seq[(int, int)]
     constants*: seq[PyObject]
-    names*: seq[string]
+    names*: seq[PyStringObject]
+
+
+proc len*(code: PyCodeObject): int = 
+  code.code.len
 
 
 method `$`*(code: PyCodeObject): string = 
@@ -32,7 +37,7 @@ method `$`*(code: PyCodeObject): string =
           line &= " (<Code>)"
         else:
           line &= fmt" ({code.constants[opArg]})"
-      of OpCode.CallFunction:
+      of OpCode.CallFunction, jumpSet:
         discard
       else:
         line &= " (Unknown OpCode)"

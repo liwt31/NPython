@@ -8,7 +8,7 @@ import tables
 import grammar
 import lexer
 import token
-import utils/utils
+import Utils/utils
 
 type
 
@@ -102,7 +102,8 @@ proc applyToken(node: ParseNode, token: TokenNode): ParseStatus =
       discard # discard the previous success indeed..
     else:
       let msg = fmt"Grammar Node of {gn} has kind {gn.kind}"
-      raise newException(InternalError, msg)
+      echo msg
+      assert false
 
   if newGnSeq.len == 0:
     return ParseStatus.Error

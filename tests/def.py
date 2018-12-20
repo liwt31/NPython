@@ -1,5 +1,6 @@
 
 def foo(x):
-    print(x)
+    print(-x)
 
+foo(1)
 # some ccomment

@@ -3,18 +3,28 @@ import pyobject
 
 type
   PyBoolObject = ref object of PyObject
+    b: bool
 
-  PyTrueObject = ref object of PyBoolObject
-
-  PyFalseObject = ref object of PyBoolObject
-
-let pyTrueObj* = new PyTrueObject
-let pyFalseObj* = new PyFalseObject
+proc boolPyBool(self: PyObject): PyObject = 
+  self
 
 
-method `$`*(obj: PyTrueObject): string = 
-  "True"
+proc genPyBoolType: PyTypeObject = 
+  result = new PyTypeObject
+  result.methods.bool = boolPyBool
 
-method `$`*(obj: PyFalseObject): string = 
-  "False"
 
+let pyBoolType = genPyBoolType()
+
+
+proc newPyBoolObj(b: bool): PyBoolObject = 
+  result = new PyBoolObject
+  result.pyType = pyBoolType
+  result.b = b
+
+let pyTrueObj* = newPyBoolObj(true)
+let pyFalseObj* = newPyBoolObj(false)
+
+
+method `$`*(obj: PyBoolObject): string = 
+  $obj.b

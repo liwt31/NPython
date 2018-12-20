@@ -13,7 +13,7 @@ type
     value*: int
 
   AsdlIdentifier* = ref object of AstNodeBase
-    value*: PyStringObj
+    value*: PyStringObject
 
   AsdlConstant* = ref object of AstNodeBase
     value*: PyObject
@@ -399,11 +399,3 @@ genAsdlTypes:
 
 {.warning[Spacing]: on.}
 
-
-when isMainModule:
-  var x = newIdentifier("sdf")
-  echo x
-  var name = new AstName
-  name.id = x
-  name.ctx = new AstLoad
-  echo name

@@ -7,7 +7,6 @@ import typetraits
 import tables
 
 import token
-from Objects/exceptions import SyntaxError
 
 type
 

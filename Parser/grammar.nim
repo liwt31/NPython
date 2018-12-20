@@ -9,7 +9,7 @@ import tables
 import deques
 
 import token
-import utils/utils
+import Utils/utils
 
 
 type
@@ -183,7 +183,9 @@ proc genEpsilonSet(root: GrammarNode) =
     of 'a':
       discard # no need to do anything
     else:
-      raise newException(InternalError, "node kind: {curNode.kind}")
+      echo curNode.kind
+      assert false
+      #raise newException(InternalError, "node kind: {curNode.kind}")
     if not curNode.isGrammarTerminator:
       for child in curNode.children:
         toVisit.add(child)
