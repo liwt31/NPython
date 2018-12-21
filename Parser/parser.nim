@@ -8,7 +8,7 @@ import tables
 import grammar
 import lexer
 import token
-import Utils/utils
+import ../Utils/utils
 
 type
 

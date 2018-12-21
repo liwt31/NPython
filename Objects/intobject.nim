@@ -5,7 +5,7 @@ import bigints
 
 import pyobject
 import boolobject
-import Utils/utils
+import ../Utils/utils
 
 
 type 

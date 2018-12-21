@@ -3,7 +3,7 @@ import strutils
 
 import pyobject
 import stringobject
-import Python/opcode
+import ../Python/opcode
 
 
 type

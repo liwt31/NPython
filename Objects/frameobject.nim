@@ -5,7 +5,7 @@ import codeobject
 import dictobject
 import stringobject
 import methodobject
-import Python/[opcode, bltinmodule]
+import ../Python/[opcode, bltinmodule]
 
 
 

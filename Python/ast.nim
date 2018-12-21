@@ -7,12 +7,8 @@ import typetraits
 import strformat
 
 import asdl
-import Parser/token
-import Parser/parser
-import Objects/pyobject
-import Objects/intobject
-import Objects/boolobject
-import Objects/stringobject
+import ../Parser/[token, parser]
+import ../Objects/[pyobject, intobject, boolobject, stringobject]
 
 
 proc newAstExpr(expr: AsdlExpr): AstExpr = 

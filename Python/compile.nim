@@ -5,9 +5,7 @@ import macros
 import strformat
 import tables
 
-import Objects/pyobject
-import Objects/stringobject
-import Objects/codeobject
+import ../Objects/[pyobject, stringobject, codeobject]
 import ast
 import asdl
 import opcode

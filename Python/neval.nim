@@ -5,7 +5,7 @@ import strformat
 import compile
 
 import opcode
-import Objects/[pyobject, frameobject, stringobject,
+import ../Objects/[pyobject, frameobject, stringobject,
   codeobject, dictobject, methodobject, exceptions, boolobject,
   funcobject]
 import bltinmodule

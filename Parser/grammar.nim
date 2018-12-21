@@ -9,7 +9,7 @@ import tables
 import deques
 
 import token
-import Utils/utils
+import ../Utils/utils
 
 
 type
