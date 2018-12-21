@@ -1,3 +1,5 @@
+import macros
+import strutils
 import hashes
 
 type 
@@ -13,6 +15,9 @@ type
     tryeDivide: binaryFunc
     power: binaryFunc
 
+    negative: unaryFunc
+    positive: unaryFunc
+    absolute: unaryFunc
     bool: unaryFunc
 
     lt: binaryFunc
@@ -57,4 +62,57 @@ method `$`*(obj: PyNone): string =
   "None"
 
 let pyNone* = new PyNone
+
+
+proc genImple*(methodName, ObjectType, code:NimNode, params: openarray[NimNode]): NimNode= 
+
+  result = newStmtList()
+  let name = ident($methodName & $ObjectType)
+  let body = newStmtList(
+    nnkCommand.newTree(
+      ident("assert"),
+      nnkInfix.newTree(
+        ident("of"),
+        ident("selfNoCast"),
+        ObjectType
+      )
+    ),
+    newLetStmt(
+      ident("self"),
+      newCall(ObjectType, ident("selfNoCast"))
+    ),
+    code
+  )
+
+  result.add(newProc(name, params, body))
+
+  var typeObjName = $ObjectType & "Type"
+  typeObjName[0] = typeObjName[0].toLowerAscii
+  result.add(
+    newAssignment(
+      newDotExpr(
+        newDotExpr(
+          ident(typeObjName),
+          ident("methods")
+        ),
+        methodName
+      ),
+      name
+    )
+  )
+
+
+proc impleUnary*(methodName, ObjectType, code:NimNode): NimNode = 
+  let params = [ident("PyObject"), newIdentDefs(ident("selfNoCast"), ident("PyObject"))]
+  result = genImple(methodName, ObjectType, code, params)
+
+proc impleBinary*(methodName, ObjectType, code:NimNode): NimNode= 
+  let poIdent = ident("PyObject")
+  let params = [
+                 poIdent, 
+                 newIdentDefs(ident("selfNoCast"), poIdent),
+                 newIdentDefs(ident("other"), poIdent)
+               ]
+  result = genImple(methodName, ObjectType, code, params)
+
 

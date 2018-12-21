@@ -1,18 +1,20 @@
 import pyobject
+import exceptions
 
 type 
-  BltinFunction* = proc (args: seq[PyObject]): PyObject
+  BltinFuncSignature* = proc (args: seq[PyObject]): (PyObject, PyExceptionObject)
 
   PyBltinFuncObject* = ref object of PyObject
-    fun: BltinFunction
+    fun: BltinFuncSignature
 
   Pbfo = PyBltinFuncObject
 
 
-proc call*(f: Pbfo, args: seq[PyObject]): PyObject = 
+# make function defination a macro
+proc call*(f: Pbfo, args: seq[PyObject]): (PyObject, PyExceptionObject) = 
   f.fun(args)
 
 
-proc newPyBltinFuncObject*(fun: BltinFunction): Pbfo =
+proc newPyBltinFunc*(fun: BltinFuncSignature): Pbfo =
   result = new Pbfo
   result.fun = fun

@@ -52,6 +52,9 @@ proc getNextToken(lexer: Lexer, line: TaintedString, idx: var int): TokenNode =
     idx = last+1
     result = newTokenNode(Token.tokenName, line[first..last])
 
+  template notExhausted: bool = 
+    (idx < line.len - 1)
+
   case line[idx]
   of 'a'..'z', 'A'..'Z', '_': # possibly a name
     addRegexToken(Name)
@@ -75,8 +78,17 @@ proc getNextToken(lexer: Lexer, line: TaintedString, idx: var int): TokenNode =
     result = newTokenNode(Token.Greater)
     inc idx
   of '=': 
-    result = newTokenNode(Token.Equal)
-    inc idx
+    if notExhausted():
+      case line[idx+1]
+      of '=':
+        result = newTokenNode(Token.Eqequal)
+        idx += 2
+      else:
+        discard
+
+    if result == nil:
+      result = newTokenNode(Token.Equal)
+      inc idx
   of '+':
     result = newTokenNode(Token.Plus)
     inc idx
@@ -84,7 +96,7 @@ proc getNextToken(lexer: Lexer, line: TaintedString, idx: var int): TokenNode =
     result = newTokenNode(Token.Minus)
     inc idx
   of '*':
-    if idx < line.len - 1:
+    if notExhausted:
       case line[idx+1]
       of '*':
         result = newTokenNode(Token.DoubleStar)

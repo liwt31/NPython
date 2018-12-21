@@ -17,13 +17,13 @@ proc genPyBoolType: PyTypeObject =
 let pyBoolType = genPyBoolType()
 
 
-proc newPyBoolObj(b: bool): PyBoolObject = 
+proc newPyBool(b: bool): PyBoolObject = 
   result = new PyBoolObject
   result.pyType = pyBoolType
   result.b = b
 
-let pyTrueObj* = newPyBoolObj(true)
-let pyFalseObj* = newPyBoolObj(false)
+let pyTrueObj* = newPyBool(true)
+let pyFalseObj* = newPyBool(false)
 
 
 method `$`*(obj: PyBoolObject): string = 

@@ -4,16 +4,22 @@ import pyobject
 import codeobject
 import dictobject
 import stringobject
-import Python/opcode
+import methodobject
+import Python/[opcode, bltinmodule]
 
 
 
-type PyFrameObject* = ref object of PyObject
+type PyFrameObject* = ref object of PyObject 
+  prev: PyFrameObject
   code: PyCodeObject
   lastI: int
   valStack: seq[PyObject]
+  # dicts and sequences for variable lookup
   locals*: PyDictObject
   globals*: PyDictObject
+  builtins*: PyDictObject
+  # arguments of functions
+  fastLocals*: seq[PyObject]
 
 method `$`(f: PyFrameObject):string = 
   var stringSeq: seq[string]
@@ -50,12 +56,22 @@ proc nextInstr*(f: PyFrameObject): (OpCode, int) =
 proc jumpTo*(f: PyFrameObject, target: int) = 
   f.lastI = target - 1
 
-proc newPyFrame*(code: PyCodeObject): PyFrameObject = 
+
+proc setupBuiltin(f: PyFrameObject, name: string, fun: BltinFuncSignature) = 
+  f.globals[newPyString(name)] = newPyBltinFunc(fun)
+
+
+proc newPyFrame*(code: PyCodeObject, fastLocals: seq[PyObject], prevF: PyFrameObject): PyFrameObject = 
   result = new PyFrameObject
+  result.prev = prevF
   result.code = code
   result.lastI = -1
   result.locals = newPyDict()
-  result.globals = newPyDict()
-
-
+  if prevF != nil:
+    result.globals = prevF.globals.combine(prevF.locals)
+  else:
+    result.globals = newPyDict()
+  result.builtins = newPyDict()
+  result.setupBuiltin("print", builtinPrint)
+  result.fastLocals = fastLocals
 

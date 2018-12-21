@@ -18,14 +18,15 @@ proc nimString*(strObj: PyStringObject): string =
   strObj.str
 
 
-method `$`(strObj: PyStringObject): string = 
+method `$`*(strObj: PyStringObject): string = 
   "\"" & $strObj.str & "\""
 
 
-method hash(obj: PyStringObject): Hash = 
+method hash*(obj: PyStringObject): Hash = 
   return hash(obj.str)
 
-method `==`(str1, str2: PyStringObject): bool = 
+# have to define this to override the PyObject default
+method `==`*(str1, str2: PyStringObject): bool = 
   return str1.str == str2.str
 
 when isMainModule:
@@ -33,3 +34,8 @@ when isMainModule:
   let d = newPyDict()
   d[newPyString("kkk")] = newPyString("jjj")
   echo d.hasKey(newPyString("kkk"))
+  import tables
+
+  var t = initTable[PyStringObject, int]()
+  t[newPyString("kkk")] = 0
+  echo t.hasKey(newPyString("kkk"))

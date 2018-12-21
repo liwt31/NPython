@@ -36,8 +36,18 @@ type
   # Now it's done during the compilation
   # because only local vairables are considered
   SymTableEntry = ref object
-    sym2id: Table[string, int]
-   
+    # the difference between names and localVars is subtle.
+    # In runtime, py object in names are looked up in local
+    # dict and global dict by string key. 
+    # At least global dict can be modified dynamically. 
+    # whereas py object in localVars are looked up in var
+    # sequence, thus faster. localVar can't be made global
+    # def foo(x):
+    #   global x
+    # will result in an error (in CPython)
+    names: Table[PyStringObject, int]
+    localVars: Table[PyStringObject, int]
+
   # for each function, lambda, class, etc
   CompilerUnit = ref object
     ste: SymTableEntry
@@ -49,27 +59,6 @@ type
   Compiler = ref object
     units: seq[CompilerUnit]
     
-#[
-method `$`(instr: Instr): string {. base, noSideEffect .} = 
-  $instr.opCode
-
-
-method `$`(instr: ArgInstr): string {. noSideEffect .} = 
-  fmt"{instr.opCode:<20} {instr.oparg}"
-
-
-proc `$`(cb: BasicBlock): string = 
-  var s: seq[string]
-  for idx, instr in cb.instrSeq:
-    let offset = cb.offset + idx
-    s.add(fmt"{offset:>10} {instr}")
-  s.join("\n")
-
-
-proc `$`(cu: CompilerUnit): string = 
-  cu.blocks.join("\n\n")
-  ]#
-
 
 # lineNo not implementated
 proc newInstr(opCode: OpCode): Instr = 
@@ -96,7 +85,8 @@ proc newBasicBlock: BasicBlock =
 
 proc newSymTableEntry: SymTableEntry = 
   result = new SymTableEntry
-  result.sym2id = initTable[string, int]()
+  result.names = initTable[PyStringObject, int]()
+  result.localVars = initTable[PyStringObject, int]()
 
 
 proc newCompilerUnit: CompilerUnit = 
@@ -125,18 +115,31 @@ proc constantId(cu: CompilerUnit, pyObject: PyObject): int =
   result = cu.constants.len
   cu.constants.add(pyObject)
 
-proc varId(ste: SymTableEntry, varName: string): int = 
-  if ste.sym2id.hasKey(varName):
-    return ste.sym2id[varName]
+
+proc toInverseSeq(t: Table[PyStringObject, int]): seq[PyStringObject] = 
+  result = newSeq[PyStringObject](t.len)
+  for name, id in t:
+    result[id] = name
+
+
+proc hasLocal(ste: SymTableEntry, localName: PyStringObject): bool = 
+  ste.localVars.hasKey(localName)
+
+proc addLocalVar(ste: SymTableEntry, localName: PyStringObject) = 
+  ste.localVars[localName] = ste.localVars.len
+
+proc localId(ste: SymTableEntry, localName: PyStringObject): int = 
+  ste.localVars[localName]
+
+
+proc nameId(ste: SymTableEntry, nameStr: PyStringObject): int = 
+  if ste.names.hasKey(nameStr):
+    return ste.names[nameStr]
   else:
-    let newId = ste.sym2id.len
-    ste.sym2id.add(varName, newId)
+    let newId = ste.names.len
+    ste.names[nameStr] = newId
     return newId
 
-
-proc varId(ste: SymTableEntry, asdl: AsdlIdentifier): int = 
-  let varName = asdl.value
-  ste.varId(varName.nimString)
 
 
 # the top compiler unit
@@ -153,10 +156,8 @@ proc tste(c: Compiler): SymTableEntry =
 proc tcb(cu: CompilerUnit): BasicBlock = 
   cu.blocks[^1]
 
-#[
 proc tcb(c: Compiler): BasicBlock = 
   c.tcu.tcb
-]#
 
 proc len(cb: BasicBlock): int = 
   cb.instrSeq.len
@@ -181,48 +182,80 @@ proc addLoadConst(cu: CompilerUnit, pyObject: PyObject) =
 
 
 proc assemble(cu: CompilerUnit): PyCodeObject = 
+  # compute offset of opcodes
   for i in 0..<cu.blocks.len-1:
     let last_block = cu.blocks[i]
     let this_block = cu.blocks[i+1]
     this_block.offset = last_block.offset + last_block.len
+  # setup jump instruction destination
   for cb in cu.blocks:
     for instr in cb.instrSeq:
       if instr of JumpInstr:
         let jumpInstr = JumpInstr(instr)
         jumpInstr.opArg = jumpInstr.target.offset
+  # add return if not seen
   if cu.tcb.seenReturn == false:
     cu.addLoadConst(pyNone)
     cu.addOp(newInstr(OpCode.ReturnValue))
+  # convert compiler unit to code object
   result = new PyCodeObject
   for cb in cu.blocks:
     for instr in cb.instrSeq:
       result.code.add(instr.toTuple())
   result.constants = cu.constants
-  result.names = newSeq[PyStringObject](cu.ste.sym2id.len)
-  for sym, id in cu.ste.sym2id:
-    result.names[id] = sym.newPystring
+  result.names = cu.ste.names.toInverseSeq()
+  result.localVars = cu.ste.localVars.toInverseSeq()
 
 
-#[
-proc assemble(c: Compiler) = 
-  for cu in c.units:
-    cu.assemble
-]#
+macro genMapMethod(code: untyped): untyped = 
+  result = newStmtList()
+  for child in code[0]:
+    let astIdent = child[0]
+    let opCodeIdent = child[1]
+    let newMapMethod = nnkMethodDef.newTree(
+      ident("toOpCode"),
+      newEmptyNode(),
+      newEmptyNode(),
+      nnkFormalParams.newTree(
+        ident("OpCode"),
+        newIdentDefs(ident("astNode"), ident("Ast" & $astIdent))
+      ),
+      newEmptyNode(),
+      newEmptyNode(),
+      nnkStmtList.newTree(
+        nnkDotExpr.newTree(
+          ident("OpCode"),
+          opCodeIdent
+        )
+      )
+    )
+    result.add(newMapMethod)
+
+method toOpCode(op: AsdlOperator): OpCode {.base.} = 
+  assert false
 
 
-proc astOp2opCode(op: AsdlOperator): OpCode = 
-  if op of AstAdd:
-    return OpCode.BinaryAdd
-  elif op of AstSub:
-    return OpCode.BinarySubtract
-  elif op of AstMult:
-    return OpCode.BinaryMultiply
-  elif op of AstDiv:
-    return OpCode.BinaryTrueDivide
-  elif op of AstPow:
-    return OpCode.BinaryPower
-  else:
-    assert false
+genMapMethod:
+  {
+    Add: BinaryAdd,
+    Sub: BinarySubtract,
+    Mult: BinaryMultiply,
+    Div: BinaryTrueDivide,
+    Pow: BinaryPower
+  }
+
+
+method toOpCode(op: AsdlUnaryop): OpCode {.base.} = 
+  assert false
+
+#  unaryop = (Invert, Not, UAdd, USub)
+genMapMethod:
+  {
+    Invert: UnaryInvert,
+    Not: UnaryNot,
+    UAdd: UnaryPositive,
+    USub: UnaryNegative,
+  }
 
 
 macro compileMethod(astNodeName, funcDef: untyped): untyped = 
@@ -252,8 +285,54 @@ template compileSeq(c: Compiler, s: untyped) =
     c.compile(astNode)
 
 
+proc addLoadOp(c: Compiler, name: AsdlIdentifier) = 
+  let nameStr = name.value
+  let isLocal = c.tste.hasLocal(nameStr)
+
+  var
+    opArg: int
+    opCode: OpCode
+
+  if isLocal:
+    opArg = c.tste.localId(nameStr)
+  else:
+    opArg = c.tste.nameId(nameStr)
+
+  if isLocal:
+    opCode = OpCode.LoadFast
+  else:
+    opCode = OpCode.LoadName
+
+  let instr = newArgInstr(opCode, opArg)
+  c.addOp(instr)
+
+
+proc addStoreOp(c: Compiler, name: AsdlIdentifier) = 
+  let nameStr = name.value
+  let isLocal = c.tste.hasLocal(nameStr)
+
+  var
+    opArg: int
+    opCode: OpCode
+
+  if isLocal:
+    opArg = c.tste.localId(nameStr)
+  else:
+    opArg = c.tste.nameId(nameStr)
+
+  if isLocal:
+    opCode = OpCode.StoreFast
+  else:
+    opCode = OpCode.StoreName
+
+  let instr = newArgInstr(opCode, opArg)
+  c.addOp(instr)
+
+
 method compile(c: Compiler, astNode: AstNodeBase) {.base.} = 
-  echo "WARNING, ast node compile method not implemented"
+  echo "!!!WARNING, ast node compile method not implemented"
+  echo astNode
+  echo "###WARNING, ast node compile method not implemented"
 
 
 compileMethod Module:
@@ -264,13 +343,21 @@ compileMethod FunctionDef:
   assert astNode.decorator_list.len == 0
   assert astNode.returns == nil
   c.units.add(newCompilerUnit())
+  c.compile(astNode.args)
   c.compileSeq(astNode.body)
   let co = c.units.pop.assemble
   c.tcu.addLoadConst(co)
   c.tcu.addLoadConst(astNode.name.value)
   # simplest case with argument as 0 (no flag)
   c.addOp(newArgInstr(OpCode.MakeFunction, 0))
-  c.addOp(newArgInstr(OpCode.StoreName, c.tste.varId(astNode.name)))
+  c.addStoreOp(astNode.name)
+  #c.addOp(newArgInstr(OpCode.StoreName, c.tste.nameId(astNode.name.value)))
+
+
+compileMethod Return:
+  c.compile(astNode.value)
+  c.addOp(newInstr(OpCode.ReturnValue))
+  c.tcb.seenReturn = true
 
 
 compileMethod While:
@@ -313,10 +400,16 @@ compileMethod Expr:
   c.addOp(newInstr(OpCode.PopTop))
 
 
+compileMethod UnaryOp:
+  c.compile(astNode.operand)
+  let opCode = astNode.op.toOpCode
+  c.addOp(newInstr(opCode))
+
+
 compileMethod BinOp:
   c.compile(astNode.left)
   c.compile(astNode.right)
-  let opCode = astOp2opCode(astNode.op)
+  let opCode = astNode.op.toOpCode
   c.addOp(newInstr(opCode))
 
 
@@ -341,16 +434,12 @@ compileMethod Constant:
 
 
 compileMethod Name:
-  let opArg = c.tste.varId(astNode.id)
-  var instr: Instr
   if astNode.ctx of AstLoad:
-    instr = newArgInstr(OpCode.LoadName, opArg)
+    c.addLoadOp(astNode.id)
   elif astNode.ctx of AstStore:
-    instr = newArgInstr(OpCode.StoreName, opArg)
+    c.addStoreOp(astNode.id)
   else:
     assert false
-  c.addOp(instr)
-
 
 compileMethod Assign:
   assert astNode.targets.len == 1
@@ -365,6 +454,11 @@ compileMethod Gt:
 
 compileMethod Eq:
   c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.Eq)))
+
+compileMethod Arguments:
+  for idx, arg in astNode.args:
+    assert arg of AstArg
+    c.tste.addLocalvar(AstArg(arg).arg.value)
 
 
 proc compile*(input: TaintedString): PyCodeObject = 

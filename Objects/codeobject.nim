@@ -11,7 +11,10 @@ type
     code*: seq[(int, int)]
     constants*: seq[PyObject]
     names*: seq[PyStringObject]
+    localVars*: seq[PyStringObject]
 
+
+# code objects are initialized in compile.nim
 
 proc len*(code: PyCodeObject): int = 
   code.code.len
@@ -19,7 +22,9 @@ proc len*(code: PyCodeObject): int =
 
 method `$`*(code: PyCodeObject): string = 
   var s: seq[string]
-  # temperary workaround for functions
+  s.add("Names: " & $code.names)
+  s.add("Local variables: " & $code.localVars)
+  # temperary workaround for code obj in the disassembly
   var otherCodes: seq[PyCodeObject]
   for idx, opArray in code.code:
     let opCode = OpCode(opArray[0])
@@ -37,6 +42,8 @@ method `$`*(code: PyCodeObject): string =
           line &= " (<Code>)"
         else:
           line &= fmt" ({code.constants[opArg]})"
+      of OpCode.LoadFast, OpCode.StoreFast:
+        line &= fmt" ({code.localVars[opArg]})"
       of OpCode.CallFunction, jumpSet:
         discard
       else:

@@ -1,11 +1,13 @@
 import os
+import algorithm
 import strformat
 
 import compile
 
 import opcode
 import Objects/[pyobject, frameobject, stringobject,
-  codeobject, dictobject, methodobject, exceptions, boolobject]
+  codeobject, dictobject, methodobject, exceptions, boolobject,
+  funcobject]
 import bltinmodule
 
 
@@ -13,11 +15,10 @@ template doBinary(opName: untyped) =
   let op2 = f.pop
   let op1 = f.pop
   let res = op1.call(opName, op2)
-  #let res = op1.pyType.methods.opName(op1, op2)
   f.push(res)
 
 
-proc pyEvalFrame(f: PyFrameObject): (PyObject, PyExceptionObject) = 
+proc evalFrame(f: PyFrameObject): (PyObject, PyExceptionObject) = 
   var retObj: PyObject
   var retExpt: PyExceptionObject
   while not f.exhausted:
@@ -26,8 +27,15 @@ proc pyEvalFrame(f: PyFrameObject): (PyObject, PyExceptionObject) =
     of OpCode.PopTop:
       discard f.pop
 
+    of OpCode.UnaryNegative:
+      let top = f.pop
+      f.push top.call(negative)
+
     of OpCode.BinaryPower:
       doBinary(power)
+
+    of OpCode.BinaryMultiply:
+      doBinary(multiply)
 
     of OpCode.BinaryAdd:
       doBinary(add)
@@ -53,6 +61,8 @@ proc pyEvalFrame(f: PyFrameObject): (PyObject, PyExceptionObject) =
         obj = f.locals[name]
       elif f.globals.hasKey(name):
         obj = f.globals[name]
+      elif f.builtins.hasKey(name):
+        obj = f.builtins[name]
       else:
         assert false
       f.push(obj)
@@ -62,6 +72,8 @@ proc pyEvalFrame(f: PyFrameObject): (PyObject, PyExceptionObject) =
       case cmpOp
       of CmpOp.Lt:
         doBinary(lt)
+      of CmpOp.Eq:
+        doBinary(eq)
       else:
         assert false
 
@@ -76,13 +88,38 @@ proc pyEvalFrame(f: PyFrameObject): (PyObject, PyExceptionObject) =
       else:
         f.jumpTo(opArg)
 
+    of OpCode.LoadFast:
+      f.push f.fastLocals[opArg]
+
+    of OpCode.StoreFast:
+      f.fastLocals[opArg] = f.pop
+
     of OpCode.CallFunction:
       var args: seq[PyObject]
       for i in 0..<opArg:
         args.add f.pop
+      args = args.reversed
       let funcObj = f.pop
-      assert funcObj of PyBltinFuncObject
-      f.push PyBltinFuncObject(funcObj).call(args)
+      var 
+        ret: PyObject
+        err: PyExceptionObject
+      if funcObj of PyBltinFuncObject:
+        (ret, err) = PyBltinFuncObject(funcObj).call(args)
+      elif funcObj of PyFunctionObject:
+        let newF = newPyFrame(PyFunctionObject(funcObj).code, args, f)
+        (ret, err) = newF.evalFrame
+      else:
+        assert false
+      f.push ret
+
+    of OpCode.MakeFunction:
+      assert opArg == 0
+      let name = f.pop
+      assert name of PyStringObject
+      let code = f.pop
+      assert code of PyCodeObject
+      f.push newPyFunction(PyStringObject(name), PyCodeObject(code))
+
     else:
       echo fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
 
@@ -95,9 +132,6 @@ when isMainModule:
   let input = readFile(args[0])
   let co = compile(input)
   echo co
-  let f = newPyFrame(co)
-  f.globals[newPyString("print")] = newPyBltinFuncObject(builtInPrint)
-
-  var (retObj, retExp) = pyEvalFrame(f)
-  echo retObj
+  let f = newPyFrame(co, @[], nil)
+  var (retObj, retExp) = f.evalFrame
 

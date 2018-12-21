@@ -162,7 +162,6 @@ const contentTokenSet* = {Token.Name, Token.Number, Token.String}
 
 type
   TokenNode* = ref object
-    #token*: Token
     case token*: Token
     of contentTokenSet:
       content*: string

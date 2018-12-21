@@ -26,6 +26,7 @@ proc newIdentifier*(value: string): AsdlIdentifier =
 
 
 proc newAstName(tokenNode: TokenNode): AstName = 
+  assert tokenNode.token in contentTokenSet
   result = new AstName
   result.id = newIdentifier(tokenNode.content)
   # start in load because it's most common, 
@@ -45,6 +46,11 @@ proc newBinOp(left: AsdlExpr, op: AsdlOperator, right: AsdlExpr): AstBinOp =
   result.op  = op
   result.right = right
 
+proc newUnaryOp(op: AsdlUnaryop, operand: AsdlExpr): AstUnaryOp = 
+  result = new AstUnaryOp
+  result.op = op
+  result.operand = operand
+
 proc astDecorated(parseNode: ParseNode): AsdlStmt
 proc astFuncdef(parseNode: ParseNode): AstFunctionDef
 proc astParameters(parseNode: ParseNode): AstArguments
@@ -62,6 +68,10 @@ proc astPassStmt(parseNode: ParseNode): AsdlStmt
 proc astFlowStmt(parseNode: ParseNode): AsdlStmt
 proc astBreakStmt(parseNode: ParseNode): AsdlStmt
 proc astContinueStmt(parseNode: ParseNode): AsdlStmt
+proc astReturnStmt(parseNode: ParseNode): AsdlStmt
+proc astYieldStmt(parseNode: ParseNode): AsdlStmt
+proc astRaiseStmt(parseNode: ParseNode): AsdlStmt
+
 proc astImportStmt(parseNode: ParseNode): AsdlStmt
 proc astGlobalStmt(parseNode: ParseNode): AsdlStmt
 proc astNonlocalStmt(parseNode: ParseNode): AsdlStmt
@@ -94,6 +104,7 @@ proc astPower(parseNode: ParseNode): AsdlExpr
 proc astAtomExpr(parseNode: ParseNode): AsdlExpr
 proc astAtom(parseNode: ParseNode): AsdlExpr
 proc astTrailer(parseNode: ParseNode, leftExpr: AsdlExpr): AsdlExpr
+proc astTestList(parseNode: ParseNode): AsdlExpr
 proc astClassDef(parseNode: ParseNode): AstClassDef
 proc astArglist(parseNode: ParseNode, callNode: AstCall): AstCall
 proc astArgument(parseNode: ParseNode): AsdlExpr
@@ -115,7 +126,7 @@ proc genParamsSeq(paramSeq: NimNode): seq[NimNode] {.compileTime.} =
 proc genFuncDef(tokenIdent: NimNode, funcDef: NimNode): NimNode {.compileTime.} = 
   # add assert type check for the function
   expectKind(funcDef, nnkStmtList)
-  let assertType= nnkCommand.newTree(
+  let assertType = nnkCommand.newTree(
     ident("assert"),
     nnkInfix.newTree(
       ident("=="),
@@ -133,18 +144,6 @@ proc genFuncDef(tokenIdent: NimNode, funcDef: NimNode): NimNode {.compileTime.} 
     )
   )
 
-
-#[
-  let assertNotNil= nnkCommand.newTree(
-    ident("assert"),
-    nnkInfix.newTree(
-      ident("!="),
-      ident("result"),
-      newNilLit()
-    )
-  )
-  result = newStmtList(assertType, funcDef, assertNotNil)
-]#
   result = newStmtList(assertType, funcDef)
 
 # DSL to simplify function defination
@@ -356,27 +355,41 @@ proc astPassStmt(parseNode: ParseNode): AsdlStmt =
   discard
   
 
-proc astFlowStmt(parseNode: ParseNode): AsdlStmt = 
-  discard
-  
-proc astBreakStmt(parseNode: ParseNode): AsdlStmt = 
-  discard
-  
-proc astContinueStmt(parseNode: ParseNode): AsdlStmt = 
-  discard
-  
-#[
+# flow_stmt: break_stmt | continue_stmt | return_stmt | raise_stmt | yield_stmt
+ast flow_stmt, [AsdlStmt]:
+  let child = parseNode.children[0]
+  childAst(child, result, 
+    break_stmt,
+    continue_stmt,
+    return_stmt,
+    raise_stmt,
+    yield_stmt
+  )
+  assert result != nil
 
-ast return_stmt:
-  discard
+
+
+ast break_stmt, [AsdlStmt]:
+  assert false
   
-ast yield_stmt:
-  discard
+ast continue_stmt, [AsdlStmt]:
+  assert false
+
+# return_stmt: 'return' [testlist]
+ast return_stmt, [AsdlStmt]:
+  let node = new AstReturn
+  if parseNode.children.len == 0:
+    return node
+  node.value = astTestList(parseNode.children[1])
+  result = node
   
-ast raise_stmt:
-  discard
-]#
+ast yield_stmt, [AsdlStmt]:
+  assert false
   
+ast raise_stmt, [AsdlStmt]:
+  assert false
+  
+
 proc astImportStmt(parseNode: ParseNode): AsdlStmt = 
   discard
   
@@ -557,68 +570,84 @@ ast comp_op, [AsdlCmpop]:
 #ast star_expr:
 #  discard
   
-# expr  xor_expr ('|' xor_expr)*
-proc astExpr(parseNode: ParseNode): AsdlExpr = 
-  assert parseNode.children.len == 1
-  let child = parseNode.children[0]
-  assert child.tokenNode.token == Token.xor_expr
-  astXorExpr(child)
-  
-# xor_expr  and_expr ('^' and_expr)*
-proc astXorExpr(parseNode: ParseNode): AsdlExpr = 
-  assert parseNode.children.len == 1
-  let child = parseNode.children[0]
-  assert child.tokenNode.token == Token.and_expr
-  astAndExpr(child)
-  
-# and_expr  shift_expr ('&' shift_expr)*
-proc astAndExpr(parseNode: ParseNode): AsdlExpr = 
-  assert parseNode.children.len == 1
-  let child = parseNode.children[0]
-  assert child.tokenNode.token == Token.shift_expr
-  astShiftExpr(child)
-  
-# shift_expr  arith_expr (('<<'|'>>') arith_expr)*
-proc astShiftExpr(parseNode: ParseNode): AsdlExpr = 
-  assert parseNode.children.len == 1
-  let child = parseNode.children[0]
-  assert child.tokenNode.token == Token.arith_expr
-  astArithExpr(child)
-  
-# arith_expr  term (('+'|'-') term)*
-proc astArithExpr(parseNode: ParseNode): AsdlExpr = 
+# help expr, xor_expr, and_expr, shift_expr, arith_expr, term
+template astForBinOp(childAstFunc: untyped) = 
   assert parseNode.children.len mod 2 == 1
   let firstChild = parseNode.children[0]
-  let firstTerm = astTerm(firstChild)
-  result = firstTerm
+  let firstAstNode = childAstFunc(firstChild)
+  result = firstAstNode
   for idx in 1..parseNode.children.len div 2:
     var op: AsdlOperator
     case parseNode.children[2 * idx - 1].tokenNode.token
+    of Token.VBar:
+      op = new AstBitOr
+    of Token.Circumflex:
+      op = new AstBitXor
+    of Token.Amper:
+      op = new AstBitAnd
+    of Token.LeftShift:
+      op = new AstLShift
+    of Token.RightShift:
+      op = new AstRShift
     of Token.Plus:
       op = new AstAdd
     of Token.Minus:
       op = new AstSub
+    of Token.Star:
+      op = new AstMult
     else:
       assert false
 
     let secondChild = parseNode.children[2 * idx]
-    let secondTerm = astTerm(secondChild)
-    result = newBinOp(result, op, secondTerm)
+    let secondAstNode = childAstFunc(secondChild)
+    result = newBinOp(result, op, secondAstNode)
+
+
+# expr  xor_expr ('|' xor_expr)*
+ast expr, [AsdlExpr]:
+  astForBinOp(astXorExpr)
+  
+# xor_expr  and_expr ('^' and_expr)*
+ast xor_expr, [AsdlExpr]:
+  astForBinOp(astAndExpr)
+  
+# and_expr  shift_expr ('&' shift_expr)*
+ast and_expr, [AsdlExpr]:
+  astForBinOp(astShiftExpr)
+  
+# shift_expr  arith_expr (('<<'|'>>') arith_expr)*
+ast shift_expr, [AsdlExpr]:
+  astForBinOp(astArithExpr)
+  
+# arith_expr  term (('+'|'-') term)*
+ast arith_expr, [AsdlExpr]:
+  astForBinOp(astTerm)
   
 # term  factor (('*'|'@'|'/'|'%'|'//') factor)*
-proc astTerm(parseNode: ParseNode): AsdlExpr = 
-  assert parseNode.children.len == 1
-  let child = parseNode.children[0]
-  assert child.tokenNode.token == Token.factor
-  astFactor(child)
+ast term, [AsdlExpr]:
+  astForBinOp(astFactor)
   
 # factor  ('+'|'-'|'~') factor | power
-proc astFactor(parseNode: ParseNode): AsdlExpr = 
-  assert parseNode.children.len == 1
-  let child = parseNode.children[0]
-  assert child.tokenNode.token == Token.power
-  astPower(child)
-  
+ast factor, [AsdlExpr]:
+  case parseNode.children.len
+  of 1:
+    let child = parseNode.children[0]
+    assert child.tokenNode.token == Token.power
+    result = astPower(child)
+  of 2:
+    let child1 = parseNode.children[0]
+    let factor = astFactor(parseNode.children[1])
+    case child1.tokenNode.token
+    of Token.Plus:
+      result = newUnaryOp(new AstUAdd, factor)
+    of Token.Minus:
+      result = newUnaryOp(new AstUSub, factor)
+    else:
+      assert false
+    discard
+  else:
+    assert false
+    
 # power  atom_expr ['**' factor]
 proc astPower(parseNode: ParseNode): AsdlExpr = 
   let child = parseNode.children[0]
@@ -688,15 +717,27 @@ ast sliceop:
 ast exprlist:
   discard
   
-ast testlist:
-  discard
-  
-ast dictorsetmaker:
-  discard
-  
   ]#
+# testlist: test (',' test)* [',']
+ast testlist, [AsdlExpr]:
+  if parseNode.children.len == 1:
+    return ast_test(parseNode.children[0])
+  assert false
+  # below is valid but not implemented in the compiler
+  # so cancel for now
+  let node = new AstTuple
+  for child in parseNode.children:
+    if child.tokenNode.token == Token.Comma:
+      continue
+    node.elts.add astTest(child) 
+  return node
+
+  
+#ast dictorsetmaker:
+#  discard
+#  
 ast classdef, [AstClassDef]:
-  discard
+  assert false
   
 # arglist  argument (',' argument)*  [',']
 #proc astArglist(parseNode: ParseNode, callNode: AstCall): AstCall = 
@@ -740,6 +781,7 @@ ast yield_arg:
 
 proc ast*(input: TaintedString): AstModule = 
   let root = parse(input)
+  #echo root
   astFileInput(root)
 
 when isMainModule:
