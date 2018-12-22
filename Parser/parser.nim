@@ -153,7 +153,8 @@ proc parseWithState*(input: TaintedString,
     parseNode = parseNodeArg
   for token in tokenSeq:
     let status = parseNode.applyToken(token)
-    echo fmt"{status}, {token}"
+    when defined(debug):
+      echo fmt"{status}, {token}"
   newLexer.tokenNodes.clear
   result = (parseNode, newLexer)
   

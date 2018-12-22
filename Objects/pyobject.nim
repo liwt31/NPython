@@ -9,6 +9,7 @@ type
 
 
   PyMethods = tuple
+    # members os PyNumberMethods
     add: binaryFunc
     substract: binaryFunc
     multiply: binaryFunc
@@ -19,6 +20,10 @@ type
     positive: unaryFunc
     absolute: unaryFunc
     bool: unaryFunc
+
+    inplaceAdd: binaryFunc
+    inplaceSubtract: binaryFunc
+
 
     lt: binaryFunc
     le: binaryFunc

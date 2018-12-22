@@ -75,6 +75,17 @@ impleIntUnary bool:
   else:
     return pyTrueObj
 
+
+impleIntBinary inplaceAdd:
+  assert other of PyIntObject
+  self.n = self.n + PyIntObject(other).n
+
+
+impleIntBinary inplaceSubtract:
+  assert other of PyIntObject
+  self.n = self.n - PyIntObject(other).n
+
+
 impleIntBinary lt:
   assert other of PyIntObject
   if self.n < PyIntObject(other).n:

@@ -45,8 +45,12 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
 
     of OpCode.PrintExpr:
       let top = f.pop
-      var (retObj, retExcpt) = builtinPrint(@[top])
-      # todo: error handling
+      if top != pyNone:
+        var (retObj, retExcpt) = builtinPrint(@[top])
+        # todo: error handling
+      
+    of OpCode.InplaceAdd:
+      doBinary(inplaceAdd)
 
     of OpCode.ReturnValue:
       retObj = f.pop
@@ -132,7 +136,8 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
 
 
 proc runCode*(co: PyCodeObject) = 
-  echo co
+  when defined(debug):
+    echo co
   let f = newPyFrame(co, @[], nil)
   var (retObj, retExp) = f.evalFrame
 

@@ -63,7 +63,7 @@ const
               ("@"         , "At"),
               ("@="        , "Atequal"),
               ("->"        , "Rarrow"),
-              ("..."       , "Ellipsi"),
+              ("..."       , "Ellipsis"),
               ("<>"        , "PEP401"),
   ]
 

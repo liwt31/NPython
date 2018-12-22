@@ -207,13 +207,13 @@ proc assemble(cu: CompilerUnit): PyCodeObject =
   result.localVars = cu.ste.localVars.toInverseSeq()
 
 
-macro genMapMethod(code: untyped): untyped = 
+macro genMapMethod(methodName, code: untyped): untyped = 
   result = newStmtList()
   for child in code[0]:
     let astIdent = child[0]
     let opCodeIdent = child[1]
     let newMapMethod = nnkMethodDef.newTree(
-      ident("toOpCode"),
+      methodName,
       newEmptyNode(),
       newEmptyNode(),
       nnkFormalParams.newTree(
@@ -235,7 +235,7 @@ method toOpCode(op: AsdlOperator): OpCode {.base.} =
   assert false
 
 
-genMapMethod:
+genMapMethod toOpCode:
   {
     Add: BinaryAdd,
     Sub: BinarySubtract,
@@ -249,12 +249,21 @@ method toOpCode(op: AsdlUnaryop): OpCode {.base.} =
   assert false
 
 #  unaryop = (Invert, Not, UAdd, USub)
-genMapMethod:
+genMapMethod toOpCode:
   {
     Invert: UnaryInvert,
     Not: UnaryNot,
     UAdd: UnaryPositive,
     USub: UnaryNegative,
+  }
+
+method toInplaceOpCode(op: AsdlOperator): OpCode {.base} = 
+  assert false
+
+genMapMethod toInplaceOpCode:
+  {
+    Add: InplaceAdd,
+    Sub: InplaceSubtract,
   }
 
 
@@ -365,6 +374,20 @@ compileMethod Return:
   c.tcb.seenReturn = true
 
 
+compileMethod Assign:
+  assert astNode.targets.len == 1
+  c.compile(astNode.value)
+  c.compile(astNode.targets[0])
+
+
+compileMethod AugAssign:
+  # don't do augassign as it's complicated and not necessary
+  assert false
+  c.compile(astNode.target)
+  c.compile(astNode.value)
+  c.addOp(newInstr(astNode.op.toInplaceOpCode))
+
+
 compileMethod While:
   assert astNode.orelse.len == 0
   let loop = newBasicBlock()
@@ -449,11 +472,6 @@ compileMethod Name:
     c.addStoreOp(astNode.id)
   else:
     assert false
-
-compileMethod Assign:
-  assert astNode.targets.len == 1
-  c.compile(astNode.value)
-  c.compile(astNode.targets[0])
 
 compileMethod Lt:
   c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.Lt)))

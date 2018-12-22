@@ -27,12 +27,13 @@ proc interactiveShell =
       quit(0)
 
     (rootCst, lexer) = parseWithState(input, Mode.Single, rootCst, lexer)
-    echo rootCst
+    #echo rootCst
     finished = rootCst.finished
-    echo fmt"Finished: {finished}"
+    #echo fmt"Finished: {finished}"
     if finished:
       let co = compile(rootCst)
-      echo co
+      when defined(debug):
+        echo co
       let f = newPyFrame(co, @[], prevF)
       var (retObj, retExp) = f.evalFrame
       prevF = f

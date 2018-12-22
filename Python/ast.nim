@@ -57,6 +57,7 @@ proc astSimpleStmt(parseNode: ParseNode): seq[AsdlStmt]
 proc astSmallStmt(parseNode: ParseNode): AsdlStmt
 proc astExprStmt(parseNode: ParseNode): AsdlStmt
 proc astTestlistStarExpr(parseNode: ParseNode): AsdlExpr
+proc astAugAssign(parseNode: ParseNode): AsdlOperator
 
 proc astDelStmt(parseNode: ParseNode): AsdlStmt
 proc astPassStmt(parseNode: ParseNode): AsdlStmt
@@ -336,16 +337,30 @@ ast expr_stmt, [AsdlStmt]:
     result = newAstExpr(testlistStarExpr1)
     assert result != nil
     return
-  # simple cases like `x=1`
-  assert parseNode.children[1].tokenNode.token == Token.Equal
-  assert parseNode.children.len == 3
-  let testlistStarExpr2 = astTestlistStarExpr(parseNode.children[2])
-  var node = new AstAssign
-  testlistStarExpr1.setStore
-  node.targets.add(testlistStarExpr1) 
-  assert node.targets.len == 1
-  node.value = testlistStarExpr2
-  result = node
+  
+  case parseNode.children[1].tokenNode.token
+  of Token.Equal: # simple cases like `x=1`
+    assert parseNode.children.len == 3
+    let testlistStarExpr2 = astTestlistStarExpr(parseNode.children[2])
+    let node = new AstAssign
+    testlistStarExpr1.setStore
+    node.targets.add(testlistStarExpr1) 
+    assert node.targets.len == 1
+    node.value = testlistStarExpr2
+    result = node
+  of Token.augassign: # `x += 1` like
+    assert false
+    assert parseNode.children.len == 3
+    let op = astAugAssign(parseNode.children[1])
+    let testlist2 = astTestlist(parseNode.children[2])
+    let node = new AstAugAssign
+    node.target = testlistStarExpr1
+    node.op = op
+    node.value = testlist2
+    result = node
+  else:
+    assert false
+
   assert result != nil
 
   
@@ -359,8 +374,18 @@ ast testlist_star_expr, [AsdlExpr]:
   result = ast_test(parseNode.children[0])
   assert result != nil
   
-#ast augassign:
-#  discard
+
+# augassign: ('+=' | '-=' | '*=' | '@=' | '/=' | '%=' | '&=' | '|=' | '^=' |
+#             '<<=' | '>>=' | '**=' | '//=')
+ast augassign, [AsdlOperator]:
+  assert false
+  case parseNode.children[0].tokenNode.token
+  of Token.PlusEqual:
+    result = new AstAdd
+  of Token.MinEqual:
+    result = new AstSub
+  else:
+    assert false
   
 proc astDelStmt(parseNode: ParseNode): AsdlStmt = 
   discard
