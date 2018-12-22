@@ -35,7 +35,6 @@ proc newAstConstant(obj: PyObject): AstConstant =
   result.value.value = obj
 
 
-
 proc newBinOp(left: AsdlExpr, op: AsdlOperator, right: AsdlExpr): AstBinOp =
   result = new AstBinOp
   result.left = left
@@ -99,6 +98,7 @@ proc astFactor(parseNode: ParseNode): AsdlExpr
 proc astPower(parseNode: ParseNode): AsdlExpr
 proc astAtomExpr(parseNode: ParseNode): AsdlExpr
 proc astAtom(parseNode: ParseNode): AsdlExpr
+proc astTestlistComp(parseNode: ParseNode): AsdlExpr
 proc astTrailer(parseNode: ParseNode, leftExpr: AsdlExpr): AsdlExpr
 proc astTestList(parseNode: ParseNode): AsdlExpr
 proc astClassDef(parseNode: ParseNode): AstClassDef
@@ -196,11 +196,23 @@ method setStore(astNode: AstName) =
   astnode.ctx = new AstStore
 
 
-
-#[
-ast single_input:
-  discard
-]#
+# single_input: NEWLINE | simple_stmt | compound_stmt NEWLINE
+ast single_input, [AstInteractive]:
+  result = new AstInteractive
+  let child = parseNode.children[0]
+  case parseNode.children.len
+  of 1:
+    case child.tokenNode.token
+    of Token.NEWLINE:
+      discard
+    of Token.simple_stmt:
+      result.body = astSimpleStmt(child)
+    else:
+      assert false
+  of 2:
+    result.body.add astCompoundStmt(child)
+  else:
+    assert false
   
 # file_input: (NEWLINE | stmt)* ENDMARKER
 ast file_input, [AstModule]:
@@ -237,7 +249,13 @@ ast funcdef, [AstFunctionDef]:
 
 # parameters  '(' [typedargslist] ')'
 ast parameters, [AstArguments]:
-  result = astTypedArgsList(parseNode.children[1])
+  case parseNode.children.len
+  of 2:
+    result = new AstArguments
+  of 3:
+    result = astTypedArgsList(parseNode.children[1])
+  else:
+    assert false
   
 
 #  typedargslist: (tfpdef ['=' test] (',' tfpdef ['=' test])* [',' [
@@ -669,13 +687,32 @@ proc astAtomExpr(parseNode: ParseNode): AsdlExpr =
 #      '{' [dictorsetmaker] '}' |
 #      NAME | NUMBER | STRING+ | '...' | 'None' | 'True' | 'False')
 ast atom, [AsdlExpr]:
-  assert parseNode.children.len == 1
-  let child = parseNode.children[0]
-  case child.tokenNode.token
+  let child1 = parseNode.children[0]
+  case child1.tokenNode.token
+  of Token.Lpar:
+    case parseNode.children.len
+    of 2:
+      assert false
+    of 3:
+      let child = parseNode.children[1]
+      case child.tokenNode.token
+      of Token.yield_expr:
+        assert false
+      of Token.testlist_comp:
+        result = astTestlistComp(child)
+      else:
+        assert false
+    else:
+      assert false
+  of Token.Lsqb:
+    assert false
+  of Token.Lbrace:
+    assert false
   of Token.NAME:
-    result = newAstName(child.tokenNode)
+    result = newAstName(child1.tokenNode)
   of Token.NUMBER:
-    let pyInt = newPyInt(child.tokenNode.content)
+    # todo: float
+    let pyInt = newPyInt(child1.tokenNode.content)
     result = newAstConstant(pyInt)
   of Token.True:
     result = newAstConstant(pyTrueObj)
@@ -683,13 +720,24 @@ ast atom, [AsdlExpr]:
     result = newAstConstant(pyFalseObj)
   else:
     assert false
+  assert result != nil
   
-#ast testlist_comp:
-#  discard
+
+# testlist_comp  (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
+# currently only used in atom
+ast testlist_comp, [AsdlExpr]:
+  case parseNode.children.len
+  of 1:
+    let child = parseNode.children[0]
+    assert child.tokenNode.token == Token.test
+    result = astTest(child)
+  else:
+    assert false
+
   
 # trailer  '(' [arglist] ')' | '[' subscriptlist ']' | '.' NAME
 proc astTrailer(parseNode: ParseNode, leftExpr: AsdlExpr): AsdlExpr = 
-  assert parseNode.children[0].tokenNode.token == Token.LPar # only function calls
+  assert parseNode.children[0].tokenNode.token == Token.Lpar # only function calls
   var callNode = new AstCall
   callNode.fun = leftExpr
   case parseNode.children.len
@@ -775,10 +823,20 @@ ast yield_arg:
   discard
 ]#
 
-proc ast*(input: TaintedString): AstModule = 
+proc ast*(root: ParseNode): AsdlModl = 
+  case root.tokenNode.token
+  of Token.file_input:
+    result = astFileInput(root)
+  of Token.single_input:
+    result = astSingleInput(root)
+  of Token.eval_input:
+    assert false
+  else:
+    assert false
+
+proc ast*(input: TaintedString): AsdlModl= 
   let root = parse(input)
-  #echo root
-  astFileInput(root)
+  ast(root)
 
 when isMainModule:
   let args = commandLineParams()

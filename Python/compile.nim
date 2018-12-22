@@ -5,6 +5,7 @@ import macros
 import strformat
 import tables
 
+import ../Parser/parser
 import ../Objects/[pyobject, stringobject, codeobject]
 import ast
 import asdl
@@ -56,6 +57,7 @@ type
 
   Compiler = ref object
     units: seq[CompilerUnit]
+    interactive: bool
     
 
 # lineNo not implementated
@@ -337,6 +339,11 @@ compileMethod Module:
   c.compileSeq(astNode.body)
 
 
+compileMethod Interactive:
+  c.interactive = true
+  c.compileSeq(astNode.body)
+
+
 compileMethod FunctionDef:
   assert astNode.decorator_list.len == 0
   assert astNode.returns == nil
@@ -395,7 +402,11 @@ compileMethod If:
 
 compileMethod Expr:
   c.compile(astNode.value)
-  c.addOp(newInstr(OpCode.PopTop))
+  if c.interactive:
+    c.addOp(newInstr(OpCode.PrintExpr))
+  else:
+    c.addOp(newInstr(OpCode.PopTop))
+
 
 
 compileMethod UnaryOp:
@@ -459,9 +470,9 @@ compileMethod Arguments:
     c.tste.addLocalvar(AstArg(arg).arg.value)
 
 
-proc compile*(input: TaintedString): PyCodeObject = 
+proc compile*(input: TaintedString | ParseNode): PyCodeObject = 
   let astRoot = ast(input)
-  echo astRoot
+  #echo astRoot
   let c = newCompiler()
   c.compile(astRoot)
   result = c.tcu.assemble

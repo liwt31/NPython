@@ -1,4 +1,5 @@
 import strformat
+import deques
 import os
 import strutils
 import sequtils
@@ -59,6 +60,17 @@ proc `$`*(node: ParseNode): string =
     stringSeq.add split($(child), "\n").mapIt("    " & it).join("\n")
   return stringSeq.join("\n")
 
+proc finished*(node: ParseNode): bool = 
+  var nonTerminatorTokenAppeared = false
+  for gn in node.grammarNodeSeq:
+    if not (successGrammarNode in gn.nextSet):
+      return false
+    if not nonTerminatorTokenAppeared and not gn.token.isTerminator:
+      nonTerminatorTokenAppeared = true
+      if not node.children[^1].finished:
+        return false
+  return true
+
 # simulate NFA directly
 proc applyToken(node: ParseNode, token: TokenNode): ParseStatus =  
   var gNodeSeq = node.grammarNodeSeq
@@ -116,19 +128,70 @@ proc applyToken(node: ParseNode, token: TokenNode): ParseStatus =
     ParseStatus.Normal
 
 
-proc parse*(input: TaintedString, mode=Mode.File): ParseNode = 
-  var tokenSeq = lexString(input, mode)
-  let firstToken = tokenSeq[0]
-  #echo tokenSeq
-  result = newParseNode(newTokenNode(Token.file_input), firstToken)
-  for token in tokenSeq[1..^1]:
-    let status = result.applyToken(token)
+proc parseWithState*(input: TaintedString, 
+                     mode=Mode.File, 
+                     parseNodeArg: ParseNode = nil,
+                     lexer: Lexer = nil
+                     ): (ParseNode, Lexer) = 
+
+  let newLexer = lexString(input, mode, lexer)
+  var tokenSeq = newLexer.tokenNodes
+  var parseNode: ParseNode
+  
+  if parseNodeArg == nil:
+    let firstToken = tokenSeq.popFirst
+    var rootToken: Token
+    case mode
+    of Mode.Single:
+      rootToken = Token.single_input
+    of Mode.File:
+      rootToken = Token.file_input
+    of Mode.Eval:
+      rootToken = Token.eval_input
+    parseNode = newParseNode(newTokenNode(rootToken), firstToken)
+  else:
+    parseNode = parseNodeArg
+  for token in tokenSeq:
+    let status = parseNode.applyToken(token)
     echo fmt"{status}, {token}"
+  newLexer.tokenNodes.clear
+  result = (parseNode, newLexer)
+  
+
+
+proc interactiveShell = 
+  var finished = true
+  var rootCst: ParseNode
+  var lexer: Lexer
+  while true:
+    var input: TaintedString
+    if finished:
+      stdout.write(">>> ")
+    else:
+      stdout.write("... ")
+
+    try:
+      input = stdin.readline()
+    except EOFError:
+      quit(0)
+
+    (rootCst, lexer) = parseWithState(input, Mode.Single, rootCst, lexer)
+    echo rootCst
+    finished = rootCst.finished
+    echo fmt"Finished: {finished}"
+    if finished:
+      rootCst = nil
+
+
+proc parse*(input: TaintedString, mode=Mode.File): ParseNode = 
+  parseWithState(input, mode)[0]
 
 
 when isMainModule:
   let args = commandLineParams()
   if len(args) < 1:
-    quit("No arg provided")
+    interactiveShell()
   let input = readFile(args[0])
-  echo parse(input)
+  var parseNode = parse(input)
+  echo parseNode
+  echo parseNode.finished

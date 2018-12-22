@@ -5,10 +5,10 @@ import strformat
 import compile
 
 import opcode
+import bltinmodule
 import ../Objects/[pyobject, frameobject, stringobject,
   codeobject, dictobject, methodobject, exceptions, boolobject,
   funcobject]
-import bltinmodule
 
 
 template doBinary(opName: untyped) =
@@ -18,7 +18,7 @@ template doBinary(opName: untyped) =
   f.push(res)
 
 
-proc evalFrame(f: PyFrameObject): (PyObject, PyExceptionObject) = 
+proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) = 
   var retObj: PyObject
   var retExpt: PyExceptionObject
   while not f.exhausted:
@@ -42,6 +42,11 @@ proc evalFrame(f: PyFrameObject): (PyObject, PyExceptionObject) =
 
     of OpCode.BinarySubtract:
       doBinary(substract)
+
+    of OpCode.PrintExpr:
+      let top = f.pop
+      var (retObj, retExcpt) = builtinPrint(@[top])
+      # todo: error handling
 
     of OpCode.ReturnValue:
       retObj = f.pop
@@ -125,13 +130,22 @@ proc evalFrame(f: PyFrameObject): (PyObject, PyExceptionObject) =
 
   result = (retObj, retExpt)
 
+
+proc runCode*(co: PyCodeObject) = 
+  echo co
+  let f = newPyFrame(co, @[], nil)
+  var (retObj, retExp) = f.evalFrame
+
+
+proc runString*(input: TaintedString) = 
+  let co = compile(input)
+  runCode(co)
+
+
 when isMainModule:
   let args = commandLineParams()
   if len(args) < 1:
     quit("No arg provided")
   let input = readFile(args[0])
-  let co = compile(input)
-  echo co
-  let f = newPyFrame(co, @[], nil)
-  var (retObj, retExp) = f.evalFrame
+  input.runString
 

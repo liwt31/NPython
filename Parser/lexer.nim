@@ -1,4 +1,5 @@
 import re
+import deques
 import sets
 import strformat
 import strutils
@@ -15,11 +16,10 @@ type
     File
     Eval
 
-  Lexer = ref object
+  Lexer* = ref object
     indentLevel: int
     nestingLevel: int
-
-  SyntaxError = object of Exception
+    tokenNodes*: Deque[TokenNode] # might be consumed by parser
 
 var regexName = re(r"\b[a-zA-Z_]+[a-zA-Z_0-9]*\b")
 var regexNumber = re(r"\b\d+\b")
@@ -40,9 +40,22 @@ proc newTokenNode*(token: Token, content = ""): TokenNode =
   assert result.token != Token.NULLTOKEN
 
 
-proc newLexer(): Lexer = 
+# call lexString is better than using a Lexer directly
+proc newLexer: Lexer = 
   new result
+  result.tokenNodes = initDeque[TokenNode]()
 
+proc add(lexer: Lexer, token: TokenNode) = 
+  lexer.tokenNodes.addLast(token)
+
+proc add(lexer: Lexer, token: Token) = 
+  lexer.add(newTokenNode(token))
+
+
+proc dedentAll*(lexer: Lexer) = 
+  while lexer.indentLevel != 0:
+    lexer.add(Token.Dedent)
+    dec lexer.indentLevel
 
 proc getNextToken(lexer: Lexer, line: TaintedString, idx: var int): TokenNode = 
   template addRegexToken(tokenName) =
@@ -71,7 +84,30 @@ proc getNextToken(lexer: Lexer, line: TaintedString, idx: var int): TokenNode =
   of ':':
     result = newTokenNode(Token.Colon)
     inc idx
-  of '<': # todo: get 2 char lexer working (+= etc.)
+  of ',':
+    result = newTokenNode(Token.Comma)
+    inc idx
+  of ';':
+    result = newTokenNode(Token.Semi)
+    inc idx
+  of '+': # todo: get 2 char lexer working (+= etc.)
+    result = newTokenNode(Token.Plus)
+    inc idx
+  of '-':
+    result = newTokenNode(Token.Minus)
+    inc idx
+  of '*':
+    if notExhausted:
+      case line[idx+1]
+      of '*':
+        result = newTokenNode(Token.DoubleStar)
+        idx += 2
+      else: # a failed attempt, simply let it go
+        discard
+    if result == nil:
+      result = newTokenNode(Token.Star)
+      inc idx
+  of '<': 
     result = newTokenNode(Token.Less)
     inc idx
   of '>':
@@ -89,23 +125,6 @@ proc getNextToken(lexer: Lexer, line: TaintedString, idx: var int): TokenNode =
     if result == nil:
       result = newTokenNode(Token.Equal)
       inc idx
-  of '+':
-    result = newTokenNode(Token.Plus)
-    inc idx
-  of '-':
-    result = newTokenNode(Token.Minus)
-    inc idx
-  of '*':
-    if notExhausted:
-      case line[idx+1]
-      of '*':
-        result = newTokenNode(Token.DoubleStar)
-        idx += 2
-      else: # a failed attempt, simply let it go
-        discard
-    if result == nil:
-      result = newTokenNode(Token.Star)
-      inc idx
   of '/':
     result = newTokenNode(Token.Slash)
     inc idx
@@ -116,12 +135,10 @@ proc getNextToken(lexer: Lexer, line: TaintedString, idx: var int): TokenNode =
     result = newTokenNode(Token.Newline)
     idx += 1
   else: # a dummy node
-    raise newException(SyntaxError, "Unknown Character")
-    #result = newTokenNode(Token.NULLTOKEN)
-    #inc idx
+    echo "Unknwon Character"
   assert result != nil
 
-proc lex(lexer: Lexer, line: TaintedString): seq[TokenNode] = 
+proc lex(lexer: Lexer, line: TaintedString) = 
   # process one line at a time
   assert line.find("\n") == -1
 
@@ -133,18 +150,19 @@ proc lex(lexer: Lexer, line: TaintedString): seq[TokenNode] =
     return
 
   if idx mod 4 != 0:
-    raise newException(SyntaxError, "Wrong indentation")
+    echo "Wrong indentation"
+    assert false
   let indentLevel = idx div 4
   let diff = indentLevel - lexer.indentLevel 
   case diff:
     of low(int).. -1:
       for i in diff..<0:
-        result.add(newTokenNode(Token.Dedent))
+        lexer.add(Token.Dedent)
     of 0:
       discard
     else:
       for i in 0..<diff:
-        result.add(newTokenNode(Token.Indent))
+        lexer.add(Token.Indent)
   lexer.indentLevel = indentLevel
 
   while idx < line.len:
@@ -152,8 +170,8 @@ proc lex(lexer: Lexer, line: TaintedString): seq[TokenNode] =
     of ' ':
       inc idx
     else:
-      result.add(getNextToken(lexer, line, idx))
-  result.add(newTokenNode(Token.NEWLINE))
+      lexer.add(getNextToken(lexer, line, idx))
+  lexer.add(Token.NEWLINE)
 
 
 proc interactiveShell() = 
@@ -165,36 +183,36 @@ proc interactiveShell() =
       input = stdin.readline()
     except EOFError:
       quit(0)
-    var node_seq: seq[TokenNode]
-    try:
-      node_seq = lexer.lex(input)
-    except SyntaxError:
-      let
-        e = getCurrentException()
-      #echo repr(e)
-      echo "wrong syntax"
-    for node in node_seq:
+    lexer.lex(input)
+    for node in lexer.tokenNodes:
       echo node
 
 
-proc lexString*(input: TaintedString, mode=Mode.File): seq[TokenNode] = 
-  assert mode == Mode.File # currently only support file
-  let lexer = newLexer()
+proc lexString*(input: TaintedString, mode=Mode.File, lexer: Lexer = nil): Lexer  = 
+  assert mode != Mode.Eval # eval not tested
+  if lexer == nil:
+    result = newLexer()
+  else:
+    result = lexer
+
+  if mode == Mode.Single and input.len == 0:
+    result.dedentAll
+    result.add(Token.NEWLINE)
+    return
+
   for line in input.split("\n"):
-    result.add lexer.lex(line)
+    result.lex(line)
+
   case mode
   of Mode.File:
-    for i in 0..<lexer.indentLevel:
-      result.add(newTokenNode(Token.Dedent))
-    result.add(newTokenNode(Token.Endmarker))
+    result.dedentAll
+    result.add(Token.Endmarker)
   of Mode.Single:
     discard
   of Mode.Eval:
-    result.add(newTokenNode(Token.Endmarker))
-  for node in result:
+    result.add(Token.Endmarker)
+  for node in result.tokenNodes:
     echo node
-
-
 
 
 when isMainModule:
