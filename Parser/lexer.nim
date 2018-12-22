@@ -93,7 +93,6 @@ proc getNextToken(
     else:
       addSingleCharToken(tokenName1)
 
-
   case line[idx]
   of 'a'..'z', 'A'..'Z', '_': # possibly a name
     addRegexToken(Name, "Invalid identifier")

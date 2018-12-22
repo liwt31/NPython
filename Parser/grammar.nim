@@ -61,6 +61,11 @@ proc `$`*(grammarNode: GrammarNode): string
 # F -> A G                                 ast: a seq of A, if only one element, factored 
 # G -> '|' A G | \epsilon                  ast: a seq of A
 # H -> A | \epsilon                        ast: nil or single A
+#
+# Resulting AST only contains A F and a (sometimes with s as sentinel)
+# A stands for a sequence of stmt
+# F stands for an Or sequence
+# a is (grammar) terminator
 
 proc matchA(grammar: Grammar): GrammarNode  
 proc matchB(grammar: Grammar): GrammarNode  
@@ -101,19 +106,24 @@ proc newGrammarNode(name: string, tokenString=""): GrammarNode =
     raise newException(ValueError, fmt"unknown name: {name}")
 
 
+# not to confuse with token terminator
+proc isGrammarTerminator(node: GrammarNode): bool =  
+  node.kind == 'a' or node.kind == 's'
+
+
 proc newGrammar(name: string, grammarString: string): Grammar = 
   new result
   result.token = strTokenMap[name]
   result.grammarString = grammarString
   result.rootNode = matchF(result)
+  # eliminate non-terminators as root (which happens in cases such as 
+  # pass_stmt). The following procedure will be simpler this way
+  assert (not result.rootNode.isGrammarTerminator())
   result.cursor = 0
   result.rootNode.assignId
   result.rootNode.genEpsilonSet
   result.rootNode.genNextSet
 
-
-proc isGrammarTerminator(node: GrammarNode): bool =  # not to confuse with token terminator
-  node.kind == 'a' or node.kind == 's'
 
 proc childTerminator(node: GrammarNode): GrammarNode =
   if node.isGrammarTerminator:
@@ -185,7 +195,6 @@ proc genEpsilonSet(root: GrammarNode) =
     else:
       echo curNode.kind
       assert false
-      #raise newException(InternalError, "node kind: {curNode.kind}")
     if not curNode.isGrammarTerminator:
       for child in curNode.children:
         toVisit.add(child)
@@ -434,7 +443,15 @@ proc matchF(grammar: Grammar): GrammarNode =
     for child in g.children:
       result.addChild(child)
   else:
-    result = a
+    case a.kind
+    of 'a':
+      result = newGrammarNode("A")
+      result.addChild(a)
+    of 'A', 'F':
+      result = a
+    else:
+      echo a.kind
+      assert false
 
 
 proc matchG(grammar: Grammar): GrammarNode = 
@@ -519,7 +536,14 @@ proc lexGrammar =
 
 proc genFirstSet(grammar: Grammar) = 
   if grammar.rootNode.kind == 'a':
-    grammar.firstSet.incl(grammar.rootNode.token)
+    let rootToken = grammar.rootNode.token
+    if rootToken.isTerminator:
+      grammar.firstSet.incl(grammar.rootNode.token)
+    else:
+      let g = grammarSet[rootToken]
+      if not firstSet.hasKey(rootToken):
+        g.genFirstSet
+      grammar.firstSet.incl(g.firstSet)
     return
   for firstNode in grammar.rootNode.epsilonSet:
     if firstNode.token.isNonTerminator: # this is a grammar token
@@ -590,7 +614,6 @@ genFirstSet()
 when isMainModule:
   validateFirstSet()
   for grammar in grammarSet.values:
-    discard
     echo grammar
     echo "### " & toSeq(grammar.firstSet.items).join(" ")
 

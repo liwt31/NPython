@@ -83,7 +83,7 @@ proc applyToken(node: ParseNode, token: TokenNode): ParseStatus =
         if nextGn == successGrammarNode:  
           continue  # no need to worry about adding child
         if thisLayer:
-          # make sure they are the same token, otherwide beyond LL1
+          # make sure they are the same token, otherwise beyond LL1
           assert node.children[^1].tokenNode.token == nextGn.token
         else:
           thisLayer = true
