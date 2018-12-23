@@ -53,54 +53,54 @@ type
     blocks: seq[BasicBlock]
     # should use a dict, but we don't have hash and bunch of 
     # other things
-    constants: seq[PyObject] 
+    constants: seq[PyObject]
 
   Compiler = ref object
     units: seq[CompilerUnit]
     interactive: bool
-    
+
 
 # lineNo not implementated
-proc newInstr(opCode: OpCode): Instr = 
+proc newInstr(opCode: OpCode): Instr =
   assert(not (opCode in hasArgSet))
   result = new Instr
   result.opCode = opCode
 
-proc newArgInstr(opCode: OpCode, opArg: int): ArgInstr = 
+proc newArgInstr(opCode: OpCode, opArg: int): ArgInstr =
   assert opCode in hasArgSet
   result = new ArgInstr
   result.opCode = opCode
   result.opArg = opArg
 
-proc newJumpInstr(opCode: OpCode, target: BasicBlock): JumpInstr = 
+proc newJumpInstr(opCode: OpCode, target: BasicBlock): JumpInstr =
   assert opCode in jumpSet
   result = new JumpInstr
   result.opCode = opCode
-  result.opArg = -1 # dummy, set during assemble
+  result.opArg = -1           # dummy, set during assemble
   result.target = target
 
-proc newBasicBlock: BasicBlock = 
+proc newBasicBlock: BasicBlock =
   result = new BasicBlock
   result.seenReturn = false
 
-proc newSymTableEntry: SymTableEntry = 
+proc newSymTableEntry: SymTableEntry =
   result = new SymTableEntry
   result.names = initTable[PyStringObject, int]()
   result.localVars = initTable[PyStringObject, int]()
 
 
-proc newCompilerUnit: CompilerUnit = 
+proc newCompilerUnit: CompilerUnit =
   result = new CompilerUnit
   result.ste = newSymTableEntry()
   result.blocks.add(newBasicBlock())
 
 
-proc newCompiler: Compiler = 
+proc newCompiler: Compiler =
   result = new Compiler
   result.units.add(newCompilerUnit())
 
 
-method toTuple(instr: Instr): (int, int) {.base.} = 
+method toTuple(instr: Instr): (int, int) {.base.} =
   (int(instr.opCode), -1)
 
 
@@ -108,7 +108,7 @@ method toTuple(instr: ArgInstr): (int, int) =
   (int(instr.opCode), instr.opArg)
 
 
-proc constantId(cu: CompilerUnit, pyObject: PyObject): int = 
+proc constantId(cu: CompilerUnit, pyObject: PyObject): int =
   result = cu.constants.find(pyObject)
   if result != -1:
     return
@@ -116,23 +116,23 @@ proc constantId(cu: CompilerUnit, pyObject: PyObject): int =
   cu.constants.add(pyObject)
 
 
-proc toInverseSeq(t: Table[PyStringObject, int]): seq[PyStringObject] = 
+proc toInverseSeq(t: Table[PyStringObject, int]): seq[PyStringObject] =
   result = newSeq[PyStringObject](t.len)
   for name, id in t:
     result[id] = name
 
 
-proc hasLocal(ste: SymTableEntry, localName: PyStringObject): bool = 
+proc hasLocal(ste: SymTableEntry, localName: PyStringObject): bool =
   ste.localVars.hasKey(localName)
 
-proc addLocalVar(ste: SymTableEntry, localName: PyStringObject) = 
+proc addLocalVar(ste: SymTableEntry, localName: PyStringObject) =
   ste.localVars[localName] = ste.localVars.len
 
-proc localId(ste: SymTableEntry, localName: PyStringObject): int = 
+proc localId(ste: SymTableEntry, localName: PyStringObject): int =
   ste.localVars[localName]
 
 
-proc nameId(ste: SymTableEntry, nameStr: PyStringObject): int = 
+proc nameId(ste: SymTableEntry, nameStr: PyStringObject): int =
   if ste.names.hasKey(nameStr):
     return ste.names[nameStr]
   else:
@@ -143,45 +143,45 @@ proc nameId(ste: SymTableEntry, nameStr: PyStringObject): int =
 
 
 # the top compiler unit
-proc tcu(c: Compiler): CompilerUnit = 
+proc tcu(c: Compiler): CompilerUnit =
   c.units[^1]
 
 
 # the top symbal table entry
-proc tste(c: Compiler): SymTableEntry = 
+proc tste(c: Compiler): SymTableEntry =
   c.tcu.ste
 
 
 # the top code block
-proc tcb(cu: CompilerUnit): BasicBlock = 
+proc tcb(cu: CompilerUnit): BasicBlock =
   cu.blocks[^1]
 
-proc tcb(c: Compiler): BasicBlock = 
+proc tcb(c: Compiler): BasicBlock =
   c.tcu.tcb
 
-proc len(cb: BasicBlock): int = 
+proc len(cb: BasicBlock): int =
   cb.instrSeq.len
 
 
-proc addOp(cu: CompilerUnit, instr: Instr) = 
+proc addOp(cu: CompilerUnit, instr: Instr) =
   cu.blocks[^1].instrSeq.add(instr)
 
 
-proc addOp(c: Compiler, instr: Instr) = 
+proc addOp(c: Compiler, instr: Instr) =
   c.tcu.addOp(instr)
 
 
-proc addBlock(c: Compiler, cb: BasicBlock) = 
+proc addBlock(c: Compiler, cb: BasicBlock) =
   c.tcu.blocks.add(cb)
 
 
-proc addLoadConst(cu: CompilerUnit, pyObject: PyObject) = 
+proc addLoadConst(cu: CompilerUnit, pyObject: PyObject) =
   let arg = cu.constantId(pyObject)
   let instr = newArgInstr(OpCode.LoadConst, arg)
   cu.addOp(instr)
 
 
-proc assemble(cu: CompilerUnit): PyCodeObject = 
+proc assemble(cu: CompilerUnit): PyCodeObject =
   # compute offset of opcodes
   for i in 0..<cu.blocks.len-1:
     let last_block = cu.blocks[i]
@@ -207,7 +207,7 @@ proc assemble(cu: CompilerUnit): PyCodeObject =
   result.localVars = cu.ste.localVars.toInverseSeq()
 
 
-macro genMapMethod(methodName, code: untyped): untyped = 
+macro genMapMethod(methodName, code: untyped): untyped =
   result = newStmtList()
   for child in code[0]:
     let astIdent = child[0]
@@ -231,7 +231,8 @@ macro genMapMethod(methodName, code: untyped): untyped =
     )
     result.add(newMapMethod)
 
-method toOpCode(op: AsdlOperator): OpCode {.base.} = 
+method toOpCode(op: AsdlOperator): OpCode {.base.} =
+  echo op
   assert false
 
 
@@ -241,11 +242,13 @@ genMapMethod toOpCode:
     Sub: BinarySubtract,
     Mult: BinaryMultiply,
     Div: BinaryTrueDivide,
-    Pow: BinaryPower
+    Mod: BinaryModulo,
+    Pow: BinaryPower,
+    FloorDiv: BinaryFloorDivide
   }
 
 
-method toOpCode(op: AsdlUnaryop): OpCode {.base.} = 
+method toOpCode(op: AsdlUnaryop): OpCode {.base.} =
   assert false
 
 #  unaryop = (Invert, Not, UAdd, USub)
@@ -257,7 +260,7 @@ genMapMethod toOpCode:
     USub: UnaryNegative,
   }
 
-method toInplaceOpCode(op: AsdlOperator): OpCode {.base} = 
+method toInplaceOpCode(op: AsdlOperator): OpCode {.base.} =
   assert false
 
 genMapMethod toInplaceOpCode:
@@ -267,9 +270,9 @@ genMapMethod toInplaceOpCode:
   }
 
 
-macro compileMethod(astNodeName, funcDef: untyped): untyped = 
+macro compileMethod(astNodeName, funcDef: untyped): untyped =
   result = nnkMethodDef.newTree(
-    ident("compile"), 
+    ident("compile"),
     newEmptyNode(),
     newEmptyNode(),
     nnkFormalParams.newTree(
@@ -277,24 +280,24 @@ macro compileMethod(astNodeName, funcDef: untyped): untyped =
       newIdentDefs(
         ident("c"),
         ident("Compiler")
-      ),
+    ),
       newIdentDefs(
         ident("astNode"),
         ident("Ast" & $astNodeName)
-      )
-    ),
+    )
+  ),
     newEmptyNode(),
     newEmptyNode(),
     funcdef,
   )
 
 
-template compileSeq(c: Compiler, s: untyped) = 
+template compileSeq(c: Compiler, s: untyped) =
   for astNode in s:
     c.compile(astNode)
 
 
-proc addLoadOp(c: Compiler, name: AsdlIdentifier) = 
+proc addLoadOp(c: Compiler, name: AsdlIdentifier) =
   let nameStr = name.value
   let isLocal = c.tste.hasLocal(nameStr)
 
@@ -316,7 +319,7 @@ proc addLoadOp(c: Compiler, name: AsdlIdentifier) =
   c.addOp(instr)
 
 
-proc addStoreOp(c: Compiler, name: AsdlIdentifier) = 
+proc addStoreOp(c: Compiler, name: AsdlIdentifier) =
   let nameStr = name.value
   let isLocal = c.tste.hasLocal(nameStr)
 
@@ -338,7 +341,7 @@ proc addStoreOp(c: Compiler, name: AsdlIdentifier) =
   c.addOp(instr)
 
 
-method compile(c: Compiler, astNode: AstNodeBase) {.base.} = 
+method compile(c: Compiler, astNode: AstNodeBase) {.base.} =
   echo "!!!WARNING, ast node compile method not implemented"
   echo astNode
   echo "###WARNING, ast node compile method not implemented"
@@ -365,7 +368,7 @@ compileMethod FunctionDef:
   # simplest case with argument as 0 (no flag)
   c.addOp(newArgInstr(OpCode.MakeFunction, 0))
   c.addStoreOp(astNode.name)
-  #c.addOp(newArgInstr(OpCode.StoreName, c.tste.nameId(astNode.name.value)))
+#c.addOp(newArgInstr(OpCode.StoreName, c.tste.nameId(astNode.name.value)))
 
 
 compileMethod Return:
@@ -488,7 +491,7 @@ compileMethod Arguments:
     c.tste.addLocalvar(AstArg(arg).arg.value)
 
 
-proc compile*(input: TaintedString | ParseNode): PyCodeObject = 
+proc compile*(input: TaintedString | ParseNode): PyCodeObject =
   let astRoot = ast(input)
   #echo astRoot
   let c = newCompiler()

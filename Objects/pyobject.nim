@@ -9,21 +9,24 @@ type
 
 
   PyMethods = tuple
-    # members os PyNumberMethods
     add: binaryFunc
-    substract: binaryFunc
+    subtract: binaryFunc
     multiply: binaryFunc
-    tryeDivide: binaryFunc
+    trueDivide: binaryFunc
+    floorDivide: binaryFunc
+    remainder: binaryFunc
     power: binaryFunc
-
+    
+    # use uppercase to avoid conflict with nim keywords
+    Not: unaryFunc
     negative: unaryFunc
     positive: unaryFunc
     absolute: unaryFunc
     bool: unaryFunc
 
-    inplaceAdd: binaryFunc
-    inplaceSubtract: binaryFunc
-
+    And: binaryFunc
+    Xor: binaryFunc
+    Or: binaryFunc
 
     lt: binaryFunc
     le: binaryFunc
@@ -38,6 +41,7 @@ type
 
 
   PyTypeObject* = ref object of PyObject
+    name: string
     methods*: PyMethods
 
 template call*(obj: PyObject, methodName: untyped): PyObject = 
@@ -48,6 +52,47 @@ template call*(obj: PyObject, methodName: untyped, arg1: PyObject): PyObject =
 
 template call*(obj: PyObject, methodName: untyped, arg1, arg2: PyObject): PyObject = 
   obj.pyType.methods.methodName(obj, arg1, arg2)
+
+
+# some generic behaviors that every type should obey
+proc And(o1, o2: PyObject): PyObject = 
+  let b1 = o1.call(bool)
+  let b2 = o2.call(bool)
+  b1.call(And, b2)
+
+proc Xor(o1, o2: PyObject): PyObject = 
+  let b1 = o1.call(bool)
+  let b2 = o2.call(bool)
+  b1.call(Xor, b2)
+
+proc Or(o1, o2: PyObject): PyObject = 
+  let b1 = o1.call(bool)
+  let b2 = o2.call(bool)
+  b1.call(Or, b2)
+
+proc le(o1, o2: PyObject): PyObject =
+  let lt = o1.call(lt, o2)
+  let eq = o1.call(eq, o2)
+  lt.call(Or, eq)
+
+proc ne(o1, o2: PyObject): PyObject =
+  let eq = o1.call(eq, o2)
+  eq.call(Not)
+
+proc ge(o1, o2: PyObject): PyObject = 
+  let gt = o1.call(gt, o2)
+  let eq = o1.call(eq, o2)
+  gt.call(Or, eq)
+
+proc newPyType*(name: string): PyTypeObject =
+  new result
+  result.name = name
+  result.methods.And = And
+  result.methods.Xor = Xor
+  result.methods.Or = Or
+  result.methods.le = le
+  result.methods.ne = ne
+  result.methods.ge = ge
 
 method `$`*(obj: PyObject): string {.base.} = 
   "Python object"
@@ -111,6 +156,7 @@ proc impleUnary*(methodName, ObjectType, code:NimNode): NimNode =
   let params = [ident("PyObject"), newIdentDefs(ident("selfNoCast"), ident("PyObject"))]
   result = genImple(methodName, ObjectType, code, params)
 
+
 proc impleBinary*(methodName, ObjectType, code:NimNode): NimNode= 
   let poIdent = ident("PyObject")
   let params = [
@@ -119,5 +165,4 @@ proc impleBinary*(methodName, ObjectType, code:NimNode): NimNode=
                  newIdentDefs(ident("other"), poIdent)
                ]
   result = genImple(methodName, ObjectType, code, params)
-
 

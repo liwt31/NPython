@@ -1,7 +1,7 @@
 import macros
 import sequtils
 
-macro genOpCode(code: untyped):  untyped =
+macro genOpCode(code: untyped): untyped =
   result = newStmtList()
   # opcode tokens
   let children = toSeq(code[0].items) # convert to seq of nimNode
@@ -10,8 +10,8 @@ macro genOpCode(code: untyped):  untyped =
       ident("OpCode"),
       children,
       true, # public and pure
-      true
-    )
+    true
+  )
   )
 
   # generate an array of opcode as map
@@ -29,9 +29,9 @@ macro genOpCode(code: untyped):  untyped =
       nnkPostFix.newTree(
         ident("*"),
         ident("OpCodeIndex")
-      ),
+    ),
       constBrackets
-    )
+  )
   )
 
 
@@ -165,10 +165,10 @@ genOpCode:
 type CmpOp* {.pure.} = enum
   Lt, Le, Eq, Ne, Gt, Ge, In, NotIn, Is, IsNot
 
-proc hasArg*(opCode: OpCode): bool = 
+proc hasArg*(opCode: OpCode): bool =
   OpCode.HaveArgument < opCode
 
-proc genHasArgSet: set[OpCode] {.compileTime.} = 
+proc genHasArgSet: set[OpCode] {.compileTime.} =
   for opCode in OpCode:
     if opCode.hasArg:
       result.incl(opCode)

@@ -271,10 +271,13 @@ macro genAsdlTypes(inputTree: untyped): untyped =
       result.add(genReprMethod(subType, "Ast"))
 
 
-{.warning[Spacing]: off.} # things like stmt* body are recognized as stmt * body and
-                          # a warning about spacing will be issued
+# things like stmt* body are recognized as stmt * body and
+# a warning about spacing will be issued
+# nimpretty doesn't like this idea. So don't format this file
+{.warning[Spacing]: off.} 
 
 genAsdlTypes:
+
   modl = (
     Module(stmt* body), 
     Interactive(stmt* body),

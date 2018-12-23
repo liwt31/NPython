@@ -8,7 +8,7 @@ import strformat
 
 import asdl
 import ../Parser/[token, parser]
-import ../Objects/[pyobject, intobject, boolobject, stringobject]
+import ../Objects/[pyobject, numobjects, boolobject, stringobject]
 
 
 proc newAstExpr(expr: AsdlExpr): AstExpr = 
@@ -26,7 +26,7 @@ proc newAstName(tokenNode: TokenNode): AstName =
   result = new AstName
   result.id = newIdentifier(tokenNode.content)
   # start in load because it's most common, 
-  # then we only need to take care of store (lhs of `=`)
+  # then we only need to take care of store (such as lhs of `=`)
   result.ctx = new AstLoad
 
 proc newAstConstant(obj: PyObject): AstConstant = 
@@ -267,10 +267,14 @@ ast parameters, [AstArguments]:
 # 
 # Just one tfpdef should be easy enough
 ast typedargslist, [AstArguments]:
-  assert parseNode.children.len == 1
-  assert parseNode.children[0].tokenNode.token == Token.tfpdef
-  result = new AstArguments
-  result.args.add(astTfpdef(parseNode.children[0]))
+  new result
+  for i in 0..<parseNode.children.len:
+    let child = parseNode.children[i]
+    if i mod 2 == 1:
+      assert child.tokenNode.token == Token.Comma
+    else:
+      assert child.tokenNode.token == Token.tfpdef
+      result.args.add(astTfpdef(child))
   
 # tfpdef  NAME [':' test]
 ast tfpdef, [AstArg]:
@@ -617,24 +621,34 @@ template astForBinOp(childAstFunc: untyped) =
   result = firstAstNode
   for idx in 1..parseNode.children.len div 2:
     var op: AsdlOperator
-    case parseNode.children[2 * idx - 1].tokenNode.token
-    of Token.VBar:
-      op = new AstBitOr
-    of Token.Circumflex:
-      op = new AstBitXor
-    of Token.Amper:
-      op = new AstBitAnd
-    of Token.LeftShift:
-      op = new AstLShift
-    of Token.RightShift:
-      op = new AstRShift
+    let token = parseNode.children[2 * idx - 1].tokenNode.token
+    case token
     of Token.Plus:
       op = new AstAdd
     of Token.Minus:
       op = new AstSub
     of Token.Star:
       op = new AstMult
+    of Token.At:
+      op = new AstMatMult
+    of Token.Slash:
+      op = new AstDiv
+    of Token.Percent:
+      op = new AstMod
+    of Token.LeftShift:
+      op = new AstLShift
+    of Token.RightShift:
+      op = new AstRShift
+    of Token.VBar:
+      op = new AstBitOr
+    of Token.Circumflex:
+      op = new AstBitXor
+    of Token.Amper:
+      op = new AstBitAnd
+    of Token.DoubleSlash:
+      op = new AstFloorDiv
     else:
+      echo token
       assert false
 
     let secondChild = parseNode.children[2 * idx]
@@ -811,10 +825,12 @@ ast classdef, [AstClassDef]:
 # arglist  argument (',' argument)*  [',']
 #proc astArglist(parseNode: ParseNode, callNode: AstCall): AstCall = 
 ast arglist, [AstCall, (callNode, AstCall)]:
-  assert parseNode.children.len == 1
-  callNode.args.add(astArgument(parseNode.children[0]))
+  # currently assume `argument` only has simplest `test`, e.g.
+  # print(1,3,4), so we can do this
+  for child in parseNode.children: 
+    if child.tokenNode.token == Token.argument:
+      callNode.args.add(astArgument(child))
   result = callNode
-  assert result != nil
   
 # argument  ( test [comp_for] | test '=' test | '**' test | '*' test  )
 ast argument, [AsdlExpr]:

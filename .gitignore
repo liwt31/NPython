@@ -1,3 +1,5 @@
 trash/
 
 *.txt
+# nimpretty backup file
+*.backup

@@ -37,11 +37,20 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
     of OpCode.BinaryMultiply:
       doBinary(multiply)
 
+    of OpCode.BinaryModulo:
+      doBinary(remainder)
+
     of OpCode.BinaryAdd:
       doBinary(add)
 
     of OpCode.BinarySubtract:
-      doBinary(substract)
+      doBinary(subtract)
+
+    of OpCode.BinaryFloorDivide:
+      doBinary(floorDivide)
+
+    of OpCode.BinaryTrueDivide:
+      doBinary(trueDivide)
 
     of OpCode.PrintExpr:
       let top = f.pop
@@ -49,9 +58,6 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
         var (retObj, retExcpt) = builtinPrint(@[top])
         # todo: error handling
       
-    of OpCode.InplaceAdd:
-      doBinary(inplaceAdd)
-
     of OpCode.ReturnValue:
       retObj = f.pop
       break

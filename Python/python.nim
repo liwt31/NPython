@@ -9,7 +9,7 @@ import ../Parser/[lexer, parser]
 import ../Objects/[pyobject, frameobject, codeobject]
 
 
-proc interactiveShell = 
+proc interactiveShell =
   var finished = true
   var rootCst: ParseNode
   var lexer: Lexer
@@ -40,7 +40,7 @@ proc interactiveShell =
       rootCst = nil
 
 
-proc nPython(filenames: seq[string], dis=false) = 
+proc nPython(filenames: seq[string], dis = false) =
   if filenames.len == 0:
     interactiveShell()
 
