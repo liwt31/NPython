@@ -24,11 +24,7 @@ type
     tokenNodes*: Deque[TokenNode] # might be consumed by parser
 
 var regexName = re(r"\b[a-zA-Z_]+[a-zA-Z_0-9]*\b")
-var regexNumber = re(r"\b\d+\b")
-
-
-template raiseSyntaxError(msg: string) = 
-  raise newException(SyntaxError, msg)
+var regexNumber = re(r"\b\d*\.?\d+([eE][-+]?\d+)?\b")
 
 
 proc newTokenNode*(token: Token, content = ""): TokenNode = 

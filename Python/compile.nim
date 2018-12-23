@@ -171,6 +171,11 @@ proc addOp(c: Compiler, instr: Instr) =
   c.tcu.addOp(instr)
 
 
+proc addOp(c: Compiler, opCode: OpCode) =
+  assert (not (opCode in hasArgSet))
+  c.tcu.addOp(newInstr(opCode))
+
+
 proc addBlock(c: Compiler, cb: BasicBlock) =
   c.tcu.blocks.add(cb)
 
@@ -433,17 +438,20 @@ compileMethod Expr:
   else:
     c.addOp(newInstr(OpCode.PopTop))
 
-
-
-compileMethod UnaryOp:
-  c.compile(astNode.operand)
-  let opCode = astNode.op.toOpCode
-  c.addOp(newInstr(opCode))
+compileMethod Pass:
+  c.addOp(OpCode.NOP)
 
 
 compileMethod BinOp:
   c.compile(astNode.left)
   c.compile(astNode.right)
+  let opCode = astNode.op.toOpCode
+  c.addOp(newInstr(opCode))
+
+
+
+compileMethod UnaryOp:
+  c.compile(astNode.operand)
   let opCode = astNode.op.toOpCode
   c.addOp(newInstr(opCode))
 
@@ -479,11 +487,20 @@ compileMethod Name:
 compileMethod Lt:
   c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.Lt)))
 
+compileMethod LtE:
+  c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.Le)))
+
 compileMethod Gt:
   c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.Gt)))
 
+compileMethod GtE:
+  c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.Ge)))
+
 compileMethod Eq:
   c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.Eq)))
+
+compileMethod NotEq:
+  c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.Ne)))
 
 compileMethod Arguments:
   for idx, arg in astNode.args:

@@ -5,3 +5,10 @@ else:
     x = 1
 
 print(x)
+
+
+if not False:
+    print("hello")
+
+if 1 <= 1:
+    print("world")

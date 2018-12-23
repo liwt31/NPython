@@ -34,7 +34,7 @@ proc newPyInt*(str: string): PyIntObject
 
 proc newPyFloat: PyFloatObject
 proc newPyFloat*(pyObj: PyObject): PyFloatObject
-proc newPyFloat(v: float): PyFloatObject
+proc newPyFloat*(v: float): PyFloatObject
 
 proc subtractPyFloatObject(selfNoCast, other: PyObject): PyObject
 proc powerPyFloatObject(selfNoCast, other: PyObject): PyObject

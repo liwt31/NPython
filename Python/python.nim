@@ -7,6 +7,7 @@ import neval
 import compile
 import ../Parser/[lexer, parser]
 import ../Objects/[pyobject, frameobject, codeobject]
+import ../Utils/utils
 
 
 proc interactiveShell =
@@ -26,12 +27,27 @@ proc interactiveShell =
     except EOFError:
       quit(0)
 
-    (rootCst, lexer) = parseWithState(input, Mode.Single, rootCst, lexer)
+    try:
+      (rootCst, lexer) = parseWithState(input, Mode.Single, rootCst, lexer)
+    except SyntaxError:
+      echo getCurrentExceptionMsg()
+      rootCst = nil
+      lexer = nil
+      continue
+
     #echo rootCst
     finished = rootCst.finished
     #echo fmt"Finished: {finished}"
     if finished:
-      let co = compile(rootCst)
+      var co: PyCodeObject
+      try:
+        co = compile(rootCst)
+      except SyntaxError:
+        echo getCurrentExceptionMsg()
+        rootCst = nil
+        lexer = nil
+        continue
+
       when defined(debug):
         echo co
       let f = newPyFrame(co, @[], prevF)

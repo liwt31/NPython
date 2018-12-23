@@ -9,6 +9,7 @@ import bltinmodule
 import ../Objects/[pyobject, frameobject, stringobject,
   codeobject, dictobject, methodobject, exceptions, boolobject,
   funcobject]
+import ../Utils/utils
 
 
 template doBinary(opName: untyped) =
@@ -27,9 +28,16 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
     of OpCode.PopTop:
       discard f.pop
 
+    of OpCode.NOP:
+      continue
+
     of OpCode.UnaryNegative:
       let top = f.pop
       f.push top.call(negative)
+
+    of OpCode.UnaryNot:
+      let top = f.pop
+      f.push top.call(Not)
 
     of OpCode.BinaryPower:
       doBinary(power)
@@ -87,10 +95,18 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
       case cmpOp
       of CmpOp.Lt:
         doBinary(lt)
+      of CmpOp.Le:
+        doBinary(le)
       of CmpOp.Eq:
         doBinary(eq)
+      of CmpOp.Ne:
+        doBinary(ne)
+      of CmpOp.Gt:
+        doBinary(gt)
+      of CmpOp.Ge:
+        doBinary(ge)
       else:
-        assert false
+        unreachable  # should be blocked by ast, compiler
 
     of OpCode.JumpForward, OpCode.JumpAbsolute:
       f.jumpTo(opArg)
