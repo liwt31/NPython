@@ -1,4 +1,5 @@
 import macros
+import strformat
 import strutils
 import hashes
 
@@ -45,14 +46,11 @@ type
     methods*: PyMethods
 
 template call*(obj: PyObject, methodName: untyped): PyObject = 
-  obj.pyType.methods.methodName(obj)
+  let fun = obj.pyType.methods.methodName
+  fun(obj)
 
 template call*(obj: PyObject, methodName: untyped, arg1: PyObject): PyObject = 
   obj.pyType.methods.methodName(obj, arg1)
-
-template call*(obj: PyObject, methodName: untyped, arg1, arg2: PyObject): PyObject = 
-  obj.pyType.methods.methodName(obj, arg1, arg2)
-
 
 # some generic behaviors that every type should obey
 proc And(o1, o2: PyObject): PyObject = 

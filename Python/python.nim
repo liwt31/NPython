@@ -15,6 +15,7 @@ proc interactiveShell =
   var rootCst: ParseNode
   var lexer: Lexer
   var prevF: PyFrameObject
+  echo "NPython 0.0.1"
   while true:
     var input: TaintedString
     if finished:
@@ -38,22 +39,29 @@ proc interactiveShell =
     #echo rootCst
     finished = rootCst.finished
     #echo fmt"Finished: {finished}"
-    if finished:
-      var co: PyCodeObject
-      try:
-        co = compile(rootCst)
-      except SyntaxError:
-        echo getCurrentExceptionMsg()
-        rootCst = nil
-        lexer = nil
-        continue
+    if not finished:
+      continue
 
-      when defined(debug):
-        echo co
-      let f = newPyFrame(co, @[], prevF)
-      var (retObj, retExp) = f.evalFrame
-      prevF = f
+    var co: PyCodeObject
+    try:
+      co = compile(rootCst)
+    except SyntaxError:
+      echo getCurrentExceptionMsg()
       rootCst = nil
+      lexer = nil
+      continue
+
+    when defined(debug):
+      echo co
+    
+    let f = newPyFrame(co, @[], prevF)
+    var (retObj, retExpt) = f.evalFrame
+    if retExpt != nil:
+      echo retExpt
+    else:
+      prevF = f
+    rootCst = nil
+
 
 
 proc nPython(filenames: seq[string], dis = false) =
@@ -65,7 +73,11 @@ proc nPython(filenames: seq[string], dis = false) =
   if not filename.existsFile:
     echo "File does not exist"
   let input = readFile(filename)
-  input.runString
+  var (retObj, retExpt) = input.runString
+  if retExpt != nil:
+    echo retExpt
+  else:
+    echo retObj
 
 
 when isMainModule:

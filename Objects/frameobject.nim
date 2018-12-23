@@ -62,6 +62,7 @@ proc setupBuiltin(f: PyFrameObject, name: string, fun: BltinFuncSignature) =
 
 
 proc newPyFrame*(code: PyCodeObject, fastLocals: seq[PyObject], prevF: PyFrameObject): PyFrameObject = 
+  assert code != nil
   result = new PyFrameObject
   result.prev = prevF
   result.code = code

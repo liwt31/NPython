@@ -24,6 +24,8 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
   var retExpt: PyExceptionObject
   while not f.exhausted:
     var (opCode, opArg) = f.nextInstr
+    when defined(debug):
+      echo opCode
     case opCode
     of OpCode.PopTop:
       discard f.pop
@@ -87,7 +89,9 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
       elif f.builtins.hasKey(name):
         obj = f.builtins[name]
       else:
-        assert false
+        retExpt = newNameError(name)
+        break
+        
       f.push(obj)
 
     of OpCode.CompareOp:
@@ -131,17 +135,16 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
         args.add f.pop
       args = args.reversed
       let funcObj = f.pop
-      var 
-        ret: PyObject
-        err: PyExceptionObject
       if funcObj of PyBltinFuncObject:
-        (ret, err) = PyBltinFuncObject(funcObj).call(args)
+        (retObj, retExpt) = PyBltinFuncObject(funcObj).call(args)
       elif funcObj of PyFunctionObject:
         let newF = newPyFrame(PyFunctionObject(funcObj).code, args, f)
-        (ret, err) = newF.evalFrame
+        (retObj, retExpt) = newF.evalFrame
       else:
-        assert false
-      f.push ret
+        unreachable
+      if retExpt != nil:
+        break
+      f.push retObj
 
     of OpCode.MakeFunction:
       assert opArg == 0
@@ -152,19 +155,21 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
       f.push newPyFunction(PyStringObject(name), PyCodeObject(code))
 
     else:
-      echo fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
+      let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
+      retExpt = newNotImplementedError(msg)
+      break
 
   result = (retObj, retExpt)
 
 
-proc runCode*(co: PyCodeObject) = 
+proc runCode*(co: PyCodeObject): (PyObject, PyExceptionObject) = 
   when defined(debug):
     echo co
   let f = newPyFrame(co, @[], nil)
-  var (retObj, retExp) = f.evalFrame
+  f.evalFrame
 
 
-proc runString*(input: TaintedString) = 
+proc runString*(input: TaintedString): (PyObject, PyExceptionObject) = 
   let co = compile(input)
   runCode(co)
 
@@ -174,5 +179,9 @@ when isMainModule:
   if len(args) < 1:
     quit("No arg provided")
   let input = readFile(args[0])
-  input.runString
+  var (retObj, retExpt) = input.runString
+  if retExpt != nil:
+    echo retExpt
+  else:
+    echo retObj
 

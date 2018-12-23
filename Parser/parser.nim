@@ -155,6 +155,11 @@ proc parseWithState*(input: TaintedString,
     let status = parseNode.applyToken(token)
     when defined(debug):
       echo fmt"{status}, {token}"
+    case status
+    of ParseStatus.Normal:
+      continue
+    else:
+      raiseSyntaxError("SyntaxError")
   newLexer.tokenNodes.clear
   result = (parseNode, newLexer)
   
