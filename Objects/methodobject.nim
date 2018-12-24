@@ -2,7 +2,7 @@ import pyobject
 import exceptions
 
 type 
-  BltinFuncSignature* = proc (args: seq[PyObject]): (PyObject, PyExceptionObject)
+  BltinFuncSignature* = proc (args: seq[PyObject]): PyObject
 
   PyBltinFuncObject* = ref object of PyObject
     fun: BltinFuncSignature
@@ -11,7 +11,7 @@ type
 
 
 # make function defination a macro
-proc call*(f: Pbfo, args: seq[PyObject]): (PyObject, PyExceptionObject) = 
+proc call*(f: Pbfo, args: seq[PyObject]): PyObject = 
   f.fun(args)
 
 

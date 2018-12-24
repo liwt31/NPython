@@ -16,12 +16,12 @@ template doBinary(opName: untyped) =
   let op2 = f.pop
   let op1 = f.pop
   let res = op1.call(opName, op2)
+  if res.isThrownException:
+    return res
   f.push(res)
 
 
-proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) = 
-  var retObj: PyObject
-  var retExpt: PyExceptionObject
+proc evalFrame*(f: PyFrameObject): PyObject = 
   while not f.exhausted:
     var (opCode, opArg) = f.nextInstr
     when defined(debug):
@@ -65,11 +65,11 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
     of OpCode.PrintExpr:
       let top = f.pop
       if top != pyNone:
-        var (retObj, retExcpt) = builtinPrint(@[top])
+        let retObj = builtinPrint(@[top])
         # todo: error handling
       
     of OpCode.ReturnValue:
-      retObj = f.pop
+      result = f.pop
       break
 
     of OpCode.StoreName:
@@ -89,7 +89,7 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
       elif f.builtins.hasKey(name):
         obj = f.builtins[name]
       else:
-        retExpt = newNameError(name)
+        result = newNameError(name.str)
         break
         
       f.push(obj)
@@ -135,15 +135,17 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
         args.add f.pop
       args = args.reversed
       let funcObj = f.pop
+      var retObj: PyObject
       if funcObj of PyBltinFuncObject:
-        (retObj, retExpt) = PyBltinFuncObject(funcObj).call(args)
+        retObj = PyBltinFuncObject(funcObj).call(args)
       elif funcObj of PyFunctionObject:
         let newF = newPyFrame(PyFunctionObject(funcObj).code, args, f)
-        (retObj, retExpt) = newF.evalFrame
+        retObj = newF.evalFrame
       else:
         unreachable
-      if retExpt != nil:
-        break
+      if retObj.isThrownException:
+        # should handle here, currently simply throw it again
+        return retObj
       f.push retObj
 
     of OpCode.MakeFunction:
@@ -156,20 +158,19 @@ proc evalFrame*(f: PyFrameObject): (PyObject, PyExceptionObject) =
 
     else:
       let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
-      retExpt = newNotImplementedError(msg)
+      result = newNotImplementedError(msg)
       break
 
-  result = (retObj, retExpt)
 
 
-proc runCode*(co: PyCodeObject): (PyObject, PyExceptionObject) = 
+proc runCode*(co: PyCodeObject): PyObject = 
   when defined(debug):
     echo co
   let f = newPyFrame(co, @[], nil)
   f.evalFrame
 
 
-proc runString*(input: TaintedString): (PyObject, PyExceptionObject) = 
+proc runString*(input: TaintedString): PyObject = 
   let co = compile(input)
   runCode(co)
 
@@ -179,9 +180,6 @@ when isMainModule:
   if len(args) < 1:
     quit("No arg provided")
   let input = readFile(args[0])
-  var (retObj, retExpt) = input.runString
-  if retExpt != nil:
-    echo retExpt
-  else:
-    echo retObj
+  var retObj = input.runString
+  echo retObj
 

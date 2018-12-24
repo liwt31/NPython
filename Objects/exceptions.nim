@@ -1,46 +1,54 @@
+# we use a completely different approach for error handling
+# CPython relies on NULL as return value to inform the caller 
+# that exception happens in that function. 
+# Using NULL or nil as "expected" return value is bad idea
+# We return exception object directly with a thrown flag inside
+
 import strformat
 
-import pyobject
-import stringobject
+import pyobjectBase
 
 
 type
   PyExceptionObject* = ref object of PyObject
-
-  PySyntaxError* = ref object of PyExceptionObject
+    # use a string directly. Don't use PyStringObject
+    # Exceptions are tightly binded to the core of NPython
+    # reliance on PyStringObject inevitably induces cyclic dependence
+    thrown*: bool
+    msg: string
 
   PyNameError* = ref object of PyExceptionObject
-    name: PyStringObject
 
   PyNotImplementedError* = ref object of PyExceptionObject
-    msg: PyStringObject
 
   PyTypeError*  = ref object of PyExceptionObject
-    msg: PyStringObject
 
 
 
-proc newNameError*(name: PyStringObject) : PyNameError = 
+proc newNameError*(name:string, thrown=true) : PyNameError = 
   new result
-  result.name = name
+  result.thrown = thrown
+  result.msg = fmt"name {name} is not defined"
 
 
-proc newNotImplementedError*(msg: PyStringObject) : PyNotImplementedError = 
+proc newNotImplementedError*(msg: string, thrown=true) : PyNotImplementedError = 
   new result
-  result.msg = msg 
+  result.thrown = thrown
+  result.msg = msg
 
-proc newNotImplementedError*(msg: string) : PyNotImplementedError = 
-  result = newNotImplementedError(newPyString(msg))
 
-proc newTypeError*(msg: string): PyTypeError = 
+proc newTypeError*(msg: string, thrown=true): PyTypeError = 
   new result
-  result.msg = newPyString(msg)
-
-method `$`*(e: PyNameError): string = 
-  fmt"name {e.name} is not defined"
+  result.thrown = thrown
+  result.msg = msg
 
 
-method `$`*(e: PyNotImplementedError): string = 
+method `$`*(e: PyExceptionObject): string = 
   $e.msg
 
+template isThrownException*(pyObj: PyObject): bool = 
+  if pyObj of PyExceptionObject:
+    PyExceptionObject(pyObj).thrown
+  else:
+    false
 

@@ -6,7 +6,7 @@ import cligen
 import neval
 import compile
 import ../Parser/[lexer, parser]
-import ../Objects/[pyobject, frameobject, codeobject]
+import ../Objects/[pyobject, frameobject, codeobject, exceptions]
 import ../Utils/utils
 
 
@@ -55,9 +55,9 @@ proc interactiveShell =
       echo co
     
     let f = newPyFrame(co, @[], prevF)
-    var (retObj, retExpt) = f.evalFrame
-    if retExpt != nil:
-      echo retExpt
+    var retObj = f.evalFrame
+    if retObj.isThrownException:
+      echo retObj
     else:
       prevF = f
     rootCst = nil
@@ -73,11 +73,8 @@ proc nPython(filenames: seq[string], dis = false) =
   if not filename.existsFile:
     echo "File does not exist"
   let input = readFile(filename)
-  var (retObj, retExpt) = input.runString
-  if retExpt != nil:
-    echo retExpt
-  else:
-    echo retObj
+  var retObj = input.runString
+  echo retObj
 
 
 when isMainModule:

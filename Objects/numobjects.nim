@@ -1,12 +1,12 @@
 import tables
 import strutils
-import macros
 import math
 
 import bigints
 
 import pyobject
 import boolobject
+import stringobject
 import ../Utils/utils
 
 
@@ -160,6 +160,13 @@ impleIntBinary eq:
     pyFalseObj
 
 
+impleIntUnary str:
+  newPyString($self)
+
+
+impleIntUnary repr:
+  newPyString($self)
+
 
 impleFloatBinary add:
   newPyFloat(self.v + casted.v)
@@ -215,6 +222,14 @@ impleFloatBinary gt:
     return pyTrueObj
   else:
     return pyFalseObj
+
+
+impleFloatUnary str:
+  newPyString($self)
+
+
+impleFloatUnary repr:
+  newPyString($self)
 
 
 proc newPyInt: PyIntObject = 

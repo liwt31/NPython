@@ -3,54 +3,28 @@ import strformat
 import strutils
 import hashes
 
-type 
-  unaryFunc* = proc (o: PyObject): PyObject
-  binaryFunc* = proc (o1, o2: PyObject): PyObject
-  ternaryFunc* = proc (o1, o2, o3: PyObject): PyObject
+import pyobjectBase
+import exceptions
 
-
-  PyMethods = tuple
-    add: binaryFunc
-    subtract: binaryFunc
-    multiply: binaryFunc
-    trueDivide: binaryFunc
-    floorDivide: binaryFunc
-    remainder: binaryFunc
-    power: binaryFunc
-    
-    # use uppercase to avoid conflict with nim keywords
-    Not: unaryFunc
-    negative: unaryFunc
-    positive: unaryFunc
-    absolute: unaryFunc
-    bool: unaryFunc
-
-    And: binaryFunc
-    Xor: binaryFunc
-    Or: binaryFunc
-
-    lt: binaryFunc
-    le: binaryFunc
-    eq: binaryFunc
-    ne: binaryFunc
-    gt: binaryFunc
-    ge: binaryFunc
-
-
-  PyObject* = ref object of RootObj
-    pyType*: PyTypeObject
-
-
-  PyTypeObject* = ref object of PyObject
-    name: string
-    methods*: PyMethods
+export macros
+export pyobjectBase
 
 template call*(obj: PyObject, methodName: untyped): PyObject = 
   let fun = obj.pyType.methods.methodName
-  fun(obj)
+  if fun == nil:
+    let objTypeStr = $obj.pyType.name
+    newTypeError(objTypeStr & " doesn't support methodName")
+  else:
+    fun(obj)
 
 template call*(obj: PyObject, methodName: untyped, arg1: PyObject): PyObject = 
-  obj.pyType.methods.methodName(obj, arg1)
+  let fun = obj.pyType.methods.methodName
+  if fun == nil:
+    let objTypeStr = $obj.pyType.name
+    let methodStr = astToStr(methodName)
+    newTypeError(objTypeStr & " doesn't support " & methodStr)
+  else:
+    fun(obj, arg1)
 
 # some generic behaviors that every type should obey
 proc And(o1, o2: PyObject): PyObject = 
@@ -91,15 +65,6 @@ proc newPyType*(name: string): PyTypeObject =
   result.methods.le = le
   result.methods.ne = ne
   result.methods.ge = ge
-
-method `$`*(obj: PyObject): string {.base.} = 
-  "Python object"
-
-method hash*(obj: PyObject): Hash {.base.} = 
-  hash(addr(obj[]))
-
-method `==`*(obj1, obj2: PyObject): bool {.base.} =
-  obj1[].addr == obj2[].addr
 
 
 type 
