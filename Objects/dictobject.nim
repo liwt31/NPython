@@ -35,3 +35,7 @@ proc combine*(dict1: PyDictObject, dict2: PyDictObject): PyDictObject =
       assert false
     result[k] = v
 
+proc update*(d1, d2: PyDictObject) = 
+  for k, v in d2.table.pairs:
+    d1[k] = v
+

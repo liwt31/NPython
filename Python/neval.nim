@@ -12,6 +12,10 @@ import ../Objects/[pyobject, frameobject, stringobject,
 import ../Utils/utils
 
 
+template doUnary(opName: untyped) = 
+  let top = f.pop
+  f.push top.call(opName)
+
 template doBinary(opName: untyped) =
   let op2 = f.pop
   let op1 = f.pop
@@ -34,13 +38,14 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     of OpCode.NOP:
       continue
 
+    of OpCode.UnaryPositive:
+      doUnary(positive)
+
     of OpCode.UnaryNegative:
-      let top = f.pop
-      f.push top.call(negative)
+      doUnary(negative)
 
     of OpCode.UnaryNot:
-      let top = f.pop
-      f.push top.call(Not)
+      doUnary(Not)
 
     of OpCode.BinaryPower:
       doBinary(power)

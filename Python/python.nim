@@ -1,4 +1,5 @@
 import strformat
+import rdstdin
 import os
 
 import cligen
@@ -18,14 +19,15 @@ proc interactiveShell =
   echo "NPython 0.0.1"
   while true:
     var input: TaintedString
+    var prompt: string
     if finished:
-      stdout.write(">>> ")
+      prompt = ">>> "
     else:
-      stdout.write("... ")
+      prompt = "... "
 
     try:
-      input = stdin.readline()
-    except EOFError:
+      input = readLineFromStdin(prompt)
+    except EOFError, IOError:
       quit(0)
 
     try:
@@ -72,7 +74,8 @@ proc nPython(filenames: seq[string], dis = false) =
     echo "File does not exist"
   let input = readFile(filename)
   var retObj = input.runString
-  echo retObj
+  if retObj.isThrownException:
+    echo retObj
 
 
 when isMainModule:

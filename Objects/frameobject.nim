@@ -68,10 +68,10 @@ proc newPyFrame*(code: PyCodeObject, fastLocals: seq[PyObject], prevF: PyFrameOb
   result.code = code
   result.lastI = -1
   result.locals = newPyDict()
+  result.globals = newPyDict()
   if prevF != nil:
-    result.globals = prevF.globals.combine(prevF.locals)
-  else:
-    result.globals = newPyDict()
+    result.globals.update(prevF.globals)
+    result.globals.update(prevF.locals)
   result.builtins = newPyDict()
   result.setupBuiltin("print", builtinPrint)
   result.fastLocals = fastLocals

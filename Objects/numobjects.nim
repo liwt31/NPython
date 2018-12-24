@@ -91,6 +91,9 @@ impleIntBinary power:
   intBinaryTemplate(pow, power, "**")
 
 
+impleIntUnary positive:
+  self
+
 impleIntUnary negative: 
   newPyInt(-self.v)
 
@@ -173,6 +176,9 @@ impleFloatBinary floorDivide:
 impleFloatBinary power:
   newPyFloat(self.v.pow(casted.v))
 
+
+impleFloatUnary positive:
+  self
 
 impleFloatUnary negative:
   newPyFloat(-self.v)
