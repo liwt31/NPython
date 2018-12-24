@@ -1,4 +1,5 @@
 import tables
+import strformat
 import strutils
 import math
 
@@ -7,19 +8,20 @@ import bigints
 import pyobject
 import boolobject
 import stringobject
+import exceptions
 import ../Utils/utils
 
 
 type 
   PyIntObject* = ref object of PyObject
-    n: BigInt
+    v: BigInt
 
   PyFloatObject = ref object of PyObject
     v: float64
 
 
-method `$`*(pyInt: PyIntObject): string = 
-  $pyInt.n
+method `$`*(i: PyIntObject): string = 
+  $i.v
 
 
 method `$`*(f: PyFloatObject): string = 
@@ -33,13 +35,17 @@ proc newPyInt*(n: BigInt): PyIntObject
 proc newPyInt*(str: string): PyIntObject
 
 proc newPyFloat: PyFloatObject
-proc newPyFloat*(pyObj: PyObject): PyFloatObject
+proc newPyFloat*(pyInt: PyIntObject): PyFloatObject
 proc newPyFloat*(v: float): PyFloatObject
 
-proc subtractPyFloatObject(selfNoCast, other: PyObject): PyObject
-proc powerPyFloatObject(selfNoCast, other: PyObject): PyObject
-proc trueDividePyFloatObject(selfNoCast, other: PyObject): PyObject
-proc floorDividePyFloatObject(selfNoCast, other: PyObject): PyObject
+
+template intBinaryTemplate(op, methodName: untyped, methodNameStr:string) = 
+  if other of PyIntObject:
+    result = newPyInt(self.v.op PyIntObject(other).v)
+  elif other of PyFloatObject:
+    result = newPyFloat(self).call(methodName, other)
+  else:
+    result = newTypeError(methodnameStr & fmt" not supported by int and {other.pyType.name}")
 
 # the macros will assert the type of the first argument
 # cast the first argument to corresponding type
@@ -47,27 +53,8 @@ proc floorDividePyFloatObject(selfNoCast, other: PyObject): PyObject
 macro impleIntUnary(methodName, code:untyped): untyped = 
   result = impleUnary(methodName, ident("PyIntObject"), code)
 
-
 macro impleIntBinary(methodName, code:untyped): untyped = 
   result = impleBinary(methodName, ident("PyIntObject"), code)
-
-
-macro impleFloatUnary(methodName, code:untyped): untyped = 
-  result = impleUnary(methodName, ident("PyFloatObject"), code)
-
-
-template castType = 
-  var casted {. inject .} : PyFloatObject
-  if other of PyFloatObject:
-    casted = PyFloatObject(other)
-  else:
-    casted = newPyFloat(other)
-
-macro impleFloatBinary(methodName, code:untyped): untyped = 
-  let castType = getAst(castType())
-  let imple = newStmtList(castType, code)
-  result = impleBinary(methodName, ident("PyFloatObject"), imple)
-
 
 template unsupportedType = 
   assert false
@@ -80,61 +67,36 @@ let pyFloatObjectType = newPyType("float")
 
 
 impleIntBinary add:
-  if other of PyIntObject:
-    result = newPyInt(self.n + PyIntObject(other).n)
-  elif other of PyFloatObject:
-    result = other.call(add, self)
-  else:
-    unsupportedType
+  intBinaryTemplate(`+`, add, "+")
 
 
 impleIntBinary subtract:
-  if other of PyIntObject:
-    result = newPyInt(self.n - PyIntObject(other).n)
-  elif other of PyFloatObject:
-    result = subtractPyFloatObject(newPyFloat(self), other)
-  else:
-    unsupportedType
+  intBinaryTemplate(`-`, subtract, "-")
 
 
 impleIntBinary multiply:
-
-  if other of PyIntObject:
-    result = newPyInt(self.n * PyIntObject(other).n)
-  elif other of PyFloatObject:
-    result = other.call(multiply, self)
-  else:
-    unsupportedType
+  intBinaryTemplate(`*`, multiply, "*")
 
 
 impleIntBinary trueDivide:
   let casted = newPyFloat(self)
-  trueDividePyFloatObject(casted, other)
+  casted.call(trueDivide, other)
 
 
 impleIntBinary floorDivide:
-  if other of PyIntObject:
-    result = newPyInt(self.n.div PyIntObject(other).n)
-  elif other of PyFloatObject:
-    result = floorDividePyFloatObject(newPyFloat(self), other)
-  else:
-    unsupportedType
+  intBinaryTemplate(`div`, floorDivide, "//")
+
 
 impleIntBinary power:
-  if other of PyIntObject:
-    result = newPyInt(self.n.pow PyIntObject(other).n)
-  elif other of PyFloatObject:
-    result = powerPyFloatObject(newPyFloat(self), other)
-  else:
-    unsupportedType
+  intBinaryTemplate(pow, power, "**")
 
 
 impleIntUnary negative: 
-  newPyInt(-self.n)
+  newPyInt(-self.v)
 
 
 impleIntUnary bool:
-  if self.n == 0:
+  if self.v == 0:
     pyFalseObj
   else:
     pyTrueObj
@@ -142,19 +104,19 @@ impleIntUnary bool:
 
 impleIntBinary lt:
   if other of PyIntObject:
-    if self.n < PyIntObject(other).n:
+    if self.v < PyIntObject(other).v:
       result = pyTrueObj
     else:
       result = pyFalseObj
   elif other of PyFloatObject:
     result = other.call(ge, self)
   else:
-    assert false
+    unsupportedType
 
 
 impleIntBinary eq:
   assert other of PyIntObject
-  if self.n == PyIntObject(other).n:
+  if self.v == PyIntObject(other).v:
     pyTrueObj
   else:
     pyFalseObj
@@ -166,6 +128,26 @@ impleIntUnary str:
 
 impleIntUnary repr:
   newPyString($self)
+
+
+macro impleFloatUnary(methodName, code:untyped): untyped = 
+  result = impleUnary(methodName, ident("PyFloatObject"), code)
+
+
+template floatCastType(methodName: string) = 
+  var casted {. inject .} : PyFloatObject
+  if other of PyFloatObject:
+    casted = PyFloatObject(other)
+  elif other of PyIntObject:
+    casted = newPyFloat(PyIntObject(other))
+  else:
+    let msg = methodName & fmt" not supported by float and {other.pyType.name}"
+    return newTypeError(msg)
+
+macro impleFloatBinary(methodName, code:untyped): untyped = 
+  let castType = getAst(floatCastType(methodName.strVal))
+  let imple = newStmtList(castType, code)
+  result = impleBinary(methodName, ident("PyFloatObject"), imple)
 
 
 impleFloatBinary add:
@@ -239,12 +221,12 @@ proc newPyInt: PyIntObject =
 
 proc newPyInt*(n: BigInt): PyIntObject = 
   result = newPyInt()
-  result.n = n
+  result.v = n
 
 
 proc newPyInt*(str: string): PyIntObject = 
   result = newPyInt()
-  result.n = str.initBigInt
+  result.v = str.initBigInt
 
 
 proc newPyFloat: PyFloatObject = 
@@ -252,12 +234,9 @@ proc newPyFloat: PyFloatObject =
   result.pyType = pyFloatObjectType
 
 
-proc newPyFloat(pyObj: PyObject): PyFloatObject = 
-  if pyObj of PyIntObject:
-    result = newPyFloat()
-    result.v = parseFloat($pyObj) # a stupid workaround...
-  else:
-    unsupportedType
+proc newPyFloat(pyInt: PyIntObject): PyFloatObject = 
+  result = newPyFloat()
+  result.v = parseFloat($pyInt) # a stupid workaround...todo: make reasonable one
 
 
 proc newPyFloat(v: float): PyFloatObject = 

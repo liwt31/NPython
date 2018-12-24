@@ -17,7 +17,8 @@ template doBinary(opName: untyped) =
   let op1 = f.pop
   let res = op1.call(opName, op2)
   if res.isThrownException:
-    return res
+    result = res
+    break
   f.push(res)
 
 
@@ -160,7 +161,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
       result = newNotImplementedError(msg)
       break
-
 
 
 proc runCode*(co: PyCodeObject): PyObject = 

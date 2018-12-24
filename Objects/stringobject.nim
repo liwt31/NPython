@@ -7,9 +7,7 @@ type
   PyStringObject* = ref object of PyObject
     str*: string
 
-proc newPyString*(str: string): PyStringObject =
-  result = new PyStringObject
-  result.str = str
+proc newPyString*(str: string): PyStringObject
 
 method `$`*(strObj: PyStringObject): string =
   "\"" & $strObj.str & "\""
@@ -40,6 +38,11 @@ impleStringUnary str:
 impleStringUnary repr:
   newPyString($self)
 
+
+proc newPyString*(str: string): PyStringObject =
+  result = new PyStringObject
+  result.pyType = pyStringObjectType
+  result.str = str
 
 when isMainModule:
   import dictobject

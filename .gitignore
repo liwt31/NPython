@@ -1,5 +1,6 @@
 trash/
 
+.gdb_history
 *.txt
 # nimpretty backup file
 *.backup

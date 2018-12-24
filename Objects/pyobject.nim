@@ -13,7 +13,8 @@ template call*(obj: PyObject, methodName: untyped): PyObject =
   let fun = obj.pyType.methods.methodName
   if fun == nil:
     let objTypeStr = $obj.pyType.name
-    newTypeError(objTypeStr & " doesn't support methodName")
+    let methodStr = astToStr(methodName)
+    newTypeError("No " & methodStr & " method for " & objTypeStr & " defined")
   else:
     fun(obj)
 
@@ -22,7 +23,7 @@ template call*(obj: PyObject, methodName: untyped, arg1: PyObject): PyObject =
   if fun == nil:
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
-    newTypeError(objTypeStr & " doesn't support " & methodStr)
+    newTypeError("No " & methodStr & " method for " & objTypeStr & " defined")
   else:
     fun(obj, arg1)
 

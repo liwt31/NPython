@@ -36,9 +36,7 @@ proc interactiveShell =
       lexer = nil
       continue
 
-    #echo rootCst
     finished = rootCst.finished
-    #echo fmt"Finished: {finished}"
     if not finished:
       continue
 

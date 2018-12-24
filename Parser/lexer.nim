@@ -211,7 +211,7 @@ proc getNextToken(
     addSingleOrDoubleCharToken(Circumflex, CircumflexEqual, '=')
   of '@':
     addSingleOrDoubleCharToken(At, AtEqual, '=')
-  else: # a dummy node
+  else: 
     raiseSyntaxError(fmt"Unknown character {line[idx]}")
   assert result != nil
 
@@ -246,6 +246,8 @@ proc lex(lexer: Lexer, line: TaintedString) =
     case line[idx]
     of ' ':
       inc idx
+    of '#':
+      break
     else:
       lexer.add(getNextToken(lexer, line, idx))
   lexer.add(Token.NEWLINE)
