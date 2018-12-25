@@ -118,6 +118,18 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       else:
         unreachable  # should be blocked by ast, compiler
 
+    of OpCode.JumpIfFalseOrPop:
+      if f.top.call(bool) == pyFalseObj:
+        f.jumpTo(opArg)
+      else:
+        discard f.pop
+
+    of OpCode.JumpIfTrueOrPop:
+      if f.top.call(bool) == pyTrueObj:
+        f.jumpTo(opArg)
+      else:
+        discard f.pop
+
     of OpCode.JumpForward, OpCode.JumpAbsolute:
       f.jumpTo(opArg)
 

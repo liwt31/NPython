@@ -35,15 +35,19 @@ proc newAstConstant(obj: PyObject): AstConstant =
   result.value = new AsdlConstant 
   result.value.value = obj
 
+proc newBoolOp(op: AsdlBoolop, values: seq[AsdlExpr]): AstBoolOp =
+  new result
+  result.op = op
+  result.values = values
 
 proc newBinOp(left: AsdlExpr, op: AsdlOperator, right: AsdlExpr): AstBinOp =
-  result = new AstBinOp
+  new result
   result.left = left
-  result.op  = op
+  result.op = op
   result.right = right
 
 proc newUnaryOp(op: AsdlUnaryop, operand: AsdlExpr): AstUnaryOp = 
-  result = new AstUnaryOp
+  new result
   result.op = op
   result.operand = operand
 
@@ -569,21 +573,36 @@ ast lambdef_nocond:
   
   ]#
 
+# help and or
+template astForBoolOp(childAstFunc: untyped) = 
+  assert parseNode.children.len mod 2 == 1
+  let firstChild = parseNode.children[0]
+  let firstAstNode = childAstFunc(firstChild)
+  if parseNode.children.len == 1:
+    return firstAstNode
+  let token = parseNode.children[1].tokenNode.token
+  var op: AsdlBoolop
+  case token
+  of Token.and:
+    op = new AstAnd
+  of Token.or:
+    op = new AstOr
+  else:
+    unreachable
+  var nodeSeq = @[firstAstNode]
+  for idx in 1..parseNode.children.len div 2:
+    let nextChild = parseNode.children[2 * idx]
+    let nextAstNode = childAstFunc(nextChild)
+    nodeSeq.add(nextAstNode)
+  result = newBoolOp(op, nodeSeq)
+
 # or_test  and_test ('or' and_test)*
 ast or_test, [AsdlExpr]:
-  if not (parseNode.children.len == 1):
-    raiseSyntaxError("Chained `or` not implemented")
-  let child = parseNode.children[0]
-  result = astAndTest(child)
-  assert result != nil
+  astForBoolOp(astAndTest)
   
 # and_test  not_test ('and' not_test)*
 ast and_test, [AsdlExpr]:
-  if not (parseNode.children.len == 1):
-    raiseSyntaxError("Chained `and` not implemented")
-  let child = parseNode.children[0]
-  result = astNotTest(child)
-  assert result != nil
+  astForBoolOp(astNotTest)
   
 # not_test 'not' not_test | comparison
 ast not_test, [AsdlExpr]:

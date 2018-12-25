@@ -32,7 +32,7 @@ macro impleStringBinary(methodName, code:untyped): untyped =
   result = impleBinary(methodName, ident("PyStringObject"), code)
 
 impleStringUnary str:
-  newPyString(self.str)
+  self
 
 
 impleStringUnary repr:

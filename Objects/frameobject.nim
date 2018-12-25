@@ -32,6 +32,11 @@ method `$`(f: PyFrameObject):string =
 proc push*(f: PyFrameObject, obj: PyObject) = 
   f.valStack.add(obj)
 
+
+proc top*(f: PyFrameObject): PyObject = 
+  f.valStack[^1]
+
+
 proc pop*(f: PyFrameObject): PyObject = 
   f.valStack.pop
 

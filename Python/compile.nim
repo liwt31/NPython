@@ -5,11 +5,12 @@ import macros
 import strformat
 import tables
 
-import ../Parser/parser
-import ../Objects/[pyobject, stringobject, codeobject]
 import ast
 import asdl
 import opcode
+import ../Parser/parser
+import ../Objects/[pyobject, stringobject, codeobject]
+import ../Utils/utils
 
 type
   Instr = ref object of RootObj
@@ -440,6 +441,24 @@ compileMethod Expr:
 
 compileMethod Pass:
   c.addOp(OpCode.NOP)
+
+
+compileMethod BoolOp:
+  let ending = newBasicBlock()
+  let numValues = astNode.values.len
+  var op: OpCode
+  if astNode.op of AstAnd:
+    op = OpCode.JumpIfFalseOrPop
+  elif astNode.op of AstOr:
+    op = OpCode.JumpIfTrueOrPop
+  else:
+    unreachable
+  assert 1 < numValues
+  for i in 0..<numValues:
+    c.compile(astNode.values[i])
+    if i != numValues - 1:
+      c.addOp(newJumpInstr(op, ending))
+  c.addBlock(ending)
 
 
 compileMethod BinOp:

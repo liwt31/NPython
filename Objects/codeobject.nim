@@ -29,7 +29,7 @@ method `$`*(code: PyCodeObject): string =
   for idx, opArray in code.code:
     let opCode = OpCode(opArray[0])
     let opArg = opArray[1]
-    var line = fmt"{idx:>10} {opCode:<20}"
+    var line = fmt"{idx:>10} {opCode:<30}"
     if opCode in hasArgSet:
       line &= fmt"{opArg:<4}"
       case opCode
