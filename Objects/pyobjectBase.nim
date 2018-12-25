@@ -1,16 +1,22 @@
-# declare some types and base methods, useful methods in pyobjectImple
-# divide the file primarily for exception handling. in pyobject.nim exception
-# is required, however exception relies on PyObject
+#[
+declare some types and base methods, useful methods in pyobject.nim and methodobject.nim
+divide the file primarily for two reasons
+* exception handling. in pyobject.nim exception is required, 
+  however exception relies on PyObject
+* cyclic dependence of type and builtinfunc
+]#
 
 import hashes
+import tables
 
 type 
   unaryFunc* = proc (o: PyObject): PyObject
   binaryFunc* = proc (o1, o2: PyObject): PyObject
   ternaryFunc* = proc (o1, o2, o3: PyObject): PyObject
 
+  BltinFunc* = proc (args: seq[PyObject]): PyObject
 
-  PyMethods = tuple
+  MagicMethods = tuple
     add: binaryFunc
     subtract: binaryFunc
     multiply: binaryFunc
@@ -26,6 +32,7 @@ type
     absolute: unaryFunc
     bool: unaryFunc
 
+    # note: these are all bitwise operations, nothing to do with keywords `and` or `or`
     And: binaryFunc
     Xor: binaryFunc
     Or: binaryFunc
@@ -47,8 +54,11 @@ type
 
   PyTypeObject* = ref object of PyObject
     name*: string
-    methods*: PyMethods
+    magicMethods*: MagicMethods
+    bltinMethods*: Table[string, BltinFunc]
 
+  PyBltinFuncObject* = ref object of PyObject
+    fun*: BltinFunc
 
 
 method `$`*(obj: PyObject): string {.base.} = 

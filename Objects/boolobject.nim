@@ -43,37 +43,3 @@ impleBoolUnary bool:
   self
 
 
-impleBoolBinary And:
-  var casted: PyBoolObject
-  if other of PyBoolObject:
-    casted = PyBoolObject(other)
-  else:
-    casted = PyBoolObject(other.call(bool))
-  if self.b and casted.b:
-    return pyTrueObj
-  else:
-    return pyFalseObj
-
-
-impleBoolBinary Xor:
-  var casted: PyBoolObject
-  if other of PyBoolObject:
-    casted = PyBoolObject(other)
-  else:
-    casted = PyBoolObject(other.call(bool))
-  if self.b xor casted.b:
-    return pyTrueObj
-  else:
-    return pyFalseObj
-
-
-impleBoolBinary Or:
-  var casted: PyBoolObject
-  if other of PyBoolObject:
-    casted = PyBoolObject(other)
-  else:
-    casted = PyBoolObject(other.call(bool))
-  if self.b or casted.b:
-    return pyTrueObj
-  else:
-    return pyFalseObj

@@ -62,7 +62,7 @@ proc jumpTo*(f: PyFrameObject, target: int) =
   f.lastI = target - 1
 
 
-proc setupBuiltin(f: PyFrameObject, name: string, fun: BltinFuncSignature) = 
+proc setupBuiltin(f: PyFrameObject, name: string, fun: BltinFunc) = 
   f.globals[newPyString(name)] = newPyBltinFunc(fun)
 
 

@@ -1,4 +1,5 @@
 import tables
+import macros
 import strformat
 import strutils
 import math
@@ -43,7 +44,7 @@ template intBinaryTemplate(op, methodName: untyped, methodNameStr:string) =
   if other of PyIntObject:
     result = newPyInt(self.v.op PyIntObject(other).v)
   elif other of PyFloatObject:
-    result = newPyFloat(self).call(methodName, other)
+    result = newPyFloat(self).callMagic(methodName, other)
   else:
     result = newTypeError(methodnameStr & fmt" not supported by int and {other.pyType.name}")
 
@@ -80,7 +81,7 @@ impleIntBinary multiply:
 
 impleIntBinary trueDivide:
   let casted = newPyFloat(self)
-  casted.call(trueDivide, other)
+  casted.callMagic(trueDivide, other)
 
 
 impleIntBinary floorDivide:
@@ -112,7 +113,7 @@ impleIntBinary lt:
     else:
       result = pyFalseObj
   elif other of PyFloatObject:
-    result = other.call(ge, self)
+    result = other.callMagic(ge, self)
   else:
     unsupportedType
 

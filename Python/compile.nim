@@ -23,7 +23,7 @@ type
   JumpInstr = ref object of ArgInstr
     target: BasicBlock
 
-  # node in CFG, an abstraction layer for convenient byte code offset compulation
+  # node in CFG, an abstraction layer for convenient byte code offset computation
   BasicBlock = ref object
     instrSeq: seq[Instr]
     next: BasicBlock
@@ -255,7 +255,7 @@ genMapMethod toOpCode:
 
 
 method toOpCode(op: AsdlUnaryop): OpCode {.base.} =
-  assert false
+  unreachable
 
 #  unaryop = (Invert, Not, UAdd, USub)
 genMapMethod toOpCode:
@@ -266,14 +266,6 @@ genMapMethod toOpCode:
     USub: UnaryNegative,
   }
 
-method toInplaceOpCode(op: AsdlOperator): OpCode {.base.} =
-  assert false
-
-genMapMethod toInplaceOpCode:
-  {
-    Add: InplaceAdd,
-    Sub: InplaceSubtract,
-  }
 
 
 macro compileMethod(astNodeName, funcDef: untyped): untyped =
@@ -391,10 +383,7 @@ compileMethod Assign:
 
 compileMethod AugAssign:
   # don't do augassign as it's complicated and not necessary
-  assert false
-  c.compile(astNode.target)
-  c.compile(astNode.value)
-  c.addOp(newInstr(astNode.op.toInplaceOpCode))
+  unreachable  # should be blocked by ast
 
 
 compileMethod While:
@@ -417,6 +406,7 @@ compileMethod If:
     next = newBasicBlock()
   else:
     next = ending
+  # there is an optimization for `and` and `or` operators in the `test`.
   c.compile(astNode.test)
   c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next))
   c.compileSeq(astNode.body)
@@ -501,7 +491,14 @@ compileMethod Name:
   elif astNode.ctx of AstStore:
     c.addStoreOp(astNode.id)
   else:
-    assert false
+    unreachable # no other context implemented
+
+
+compileMethod List:
+  for elt in astNode.elts:
+    c.compile(elt)
+  c.addOp(newArgInstr(OpCode.BuildList, astNode.elts.len))
+
 
 compileMethod Lt:
   c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.Lt)))

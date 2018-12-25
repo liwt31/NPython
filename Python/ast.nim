@@ -51,6 +51,12 @@ proc newUnaryOp(op: AsdlUnaryop, operand: AsdlExpr): AstUnaryOp =
   result.op = op
   result.operand = operand
 
+
+proc newList(elts: seq[AsdlExpr]): AstList = 
+  new result
+  result.elts = elts
+
+
 proc astDecorated(parseNode: ParseNode): AsdlStmt
 proc astFuncdef(parseNode: ParseNode): AstFunctionDef
 proc astParameters(parseNode: ParseNode): AstArguments
@@ -104,7 +110,7 @@ proc astFactor(parseNode: ParseNode): AsdlExpr
 proc astPower(parseNode: ParseNode): AsdlExpr
 proc astAtomExpr(parseNode: ParseNode): AsdlExpr
 proc astAtom(parseNode: ParseNode): AsdlExpr
-proc astTestlistComp(parseNode: ParseNode): AsdlExpr
+proc astTestlistComp(parseNode: ParseNode): seq[AsdlExpr]
 proc astTrailer(parseNode: ParseNode, leftExpr: AsdlExpr): AsdlExpr
 proc astTestList(parseNode: ParseNode): AsdlExpr
 proc astClassDef(parseNode: ParseNode): AstClassDef
@@ -768,14 +774,23 @@ ast atom, [AsdlExpr]:
       of Token.yield_expr:
         raiseSyntaxError("Yield expression not implemented")
       of Token.testlist_comp:
-        result = astTestlistComp(child)
+        let testListComp = astTestlistComp(child)
+        # no tuple, just things like (1 + 2) * 3
+        if not (testListComp.len == 1):
+          raiseSyntaxError("Tuple not implemented")
       else:
         unreachable   
     else:
       unreachable
 
   of Token.Lsqb:
-    unreachable # [] blocked in lexer
+    case parseNode.children.len
+    of 2:
+      result = newList(@[])
+    of 3:
+      result = newList(astTestlistComp(parseNode.children[1]))
+    else:
+      unreachable
 
   of Token.Lbrace:
     unreachable # {} blocked in lexer
@@ -814,15 +829,25 @@ ast atom, [AsdlExpr]:
 
 # testlist_comp  (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
 # currently only used in atom
-ast testlist_comp, [AsdlExpr]:
-  case parseNode.children.len
-  of 1:
-    let child = parseNode.children[0]
-    if not (child.tokenNode.token == Token.test):
+ast testlist_comp, [seq[AsdlExpr]]:
+  let child1 = parseNode.children[0]
+  if child1.tokenNode.token == Token.star_expr:
+    raiseSyntaxError("Star expression not implemented")
+  result.add astTest(child1)
+  if parseNode.children.len == 1:
+    return
+  for child in parseNode.children[1..^1]:
+    case child.tokenNode.token
+    of Token.comp_for:
+      raiseSyntaxError("Comprehension not implemented")
+    of Token.Comma:
+      discard
+    of Token.test:
+      result.add astTest(child)
+    of Token.star_expr:
       raiseSyntaxError("Star expression not implemented")
-    result = astTest(child)
-  else:
-    raiseSyntaxError("Comprehension not implemented")
+    else:
+      unreachable
 
   
 # trailer  '(' [arglist] ')' | '[' subscriptlist ']' | '.' NAME
@@ -928,10 +953,12 @@ proc ast*(root: ParseNode): AsdlModl =
     unreachable  # currently no eval mode
   else:
     unreachable
+  when defined(debug):
+    echo result
 
 proc ast*(input: TaintedString): AsdlModl= 
   let root = parse(input)
-  ast(root)
+  result = ast(root)
 
 when isMainModule:
   let args = commandLineParams()

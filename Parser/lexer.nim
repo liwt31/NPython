@@ -20,7 +20,6 @@ type
 
   Lexer* = ref object
     indentLevel: int
-    nestingLevel: int
     tokenNodes*: Deque[TokenNode] # might be consumed by parser
 
 var regexName = re(r"\b[a-zA-Z_]+[a-zA-Z_0-9]*\b")
@@ -111,10 +110,12 @@ proc getNextToken(
     idx += 1
   of '(':
     addSingleCharToken(Lpar)
-    inc lexer.nestingLevel
   of ')':
     addSingleCharToken(Rpar)
-    dec lexer.nestingLevel
+  of '[':
+    addSingleCharToken(Lsqb)
+  of ']':
+    addSingleCharToken(Rsqb)
   of ':':
     addSingleCharToken(Colon)
   of ',':
@@ -198,8 +199,8 @@ proc getNextToken(
       addSingleCharToken(Dot)
   of '%':
     addSingleOrDoubleCharToken(Percent, PercentEqual, '=')
-  of '{', '}', '[', ']':
-    raiseSyntaxError("{} [] not implemented because I haven't figure out nesting")
+  of '{', '}':
+    raiseSyntaxError("\"{\"  \"}\" not implemented")
   of '!':
     if tailing('='):
       addSingleCharToken(NotEqual)

@@ -14,12 +14,12 @@ import ../Utils/utils
 
 template doUnary(opName: untyped) = 
   let top = f.pop
-  f.push top.call(opName)
+  f.push top.callMagic(opName)
 
 template doBinary(opName: untyped) =
   let op2 = f.pop
   let op1 = f.pop
-  let res = op1.call(opName, op2)
+  let res = op1.callMagic(opName, op2)
   if res.isThrownException:
     result = res
     break
@@ -100,6 +100,17 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         
       f.push(obj)
 
+    of OpCode.BuildList:
+      var args: seq[PyObject]
+      for i in 0..<opArg:
+        args.add f.pop
+      args = args.reversed
+      let retObj = builtinList(args)
+      if retObj.isThrownException:
+        break
+      else:
+        f.push retObj
+
     of OpCode.CompareOp:
       let cmpOp = CmpOp(opArg)
       case cmpOp
@@ -119,13 +130,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         unreachable  # should be blocked by ast, compiler
 
     of OpCode.JumpIfFalseOrPop:
-      if f.top.call(bool) == pyFalseObj:
+      if f.top.callMagic(bool) == pyFalseObj:
         f.jumpTo(opArg)
       else:
         discard f.pop
 
     of OpCode.JumpIfTrueOrPop:
-      if f.top.call(bool) == pyTrueObj:
+      if f.top.callMagic(bool) == pyTrueObj:
         f.jumpTo(opArg)
       else:
         discard f.pop
@@ -135,7 +146,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
     of OpCode.PopJumpIfFalse:
       let top = f.pop
-      let boolTop = top.call(bool)
+      let boolTop = top.callMagic(bool)
       if boolTop == pyTrueObj:
         discard
       else:

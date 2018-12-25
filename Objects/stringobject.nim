@@ -1,4 +1,5 @@
 import hashes
+import macros
 
 import pyobject
 

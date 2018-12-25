@@ -1,16 +1,19 @@
 import macros
+import sequtils
 import strformat
 import strutils
 import hashes
+import tables
 
 import pyobjectBase
 import exceptions
+import ../Utils/utils
 
-export macros
 export pyobjectBase
 
-template call*(obj: PyObject, methodName: untyped): PyObject = 
-  let fun = obj.pyType.methods.methodName
+
+template callMagic*(obj: PyObject, methodName: untyped): PyObject = 
+  let fun = obj.pyType.magicMethods.methodName
   if fun == nil:
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
@@ -18,8 +21,9 @@ template call*(obj: PyObject, methodName: untyped): PyObject =
   else:
     fun(obj)
 
-template call*(obj: PyObject, methodName: untyped, arg1: PyObject): PyObject = 
-  let fun = obj.pyType.methods.methodName
+
+template callMagic*(obj: PyObject, methodName: untyped, arg1: PyObject): PyObject = 
+  let fun = obj.pyType.magicMethods.methodName
   if fun == nil:
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
@@ -27,45 +31,65 @@ template call*(obj: PyObject, methodName: untyped, arg1: PyObject): PyObject =
   else:
     fun(obj, arg1)
 
+
+proc callBltin*(obj: PyObject, methodName: string, args: varargs[PyObject]): PyObject = 
+  let methods = obj.pyType.bltinMethods
+  if not methods.hasKey(methodName):
+    unreachable # think about how to deal with the error
+  var realArgs = @[obj] 
+  for arg in args:
+    realArgs.add arg
+  methods[methodName](realArgs)
+
+
+
 # some generic behaviors that every type should obey
 proc And(o1, o2: PyObject): PyObject = 
-  let b1 = o1.call(bool)
-  let b2 = o2.call(bool)
-  b1.call(And, b2)
+  let b1 = o1.callMagic(bool)
+  let b2 = o2.callMagic(bool)
+  b1.callMagic(And, b2)
 
 proc Xor(o1, o2: PyObject): PyObject = 
-  let b1 = o1.call(bool)
-  let b2 = o2.call(bool)
-  b1.call(Xor, b2)
+  let b1 = o1.callMagic(bool)
+  let b2 = o2.callMagic(bool)
+  b1.callMagic(Xor, b2)
 
 proc Or(o1, o2: PyObject): PyObject = 
-  let b1 = o1.call(bool)
-  let b2 = o2.call(bool)
-  b1.call(Or, b2)
+  let b1 = o1.callMagic(bool)
+  let b2 = o2.callMagic(bool)
+  b1.callMagic(Or, b2)
 
 proc le(o1, o2: PyObject): PyObject =
-  let lt = o1.call(lt, o2)
-  let eq = o1.call(eq, o2)
-  lt.call(Or, eq)
+  let lt = o1.callMagic(lt, o2)
+  let eq = o1.callMagic(eq, o2)
+  lt.callMagic(Or, eq)
 
 proc ne(o1, o2: PyObject): PyObject =
-  let eq = o1.call(eq, o2)
-  eq.call(Not)
+  let eq = o1.callMagic(eq, o2)
+  eq.callMagic(Not)
 
 proc ge(o1, o2: PyObject): PyObject = 
-  let gt = o1.call(gt, o2)
-  let eq = o1.call(eq, o2)
-  gt.call(Or, eq)
+  let gt = o1.callMagic(gt, o2)
+  let eq = o1.callMagic(eq, o2)
+  gt.callMagic(Or, eq)
 
 proc newPyType*(name: string): PyTypeObject =
   new result
   result.name = name
-  result.methods.And = And
-  result.methods.Xor = Xor
-  result.methods.Or = Or
-  result.methods.le = le
-  result.methods.ne = ne
-  result.methods.ge = ge
+  var m = result.magicMethods
+  m.And = And
+  m.Xor = Xor
+  m.Or = Or
+  m.le = le
+  m.ne = ne
+  m.ge = ge
+  result.bltinMethods = initTable[string, BltinFunc]()
+
+
+proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinFunc) = 
+  if t.bltinMethods.hasKey(name):
+    unreachable(fmt"Method {name} is registered twice")
+  t.bltinMethods[name] = fun
 
 
 type 
@@ -107,7 +131,7 @@ proc genImple*(methodName, ObjectType, code:NimNode, params: openarray[NimNode])
       newDotExpr(
         newDotExpr(
           ident(typeObjName),
-          ident("methods")
+          ident("magicMethods")
         ),
         methodName
       ),
@@ -116,17 +140,70 @@ proc genImple*(methodName, ObjectType, code:NimNode, params: openarray[NimNode])
   )
 
 
-proc impleUnary*(methodName, ObjectType, code:NimNode): NimNode = 
+
+proc impleUnary*(methodName, objectType, code:NimNode): NimNode = 
   let params = [ident("PyObject"), newIdentDefs(ident("selfNoCast"), ident("PyObject"))]
-  result = genImple(methodName, ObjectType, code, params)
+  result = genImple(methodName, objectType, code, params)
 
 
-proc impleBinary*(methodName, ObjectType, code:NimNode): NimNode= 
+
+proc impleBinary*(methodName, objectType, code:NimNode): NimNode = 
   let poIdent = ident("PyObject")
   let params = [
                  poIdent, 
                  newIdentDefs(ident("selfNoCast"), poIdent),
                  newIdentDefs(ident("other"), poIdent)
                ]
-  result = genImple(methodName, ObjectType, code, params)
+  result = genImple(methodName, objectType, code, params)
+
+
+
+proc impleMethod*(methodName, objectType, code:NimNode): NimNode = 
+  let name = ident($methodName & $objectType)
+  var typeObjName = $objectType & "Type"
+  typeObjName[0] = typeObjName[0].toLowerAscii
+  result = newStmtList(
+    nnkProcDef.newTree(
+      name,
+      newEmptyNode(),
+      newEmptyNode(),
+      nnkFormalParams.newTree(
+        ident("PyObject"),
+        nnkIdentDefs.newTree(
+          newIdentNode("args"),
+          nnkBracketExpr.newTree(
+            newIdentNode("seq"),
+            newIdentNode("PyObject")
+          ),
+          newEmptyNode()
+        )
+      ),
+      newEmptyNode(),
+      newEmptyNode(),
+      newStmtList(
+        nnkLetSection.newTree(
+          newIdentDefs(
+            ident("self"),
+            newEmptyNode(),
+            newCall(
+              objectType,
+              nnkBracketExpr.newTree(
+                ident("args"),
+                newIntLitNode(0)
+              )
+            )
+          )
+        ),
+        code,
+      )
+    ),
+    nnkCall.newTree(
+      nnkDotExpr.newTree(
+        ident(typeObjName),
+        newIdentNode("registerBltinMethod")
+      ),
+      newLit(methodName.strVal),
+      name
+    )
+  )
 
