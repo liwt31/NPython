@@ -5,11 +5,9 @@ import strutils
 import hashes
 import tables
 
-import pyobjectBase
-import exceptions
+include pyobjectBase
+include exceptions
 import ../Utils/utils
-
-export pyobjectBase
 
 
 template callMagic*(obj: PyObject, methodName: untyped): PyObject = 
@@ -42,7 +40,6 @@ proc callBltin*(obj: PyObject, methodName: string, args: varargs[PyObject]): PyO
   methods[methodName](realArgs)
 
 
-
 # some generic behaviors that every type should obey
 proc And(o1, o2: PyObject): PyObject = 
   let b1 = o1.callMagic(bool)
@@ -73,7 +70,11 @@ proc ge(o1, o2: PyObject): PyObject =
   let eq = o1.callMagic(eq, o2)
   gt.callMagic(Or, eq)
 
-proc newPyType*(name: string): PyTypeObject =
+
+var bltinTypes*: seq[PyTypeObject]
+
+
+proc newPyType*(name: string, bltin=true): PyTypeObject =
   new result
   result.name = name
   var m = result.magicMethods
@@ -84,22 +85,14 @@ proc newPyType*(name: string): PyTypeObject =
   m.ne = ne
   m.ge = ge
   result.bltinMethods = initTable[string, BltinFunc]()
+  if bltin:
+    bltinTypes.add(result)
 
 
 proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinFunc) = 
   if t.bltinMethods.hasKey(name):
-    unreachable(fmt"Method {name} is registered twice")
+    unreachable(fmt"Method {name} is registered twice for type {t.name}")
   t.bltinMethods[name] = fun
-
-
-type 
-  PyNone = ref object of PyObject
-
-
-method `$`*(obj: PyNone): string =
-  "None"
-
-let pyNone* = new PyNone
 
 
 proc genImple*(methodName, ObjectType, code:NimNode, params: openarray[NimNode]): NimNode= 
@@ -206,4 +199,3 @@ proc impleMethod*(methodName, objectType, code:NimNode): NimNode =
       name
     )
   )
-

@@ -6,8 +6,9 @@ import cligen
 
 import neval
 import compile
+import lifecycle
 import ../Parser/[lexer, parser]
-import ../Objects/[pyobject, frameobject, codeobject, exceptions]
+import ../Objects/[pyobject, frameobject, codeobject]
 import ../Utils/utils
 
 
@@ -65,6 +66,7 @@ proc interactiveShell =
 
 
 proc nPython(filenames: seq[string], dis = false) =
+  pyInit()
   if filenames.len == 0:
     interactiveShell()
 

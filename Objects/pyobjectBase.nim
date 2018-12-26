@@ -1,51 +1,45 @@
-#[
-declare some types and base methods, useful methods in pyobject.nim and methodobject.nim
-divide the file primarily for two reasons
-* exception handling. in pyobject.nim exception is required, 
-  however exception relies on PyObject
-* cyclic dependence of type and builtinfunc
-]#
-
 import hashes
 import tables
 
+import pyobject
+
 type 
-  unaryFunc* = proc (o: PyObject): PyObject
-  binaryFunc* = proc (o1, o2: PyObject): PyObject
-  ternaryFunc* = proc (o1, o2, o3: PyObject): PyObject
+  UnaryFunc* = proc (o: PyObject): PyObject
+  BinaryFunc* = proc (o1, o2: PyObject): PyObject
+  TernaryFunc* = proc (o1, o2, o3: PyObject): PyObject
 
   BltinFunc* = proc (args: seq[PyObject]): PyObject
 
   MagicMethods = tuple
-    add: binaryFunc
-    subtract: binaryFunc
-    multiply: binaryFunc
-    trueDivide: binaryFunc
-    floorDivide: binaryFunc
-    remainder: binaryFunc
-    power: binaryFunc
+    add: BinaryFunc
+    subtract: BinaryFunc
+    multiply: BinaryFunc
+    trueDivide: BinaryFunc
+    floorDivide: BinaryFunc
+    remainder: BinaryFunc
+    power: BinaryFunc
     
     # use uppercase to avoid conflict with nim keywords
-    Not: unaryFunc
-    negative: unaryFunc
-    positive: unaryFunc
-    absolute: unaryFunc
-    bool: unaryFunc
+    Not: UnaryFunc
+    negative: UnaryFunc
+    positive: UnaryFunc
+    absolute: UnaryFunc
+    bool: UnaryFunc
 
     # note: these are all bitwise operations, nothing to do with keywords `and` or `or`
-    And: binaryFunc
-    Xor: binaryFunc
-    Or: binaryFunc
+    And: BinaryFunc
+    Xor: BinaryFunc
+    Or: BinaryFunc
 
-    lt: binaryFunc
-    le: binaryFunc
-    eq: binaryFunc
-    ne: binaryFunc
-    gt: binaryFunc
-    ge: binaryFunc
+    lt: BinaryFunc
+    le: BinaryFunc
+    eq: BinaryFunc
+    ne: BinaryFunc
+    gt: BinaryFunc
+    ge: BinaryFunc
 
-    str: unaryFunc
-    repr: unaryFunc
+    str: UnaryFunc
+    repr: UnaryFunc
 
 
   PyObject* = ref object of RootObj
@@ -56,9 +50,9 @@ type
     name*: string
     magicMethods*: MagicMethods
     bltinMethods*: Table[string, BltinFunc]
-
-  PyBltinFuncObject* = ref object of PyObject
-    fun*: BltinFunc
+    # this is actually a dict. but we haven't defined dict yet.
+    # the values are set in typeobject.nim when the type is ready
+    dict*: PyObject 
 
 
 method `$`*(obj: PyObject): string {.base.} = 
@@ -71,3 +65,18 @@ method hash*(obj: PyObject): Hash {.base.} =
 
 method `==`*(obj1, obj2: PyObject): bool {.base.} =
   obj1[].addr == obj2[].addr
+
+
+
+type 
+  PyNone = ref object of PyObject
+
+
+method `$`*(obj: PyNone): string =
+  "None"
+
+let pyNone* = new PyNone
+
+
+
+

@@ -6,7 +6,7 @@
 
 import strformat
 
-import pyobjectBase
+import pyobject
 
 
 type
@@ -22,7 +22,6 @@ type
   PyNotImplementedError* = ref object of PyExceptionObject
 
   PyTypeError*  = ref object of PyExceptionObject
-
 
 
 proc newNameError*(name:string, thrown=true) : PyNameError = 
@@ -52,3 +51,8 @@ template isThrownException*(pyObj: PyObject): bool =
   else:
     false
 
+template errorIfNotString*(pyObj: untyped, methodName: string) = 
+    if not (pyObj of PyStringObject):
+      let typeName {. inject .} = pyObj.pyType.name
+      let msg = methodName & fmt" returned non-string (type {typeName})"
+      return newTypeError(msg)

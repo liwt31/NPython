@@ -12,6 +12,10 @@ import ../Objects/[pyobject, numobjects, boolobject, stringobject]
 import ../Utils/utils
 
 
+# in principle only define constructor for ast node that 
+# appears more than once. There are exceptions below,
+# but it should be keeped since now.
+
 proc newAstExpr(expr: AsdlExpr): AstExpr = 
   result = new AstExpr
   result.value = expr
@@ -204,7 +208,13 @@ method setStore(astNode: AstNodeBase) {.base.} =
   echo astNode
   unreachable
 
+method setStore(astNode: AstCall) = 
+  raiseSyntaxError("Can't assign to a function")
+
 method setStore(astNode: AstName) = 
+  astnode.ctx = new AstStore
+
+method setStore(astNode: AstAttribute) = 
   astnode.ctx = new AstStore
 
 
@@ -851,16 +861,26 @@ ast testlist_comp, [seq[AsdlExpr]]:
 
   
 # trailer  '(' [arglist] ')' | '[' subscriptlist ']' | '.' NAME
-proc astTrailer(parseNode: ParseNode, leftExpr: AsdlExpr): AsdlExpr = 
-  if not (parseNode.children[0].tokenNode.token == Token.Lpar): # only function calls
-    raiseSyntaxError("Only function calls allowed for trailer")
-  var callNode = new AstCall
-  callNode.fun = leftExpr
-  case parseNode.children.len
-  of 2:
-    result = callNode 
-  of 3:
-    result = astArglist(parseNode.children[1], callNode)
+ast trailer, [AsdlExpr, (leftExpr, AsdlExpr)]:
+  case parseNode.children[0].tokenNode.token
+  of Token.Lpar:
+    var callNode = new AstCall
+    callNode.fun = leftExpr
+    case parseNode.children.len
+    of 2:
+      result = callNode 
+    of 3:
+      result = astArglist(parseNode.children[1], callNode)
+    else:
+      unreachable
+  of Token.Lsqb:
+    raiseSyntaxError("subscript [] not implemented")
+  of Token.Dot:
+    let attr = new AstAttribute
+    attr.value = leftExpr
+    attr.attr = newIdentifier(parseNode.children[1].tokenNode.content)
+    attr.ctx = new AstLoad
+    result = attr
   else:
     unreachable
   

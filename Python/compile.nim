@@ -481,6 +481,9 @@ compileMethod Call:
   c.addOp(newArgInstr(OpCode.CallFunction, astNode.args.len))
 
 
+compileMethod Attribute:
+  unreachable
+
 compileMethod Constant:
   c.tcu.addLoadConst(astNode.value.value)
 

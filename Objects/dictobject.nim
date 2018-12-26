@@ -1,17 +1,18 @@
+import strformat
+import strutils
 import tables
+import macros
 
 
-import pyobject
-import exceptions
-
+import pyobject 
+import listobject
+import stringobject
+import ../Utils/utils
 
 type 
   PyDictObject* = ref object of PyObject
     table: OrderedTable[PyObject, PyObject]
 
-proc newPyDict* : PyDictObject = 
-  new result
-  result.table = initOrderedTable[PyObject, PyObject]()
 
 
 proc hasKey*(dict: PyDictObject, key: PyObject): bool = 
@@ -25,7 +26,18 @@ proc `[]=`*(dict: PyDictObject, key, value: PyObject) =
   dict.table.del(key) # nothing happens if key is not there
   dict.table[key] = value
 
+let pyDictObjectType = newPyType("dict")
 
+
+macro impleDictUnary(methodName, code:untyped): untyped = 
+  result = impleUnary(methodName, ident("PyDictObject"), code)
+
+
+macro impleDictMethod(methodName, code:untyped): untyped = 
+  result = impleMethod(methodName, ident("PyDictObject"), code)
+
+
+#[
 proc combine*(dict1: PyDictObject, dict2: PyDictObject): PyDictObject = 
   result = newPyDict()
   for k, v in dict1.table.pairs:
@@ -34,8 +46,40 @@ proc combine*(dict1: PyDictObject, dict2: PyDictObject): PyDictObject =
     if result.hasKey(k):
       assert false
     result[k] = v
+]#
+
+
+impleDictUnary str:
+  var ss: seq[string]
+  for k, v in self.table.pairs:
+    let kRepr = k.callMagic(repr)
+    let vRepr = v.callMagic(repr)
+    errorIfNotString(kRepr, "__str__")
+    errorIfNotString(vRepr, "__str__")
+    ss.add fmt"{kRepr}: {vRepr}"
+  return newPyString("{" & ss.join(", ") & "}")
+  
+
+impleDictUnary repr:
+  strPyDictObject(self)
+
+# in real python this would return a iteration
+# this function is used internally
+proc keys*(d: PyDictObject): PyListObject = 
+  result = newPyList()
+  for key in d.table.keys:
+    let rebObj = result.callBltin("append", key)
+    if rebObj.isThrownException:
+      unreachable("No chance for append to thrown exception")
+
+
 
 proc update*(d1, d2: PyDictObject) = 
   for k, v in d2.table.pairs:
     d1[k] = v
 
+
+proc newPyDict* : PyDictObject = 
+  new result
+  result.table = initOrderedTable[PyObject, PyObject]()
+  result.pyType = pyDictObjectType

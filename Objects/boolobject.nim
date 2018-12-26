@@ -2,7 +2,6 @@ import macros
 
 import pyobject
 
-
 type
   PyBoolObject = ref object of PyObject
     b: bool

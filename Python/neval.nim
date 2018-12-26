@@ -6,8 +6,8 @@ import compile
 
 import opcode
 import bltinmodule
-import ../Objects/[pyobject, frameobject, stringobject,
-  codeobject, dictobject, methodobject, exceptions, boolobject,
+import ../Objects/[pyobject, typeobject, frameobject, stringobject,
+  codeobject, dictobject, methodobject, boolobject,
   funcobject]
 import ../Utils/utils
 

@@ -7,9 +7,9 @@ import math
 import bigints
 
 import pyobject
+import typeobject
 import boolobject
 import stringobject
-import exceptions
 import ../Utils/utils
 
 

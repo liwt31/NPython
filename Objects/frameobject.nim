@@ -63,7 +63,7 @@ proc jumpTo*(f: PyFrameObject, target: int) =
 
 
 proc setupBuiltin(f: PyFrameObject, name: string, fun: BltinFunc) = 
-  f.globals[newPyString(name)] = newPyBltinFunc(fun)
+  f.globals[newPyString(name)] = newPyWrapperObject(fun)
 
 
 proc newPyFrame*(code: PyCodeObject, fastLocals: seq[PyObject], prevF: PyFrameObject): PyFrameObject = 
@@ -78,6 +78,8 @@ proc newPyFrame*(code: PyCodeObject, fastLocals: seq[PyObject], prevF: PyFrameOb
     result.globals.update(prevF.globals)
     result.globals.update(prevF.locals)
   result.builtins = newPyDict()
+  # simple hack. Should build a "builtin" module in the future
   result.setupBuiltin("print", builtinPrint)
+  result.setupBuiltin("dir", builtinDir)
   result.fastLocals = fastLocals
 

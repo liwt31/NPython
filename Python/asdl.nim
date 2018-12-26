@@ -3,8 +3,7 @@ import sequtils
 import strutils
 import strformat
 
-import ../Objects/pyobject
-import ../Objects/stringobject
+import ../Objects/[pyobject, stringobject]
 
 type
   AstNodeBase* = ref object of RootObj

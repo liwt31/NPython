@@ -3,13 +3,13 @@ import strformat
 import strutils
 
 import pyobject
+import typeobject
 import stringobject
-import exceptions
 import ../Utils/utils
 
 
 type
-  PyListObject = ref object of PyObject
+  PyListObject* = ref object of PyObject
     items: seq[PyObject]
 
 
@@ -31,6 +31,7 @@ impleListUnary str:
   var ss: seq[string]
   for item in self.items:
     let itemRepr = item.callMagic(repr)
+    errorIfNotString(itemRepr, "__str__")
     if itemRepr of PyStringObject:
       ss.add(PyStringObject(itemRepr).str)
     else:
@@ -46,6 +47,7 @@ impleListMethod append:
   if 2 < args.len:
     return newTypeError(fmt"append() takes exactly one argument ({args.len - 1} given)")
   self.items.add(args[1])
+  pyNone
 
 
 proc newPyList: PyListObject = 
