@@ -7,7 +7,6 @@ import math
 import bigints
 
 import pyobject
-import typeobject
 import boolobject
 import stringobject
 import ../Utils/utils
@@ -234,6 +233,11 @@ proc newPyInt*(n: BigInt): PyIntObject =
 proc newPyInt*(str: string): PyIntObject = 
   result = newPyInt()
   result.v = str.initBigInt
+
+
+proc newPyInt*(i: int): PyIntObject = 
+  result = newPyInt()
+  result.v = i.initBigInt
 
 
 proc newPyFloat: PyFloatObject = 

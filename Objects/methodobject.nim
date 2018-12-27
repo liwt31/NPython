@@ -1,5 +1,5 @@
 import strformat
-import macros
+import macros except name
 
 import pyobject
 import stringobject
@@ -10,18 +10,22 @@ type
 
   PyBltinFuncObject* = ref object of PyNFuncObject
     fun: BltinFunc
+    name: PyStringObject
 
   PyBltinMethodObject* = ref object of PyNFuncObject
-    self: PyObject
     fun: BltinMethod
+    name: PyStringObject
+    self: PyObject
 
   PyUnaryFuncObject* = ref object of PyNFuncObject
-    self: PyObject
     fun: UnaryFunc
+    name: PyStringObject
+    self: PyObject
 
   PyBinaryFuncObject* = ref object of PyNFuncObject
-    self: PyObject
     fun: BinaryFunc
+    name: PyStringObject
+    self: PyObject
 
 let pyNFuncObjectType = newPyType("Nim-function")
 
@@ -34,14 +38,12 @@ method call*(f: PyBltinFuncObject, args: seq[PyObject]): PyObject =
   f.fun(args)
 
 method call*(f: PyUnaryFuncObject, args: seq[PyObject]): PyObject = 
-  if args.len != 0:
-    return newTypeError(fmt"expected 0 arguments, got {args.len}")
+  checkArgNum(0)
   f.fun(f.self)
 
 
 method call*(f: PyBinaryFuncObject, args: seq[PyObject]): PyObject = 
-  if args.len != 1:
-    return newTypeError(fmt"expected 1 arguments, got {args.len}")
+  checkArgNum(1)
   f.fun(f.self, args[0])
 
 
@@ -52,24 +54,25 @@ method call*(f: PyBltinMethodObject, args: seq[PyObject]): PyObject =
 template impl(withSelf=true) = 
   new result
   result.fun = fun
-  result.pyType = pyNFuncObjectType
+  result.name = name
   when withSelf:
     result.self = self
+  result.pyType = pyNFuncObjectType
 
 
-proc newPyNFunc*(fun: BltinFunc): PyBltinFuncObject =
+proc newPyNFunc*(fun: BltinFunc, name: PyStringObject): PyBltinFuncObject =
   impl(false)
 
 
-proc newPyNFunc*(fun: UnaryFunc, self: PyObject): PyUnaryFuncObject = 
+proc newPyNFunc*(fun: UnaryFunc, name: PyStringObject, self: PyObject): PyUnaryFuncObject = 
   impl
 
 
-proc newPyNFunc*(fun: BinaryFunc, self: PyObject): PyBinaryFuncObject = 
+proc newPyNFunc*(fun: BinaryFunc, name: PyStringObject, self: PyObject): PyBinaryFuncObject = 
   impl
 
 
-proc newPyNFunc*(fun: BltinMethod, self: PyObject): PyBltinMethodObject = 
+proc newPyNFunc*(fun: BltinMethod, name: PyStringObject, self: PyObject): PyBltinMethodObject = 
   impl
 
 

@@ -66,15 +66,15 @@ method getMethodDispatch(descr: PyObject, owner: PyObject): PyObject {. base .}=
 
 
 method getMethodDispatch(descr: PyUnaryFuncDescrObject, owner: PyObject): PyObject = 
-  newPyNFunc(descr.meth, owner)
+  newPyNFunc(descr.meth, descr.name, owner)
 
 
 method getMethodDispatch(descr: PyBinaryFuncDescrObject, owner: PyObject): PyObject = 
-  newPyNFunc(descr.meth, owner)
+  newPyNFunc(descr.meth, descr.name, owner)
 
 
 method getMethodDispatch(descr: PyBltinMethDescrObject, owner: PyObject): PyObject = 
-  newPyNFunc(descr.meth, owner)
+  newPyNFunc(descr.meth, descr.name, owner)
 
 
 proc getMethod(descr: PyObject, owner: PyObject): PyObject = 

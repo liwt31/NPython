@@ -54,14 +54,26 @@ proc newAttributeError*(typeName, attrName: string, thrown=true): PyAttributeErr
 method `$`*(e: PyExceptionObject): string = 
   $e.msg
 
+
 template isThrownException*(pyObj: PyObject): bool = 
   if pyObj of PyExceptionObject:
     PyExceptionObject(pyObj).thrown
   else:
     false
 
+
 template errorIfNotString*(pyObj: untyped, methodName: string) = 
     if not pyObj.isPyStringType:
       let typeName {. inject .} = pyObj.pyType.name
       let msg = methodName & fmt" returned non-string (type {typeName})"
       return newTypeError(msg)
+
+
+template checkArgNum*(expected: int, name="") = 
+  if args.len != expected:
+    var msg: string
+    if name != "":
+      msg = name & " takes exactly " & $expected & fmt" argument ({args.len} given)"
+    else:
+      msg = "expected " & $expected & fmt" argument ({args.len} given)"
+    return newTypeError(msg)

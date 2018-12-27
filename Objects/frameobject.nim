@@ -66,7 +66,8 @@ proc jumpTo*(f: PyFrameObject, target: int) =
 
 
 proc setupBuiltin(f: PyFrameObject, name: string, fun: BltinFunc) = 
-  f.globals[newPyString(name)] = newPyNFunc(fun)
+  let nameStrObj = newPyString(name)
+  f.globals[nameStrObj] = newPyNFunc(fun, nameStrObj)
 
 
 proc newPyFrame*(code: PyCodeObject, fastLocals: seq[PyObject], prevF: PyFrameObject): PyFrameObject = 
