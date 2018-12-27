@@ -68,7 +68,7 @@ impleDictUnary repr:
 proc keys*(d: PyDictObject): PyListObject = 
   result = newPyList()
   for key in d.table.keys:
-    let rebObj = result.callBltin("append", key)
+    let rebObj = result.appendPyListObject(@[key])
     if rebObj.isThrownException:
       unreachable("No chance for append to thrown exception")
 

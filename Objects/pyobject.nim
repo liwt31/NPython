@@ -9,87 +9,41 @@ include pyobjectBase
 include exceptions
 import ../Utils/utils
 
-
-template callMagic*(obj: PyObject, methodName: untyped): PyObject = 
-  let fun = obj.pyType.magicMethods.methodName
+template getFun*(obj: PyObject, fun, methodName: untyped) = 
+  if obj.pyType == nil:
+    unreachable("Py type not set")
+  fun = obj.pyType.magicMethods.methodName
   if fun == nil:
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
-    newTypeError("No " & methodStr & " method for " & objTypeStr & " defined")
-  else:
-    fun(obj)
+    return newTypeError("No " & methodStr & " method for " & objTypeStr & " defined")
+
+
+template callMagic*(obj: PyObject, methodName: untyped): PyObject = 
+  var fun: UnaryFunc
+  obj.getFun(fun, methodName)
+  fun(obj)
+  
 
 
 template callMagic*(obj: PyObject, methodName: untyped, arg1: PyObject): PyObject = 
-  let fun = obj.pyType.magicMethods.methodName
-  if fun == nil:
-    let objTypeStr = $obj.pyType.name
-    let methodStr = astToStr(methodName)
-    newTypeError("No " & methodStr & " method for " & objTypeStr & " defined")
-  else:
-    fun(obj, arg1)
+  var fun: BinaryFunc
+  obj.getFun(fun, methodName)
+  fun(obj, arg1)
 
 
-proc callBltin*(obj: PyObject, methodName: string, args: varargs[PyObject]): PyObject = 
+proc callBltinMethod*(obj: PyObject, methodName: string, args: varargs[PyObject]): PyObject = 
   let methods = obj.pyType.bltinMethods
   if not methods.hasKey(methodName):
     unreachable # think about how to deal with the error
-  var realArgs = @[obj] 
+  var realArgs: seq[PyObject]
   for arg in args:
     realArgs.add arg
-  methods[methodName](realArgs)
+  methods[methodName](obj, realArgs)
 
 
-# some generic behaviors that every type should obey
-proc And(o1, o2: PyObject): PyObject = 
-  let b1 = o1.callMagic(bool)
-  let b2 = o2.callMagic(bool)
-  b1.callMagic(And, b2)
 
-proc Xor(o1, o2: PyObject): PyObject = 
-  let b1 = o1.callMagic(bool)
-  let b2 = o2.callMagic(bool)
-  b1.callMagic(Xor, b2)
-
-proc Or(o1, o2: PyObject): PyObject = 
-  let b1 = o1.callMagic(bool)
-  let b2 = o2.callMagic(bool)
-  b1.callMagic(Or, b2)
-
-proc le(o1, o2: PyObject): PyObject =
-  let lt = o1.callMagic(lt, o2)
-  let eq = o1.callMagic(eq, o2)
-  lt.callMagic(Or, eq)
-
-proc ne(o1, o2: PyObject): PyObject =
-  let eq = o1.callMagic(eq, o2)
-  eq.callMagic(Not)
-
-proc ge(o1, o2: PyObject): PyObject = 
-  let gt = o1.callMagic(gt, o2)
-  let eq = o1.callMagic(eq, o2)
-  gt.callMagic(Or, eq)
-
-
-var bltinTypes*: seq[PyTypeObject]
-
-
-proc newPyType*(name: string, bltin=true): PyTypeObject =
-  new result
-  result.name = name
-  var m = result.magicMethods
-  m.And = And
-  m.Xor = Xor
-  m.Or = Or
-  m.le = le
-  m.ne = ne
-  m.ge = ge
-  result.bltinMethods = initTable[string, BltinFunc]()
-  if bltin:
-    bltinTypes.add(result)
-
-
-proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinFunc) = 
+proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) = 
   if t.bltinMethods.hasKey(name):
     unreachable(fmt"Method {name} is registered twice for type {t.name}")
   t.bltinMethods[name] = fun
@@ -157,16 +111,24 @@ proc impleMethod*(methodName, objectType, code:NimNode): NimNode =
   typeObjName[0] = typeObjName[0].toLowerAscii
   result = newStmtList(
     nnkProcDef.newTree(
-      name,
+      nnkPostFix.newTree(
+        ident("*"),
+        name,
+      ),
       newEmptyNode(),
       newEmptyNode(),
       nnkFormalParams.newTree(
         ident("PyObject"),
         nnkIdentDefs.newTree(
+          ident("selfNoCast"),
+          ident("PyObject"),
+          newEmptyNode(),
+        ),
+        nnkIdentDefs.newTree(
           newIdentNode("args"),
           nnkBracketExpr.newTree(
-            newIdentNode("seq"),
-            newIdentNode("PyObject")
+            ident("seq"),
+            ident("PyObject")
           ),
           newEmptyNode()
         )
@@ -175,20 +137,17 @@ proc impleMethod*(methodName, objectType, code:NimNode): NimNode =
       newEmptyNode(),
       newStmtList(
         nnkLetSection.newTree(
-          newIdentDefs(
+          nnkIdentDefs.newTree(
             ident("self"),
             newEmptyNode(),
             newCall(
               objectType,
-              nnkBracketExpr.newTree(
-                ident("args"),
-                newIntLitNode(0)
-              )
+              ident("selfNoCast")
             )
           )
         ),
         code,
-      )
+      ),
     ),
     nnkCall.newTree(
       nnkDotExpr.newTree(

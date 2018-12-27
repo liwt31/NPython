@@ -2,7 +2,8 @@
 # CPython relies on NULL as return value to inform the caller 
 # that exception happens in that function. 
 # Using NULL or nil as "expected" return value is bad idea
-# We return exception object directly with a thrown flag inside
+# let alone using global variable so
+# we return exception object directly with a thrown flag inside
 
 import strformat
 
@@ -23,6 +24,8 @@ type
 
   PyTypeError*  = ref object of PyExceptionObject
 
+  PyAttributeError* = ref object of PyExceptionObject
+
 
 proc newNameError*(name:string, thrown=true) : PyNameError = 
   new result
@@ -42,6 +45,12 @@ proc newTypeError*(msg: string, thrown=true): PyTypeError =
   result.msg = msg
 
 
+proc newAttributeError*(typeName, attrName: string, thrown=true): PyAttributeError =
+  new result
+  result.thrown = thrown
+  result.msg = fmt"{typeName} object has no attribute {attrName}"
+
+
 method `$`*(e: PyExceptionObject): string = 
   $e.msg
 
@@ -52,7 +61,7 @@ template isThrownException*(pyObj: PyObject): bool =
     false
 
 template errorIfNotString*(pyObj: untyped, methodName: string) = 
-    if not (pyObj of PyStringObject):
+    if not pyObj.isPyStringType:
       let typeName {. inject .} = pyObj.pyType.name
       let msg = methodName & fmt" returned non-string (type {typeName})"
       return newTypeError(msg)

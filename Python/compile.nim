@@ -482,7 +482,15 @@ compileMethod Call:
 
 
 compileMethod Attribute:
-  unreachable
+  if astNode.ctx of AstLoad:
+    c.compile(astNode.value)
+    let opArg = c.tste.nameId(astNode.attr.value)
+    c.addOp(newArgInstr(OpCode.LoadAttr, opArg))
+  elif astNode.ctx of AstStore:
+    unreachable("store not implemented")
+  else:
+    unreachable
+
 
 compileMethod Constant:
   c.tcu.addLoadConst(astNode.value.value)

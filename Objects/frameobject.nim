@@ -40,6 +40,9 @@ proc top*(f: PyFrameObject): PyObject =
 proc pop*(f: PyFrameObject): PyObject = 
   f.valStack.pop
 
+proc setTop*(f: PyFrameObject, obj: PyObject) = 
+  f.valStack[^1] = obj
+
 
 proc getConst*(f: PyFrameObject, idx: int): PyObject = 
   f.code.constants[idx]
@@ -63,7 +66,7 @@ proc jumpTo*(f: PyFrameObject, target: int) =
 
 
 proc setupBuiltin(f: PyFrameObject, name: string, fun: BltinFunc) = 
-  f.globals[newPyString(name)] = newPyWrapperObject(fun)
+  f.globals[newPyString(name)] = newPyNFunc(fun)
 
 
 proc newPyFrame*(code: PyCodeObject, fastLocals: seq[PyObject], prevF: PyFrameObject): PyFrameObject = 

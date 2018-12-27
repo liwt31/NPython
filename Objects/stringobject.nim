@@ -45,6 +45,12 @@ proc newPyString*(str: string): PyStringObject =
   result.pyType = pyStringObjectType
   result.str = str
 
+
+proc isPyStringType*(obj: PyObject): bool = 
+  # currently just check exact string
+  obj of PyStringObject
+
+
 when isMainModule:
   import dictobject
   let d = newPyDict()

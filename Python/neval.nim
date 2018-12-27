@@ -13,18 +13,19 @@ import ../Utils/utils
 
 
 template doUnary(opName: untyped) = 
-  let top = f.pop
-  f.push top.callMagic(opName)
+  let top = f.top
+  f.setTop top.callMagic(opName)
 
 template doBinary(opName: untyped) =
   let op2 = f.pop
-  let op1 = f.pop
+  let op1 = f.top
   let res = op1.callMagic(opName, op2)
   if res.isThrownException:
     result = res
     break
-  f.push(res)
+  f.setTop res
 
+# function call dispatcher
 
 proc evalFrame*(f: PyFrameObject): PyObject = 
   while not f.exhausted:
@@ -86,7 +87,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       f.push(f.getConst(opArg))
 
     of OpCode.LoadName:
-      let name = f.getname(opArg)
+      let name = f.getName(opArg)
       var obj: PyObject
       if f.locals.hasKey(name):
         obj = f.locals[name]
@@ -107,9 +108,20 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       args = args.reversed
       let retObj = builtinList(args)
       if retObj.isThrownException:
+        result = retObj
         break
       else:
         f.push retObj
+
+    of OpCode.LoadAttr:
+      let name = f.getName(opArg)
+      let obj = f.top
+      let retObj = obj.callMagic(getattr, name)
+      if retObj.isThrownException:
+        result = retObj
+        break
+      else:
+        f.setTop retObj
 
     of OpCode.CompareOp:
       let cmpOp = CmpOp(opArg)
@@ -165,16 +177,17 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       args = args.reversed
       let funcObj = f.pop
       var retObj: PyObject
-      if funcObj of PyBltinFuncObject:
-        retObj = PyBltinFuncObject(funcObj).call(args)
-      elif funcObj of PyFunctionObject:
+      # runtime function, evaluate recursively
+      if funcObj of PyFunctionObject:
         let newF = newPyFrame(PyFunctionObject(funcObj).code, args, f)
         retObj = newF.evalFrame
+      # else use dispatcher defined in methodobject.nim
       else:
-        unreachable
+        retObj = funcObj.call(args)
       if retObj.isThrownException:
         # should handle here, currently simply throw it again
-        return retObj
+        result = retObj
+        break
       f.push retObj
 
     of OpCode.MakeFunction:

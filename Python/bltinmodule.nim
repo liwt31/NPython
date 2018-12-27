@@ -13,7 +13,7 @@ proc builtinPrint*(args: seq[PyObject]): PyObject =
 proc builtinList*(elms: seq[PyObject]): PyObject = 
   result = newPyList()
   for elm in elms:
-    let retObj = result.callBltin("append", elm)
+    let retObj = result.appendPyListObject(@[elm])
     if retObj.isThrownException:
       return retObj
 

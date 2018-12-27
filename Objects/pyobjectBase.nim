@@ -1,14 +1,21 @@
+import strformat
 import hashes
 import tables
 
 import pyobject
 
 type 
+  # these two function types are types that number of arguments can be
+  # directly obtained from OpCode
   UnaryFunc* = proc (o: PyObject): PyObject
   BinaryFunc* = proc (o1, o2: PyObject): PyObject
-  TernaryFunc* = proc (o1, o2, o3: PyObject): PyObject
 
+  # for those that number of arguments unknown (and potentially kwarg?)
   BltinFunc* = proc (args: seq[PyObject]): PyObject
+  BltinMethod* = proc (self: PyObject, args: seq[PyObject]): PyObject
+
+
+  DescrGet* = proc (descr, obj: PyObject): PyObject
 
   MagicMethods = tuple
     add: BinaryFunc
@@ -41,6 +48,8 @@ type
     str: UnaryFunc
     repr: UnaryFunc
 
+    getattr: BinaryFunc
+
 
   PyObject* = ref object of RootObj
     pyType*: PyTypeObject
@@ -49,10 +58,12 @@ type
   PyTypeObject* = ref object of PyObject
     name*: string
     magicMethods*: MagicMethods
-    bltinMethods*: Table[string, BltinFunc]
+    bltinMethods*: Table[string, BltinMethod]
     # this is actually a dict. but we haven't defined dict yet.
     # the values are set in typeobject.nim when the type is ready
     dict*: PyObject 
+
+    descrGet*: DescrGet
 
 
 method `$`*(obj: PyObject): string {.base.} = 
@@ -66,8 +77,26 @@ method hash*(obj: PyObject): Hash {.base.} =
 method `==`*(obj1, obj2: PyObject): bool {.base.} =
   obj1[].addr == obj2[].addr
 
+proc id*(obj: PyObject): int = 
+  cast[int](obj[].addr)
 
 
+proc idStr*(obj: PyObject): string = 
+  fmt"{obj.id:#x}"
+
+
+var bltinTypes*: seq[PyTypeObject]
+
+
+proc newPyType*(name: string, bltin=true): PyTypeObject =
+  new result
+  result.name = name
+  result.bltinMethods = initTable[string, BltinMethod]()
+  if bltin:
+    bltinTypes.add(result)
+
+
+# todo: make it a object with type
 type 
   PyNone = ref object of PyObject
 
@@ -76,7 +105,3 @@ method `$`*(obj: PyNone): string =
   "None"
 
 let pyNone* = new PyNone
-
-
-
-

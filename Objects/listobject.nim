@@ -3,7 +3,6 @@ import strformat
 import strutils
 
 import pyobject
-import typeobject
 import stringobject
 import ../Utils/utils
 
@@ -44,9 +43,9 @@ impleListUnary repr:
 
 
 impleListMethod append:
-  if 2 < args.len:
+  if args.len != 1:
     return newTypeError(fmt"append() takes exactly one argument ({args.len - 1} given)")
-  self.items.add(args[1])
+  self.items.add(args[0])
   pyNone
 
 
