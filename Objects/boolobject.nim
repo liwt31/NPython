@@ -9,11 +9,11 @@ method `$`*(obj: PyBoolObject): string =
   $obj.b
 
 macro implBoolUnary(methodName, code:untyped): untyped = 
-  impleUnary(methodName, ident("PyBoolObject"), code)
+  implUnary(methodName, ident("PyBoolObject"), code)
 
 
 macro implBoolBinary(methodName, code:untyped): untyped = 
-  impleBinary(methodName, ident("PyBoolObject"), code)
+  implBinary(methodName, ident("PyBoolObject"), code)
 
 
 implBoolUnary Not:

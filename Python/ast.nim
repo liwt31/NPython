@@ -206,13 +206,20 @@ macro childAst(child, astNode: untyped, tokens: varargs[Token]): untyped =
     
 method setStore(astNode: AstNodeBase) {.base.} = 
   echo astNode
-  unreachable
+  unreachable("can't set store")
+
+
+method setStore(astNode: AstConstant) = 
+  raiseSyntaxError("Can't assign to a constant")
+
 
 method setStore(astNode: AstCall) = 
   raiseSyntaxError("Can't assign to a function")
 
+
 method setStore(astNode: AstName) = 
   astnode.ctx = new AstStore
+
 
 method setStore(astNode: AstAttribute) = 
   astnode.ctx = new AstStore

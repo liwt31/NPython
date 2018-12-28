@@ -73,7 +73,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       let top = f.pop
       if top != pyNone:
         let retObj = builtinPrint(@[top])
-        # todo: error handling
+        if retObj.isThrownException:
+          result = retObj
+          break
       
     of OpCode.ReturnValue:
       result = f.pop

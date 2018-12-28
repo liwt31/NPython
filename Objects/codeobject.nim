@@ -8,7 +8,7 @@ import ../Python/opcode
 
 type
   PyCodeObject* = ref object of PyObject
-    code*: seq[(int, int)]
+    code*: seq[(OpCode, int)]
     constants*: seq[PyObject]
     names*: seq[PyStringObject]
     localVars*: seq[PyStringObject]
@@ -16,7 +16,7 @@ type
 
 # code objects are initialized in compile.nim
 
-proc len*(code: PyCodeObject): int = 
+proc len*(code: PyCodeObject): int {. inline .} = 
   code.code.len
 
 

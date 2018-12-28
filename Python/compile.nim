@@ -7,6 +7,7 @@ import tables
 
 import ast
 import asdl
+import symtable
 import opcode
 import ../Parser/parser
 import ../Objects/[pyobject, stringobject, codeobject]
@@ -29,24 +30,6 @@ type
     next: BasicBlock
     seenReturn: bool
     offset: int
-
-  # a very simple symbol table for now
-  # a detailed implementation requires two passes before compilation
-  # and deals with lots of syntax error
-  # Now it's done during the compilation
-  # because only local vairables are considered
-  SymTableEntry = ref object
-    # the difference between names and localVars is subtle.
-    # In runtime, py object in names are looked up in local
-    # dict and global dict by string key. 
-    # At least global dict can be modified dynamically. 
-    # whereas py object in localVars are looked up in var
-    # sequence, thus faster. localVar can't be made global
-    # def foo(x):
-    #   global x
-    # will result in an error (in CPython)
-    names: Table[PyStringObject, int]
-    localVars: Table[PyStringObject, int]
 
   # for each function, lambda, class, etc
   CompilerUnit = ref object
@@ -84,12 +67,6 @@ proc newBasicBlock: BasicBlock =
   result = new BasicBlock
   result.seenReturn = false
 
-proc newSymTableEntry: SymTableEntry =
-  result = new SymTableEntry
-  result.names = initTable[PyStringObject, int]()
-  result.localVars = initTable[PyStringObject, int]()
-
-
 proc newCompilerUnit: CompilerUnit =
   result = new CompilerUnit
   result.ste = newSymTableEntry()
@@ -101,12 +78,12 @@ proc newCompiler: Compiler =
   result.units.add(newCompilerUnit())
 
 
-method toTuple(instr: Instr): (int, int) {.base.} =
-  (int(instr.opCode), -1)
+method toTuple(instr: Instr): (OpCode, int) {.base.} =
+  (instr.opCode, -1)
 
 
-method toTuple(instr: ArgInstr): (int, int) =
-  (int(instr.opCode), instr.opArg)
+method toTuple(instr: ArgInstr): (OpCode, int) =
+  (instr.opCode, instr.opArg)
 
 
 proc constantId(cu: CompilerUnit, pyObject: PyObject): int =
@@ -115,32 +92,6 @@ proc constantId(cu: CompilerUnit, pyObject: PyObject): int =
     return
   result = cu.constants.len
   cu.constants.add(pyObject)
-
-
-proc toInverseSeq(t: Table[PyStringObject, int]): seq[PyStringObject] =
-  result = newSeq[PyStringObject](t.len)
-  for name, id in t:
-    result[id] = name
-
-
-proc hasLocal(ste: SymTableEntry, localName: PyStringObject): bool =
-  ste.localVars.hasKey(localName)
-
-proc addLocalVar(ste: SymTableEntry, localName: PyStringObject) =
-  ste.localVars[localName] = ste.localVars.len
-
-proc localId(ste: SymTableEntry, localName: PyStringObject): int =
-  ste.localVars[localName]
-
-
-proc nameId(ste: SymTableEntry, nameStr: PyStringObject): int =
-  if ste.names.hasKey(nameStr):
-    return ste.names[nameStr]
-  else:
-    let newId = ste.names.len
-    ste.names[nameStr] = newId
-    return newId
-
 
 
 # the top compiler unit
@@ -209,8 +160,8 @@ proc assemble(cu: CompilerUnit): PyCodeObject =
     for instr in cb.instrSeq:
       result.code.add(instr.toTuple())
   result.constants = cu.constants
-  result.names = cu.ste.names.toInverseSeq()
-  result.localVars = cu.ste.localVars.toInverseSeq()
+  result.names = cu.ste.namesToSeq()
+  result.localVars = cu.ste.localVarsToSeq()
 
 
 macro genMapMethod(methodName, code: untyped): untyped =
@@ -343,6 +294,7 @@ method compile(c: Compiler, astNode: AstNodeBase) {.base.} =
   echo "!!!WARNING, ast node compile method not implemented"
   echo astNode
   echo "###WARNING, ast node compile method not implemented"
+  # let it compile, the result shown is better for debugging
 
 
 compileMethod Module:
@@ -358,15 +310,15 @@ compileMethod FunctionDef:
   assert astNode.decorator_list.len == 0
   assert astNode.returns == nil
   c.units.add(newCompilerUnit())
-  c.compile(astNode.args)
+  c.tste.collectLocalVar(astNode)
+  #c.compile(astNode.args)
   c.compileSeq(astNode.body)
   let co = c.units.pop.assemble
   c.tcu.addLoadConst(co)
   c.tcu.addLoadConst(astNode.name.value)
-  # simplest case with argument as 0 (no flag)
+  # the second arg: simplest case (no flag)
   c.addOp(newArgInstr(OpCode.MakeFunction, 0))
   c.addStoreOp(astNode.name)
-#c.addOp(newArgInstr(OpCode.StoreName, c.tste.nameId(astNode.name.value)))
 
 
 compileMethod Return:
@@ -530,9 +482,7 @@ compileMethod NotEq:
   c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.Ne)))
 
 compileMethod Arguments:
-  for idx, arg in astNode.args:
-    assert arg of AstArg
-    c.tste.addLocalvar(AstArg(arg).arg.value)
+  unreachable()
 
 
 proc compile*(input: TaintedString | ParseNode): PyCodeObject =

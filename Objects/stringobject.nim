@@ -25,18 +25,18 @@ method `==`*(str1, str2: PyStringObject): bool =
 let pyStringObjectType = newPyType("str")
 
 
-macro impleStringUnary(methodName, code:untyped): untyped = 
-  result = impleUnary(methodName, ident("PyStringObject"), code)
+macro implStringUnary(methodName, code:untyped): untyped = 
+  result = implUnary(methodName, ident("PyStringObject"), code)
 
 
-macro impleStringBinary(methodName, code:untyped): untyped = 
-  result = impleBinary(methodName, ident("PyStringObject"), code)
+macro implStringBinary(methodName, code:untyped): untyped = 
+  result = implBinary(methodName, ident("PyStringObject"), code)
 
-impleStringUnary str:
+implStringUnary str:
   self
 
 
-impleStringUnary repr:
+implStringUnary repr:
   newPyString($self)
 
 

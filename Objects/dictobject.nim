@@ -30,11 +30,11 @@ let pyDictObjectType = newPyType("dict")
 
 
 macro implDictUnary(methodName, code:untyped): untyped = 
-  result = impleUnary(methodName, ident("PyDictObject"), code)
+  result = implUnary(methodName, ident("PyDictObject"), code)
 
 
 macro implDictMethod(methodName, argTypes, code:untyped): untyped = 
-  result = impleMethod(methodName, ident("PyDictObject"), argTypes, code)
+  result = implMethod(methodName, ident("PyDictObject"), argTypes, code)
 
 
 #[

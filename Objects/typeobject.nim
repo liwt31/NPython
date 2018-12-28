@@ -63,12 +63,12 @@ proc ge(o1, o2: PyObject): PyObject =
   let eq = o1.callMagic(eq, o2)
   gt.callMagic(Or, eq)
 
-
 proc str(self: PyObject): PyObject = 
   newPyString(fmt"<{self.pyType.name} at {self.idStr}>")
 
 proc repr(self: PyObject): PyObject = 
   self.str
+
 
 proc getAttr(self: PyObject, nameObj: PyObject): PyObject = 
   if not nameObj.isPyStringType:
@@ -104,6 +104,7 @@ proc addGeneric(t: PyTypeObject) =
 
 
 proc typeReady*(t: PyTypeObject) = 
+  t.pyType = pyTypeObjectType
   t.addGeneric
 
   let d = newPyDict()
@@ -121,4 +122,4 @@ proc typeReady*(t: PyTypeObject) =
 
   t.dict = d
 
-
+pyTypeObjectType.typeReady()

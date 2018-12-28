@@ -6,7 +6,8 @@ def bar():
     foo(2)
 
 def foobar(x,y):
-    return x+y
+    z = 2
+    return x+y+2
 
 foo(1)
 # some ccomment

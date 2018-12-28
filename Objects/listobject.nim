@@ -21,14 +21,14 @@ proc newPyList*: PyListObject
 
 
 macro implListUnary(methodName, code:untyped): untyped = 
-  result = impleUnary(methodName, ident("PyListObject"), code)
+  result = implUnary(methodName, ident("PyListObject"), code)
 
 
 macro implListMethod(methodName, argTypes, code:untyped): untyped = 
-  result = impleMethod(methodName, ident("PyListObject"), argTypes, code)
+  result = implMethod(methodName, ident("PyListObject"), argTypes, code)
 
 
-let pyListObjectType = newPyType("list")
+let pyListObjectType* = newPyType("list")
 
 
 implListUnary str:

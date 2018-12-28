@@ -14,6 +14,7 @@ Capable of:
 * very basic function defination and call
 * interactive mode and file mode
 * builtin print
+* builtin list
 
 Check out tests to see some example.
 
@@ -27,10 +28,10 @@ nim c ./Python/python
 ```
 
 ### Todo
-* more exception handling
-* builtin list
 * for loop
 * import package
+* complete object model and more instrospection
+* more exception handling (with line and col number, stack info)
 * so much more
 
 ### License

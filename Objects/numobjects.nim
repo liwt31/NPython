@@ -50,11 +50,11 @@ template intBinaryTemplate(op, methodName: untyped, methodNameStr:string) =
 # the macros will assert the type of the first argument
 # cast the first argument to corresponding type
 # and add the resulting method to type object
-macro impleIntUnary(methodName, code:untyped): untyped = 
-  result = impleUnary(methodName, ident("PyIntObject"), code)
+macro implIntUnary(methodName, code:untyped): untyped = 
+  result = implUnary(methodName, ident("PyIntObject"), code)
 
-macro impleIntBinary(methodName, code:untyped): untyped = 
-  result = impleBinary(methodName, ident("PyIntObject"), code)
+macro implIntBinary(methodName, code:untyped): untyped = 
+  result = implBinary(methodName, ident("PyIntObject"), code)
 
 template unsupportedType = 
   assert false
@@ -66,46 +66,46 @@ let pyIntObjectType* = newPyType("int")
 let pyFloatObjectType* = newPyType("float")
 
 
-impleIntBinary add:
+implIntBinary add:
   intBinaryTemplate(`+`, add, "+")
 
 
-impleIntBinary subtract:
+implIntBinary subtract:
   intBinaryTemplate(`-`, subtract, "-")
 
 
-impleIntBinary multiply:
+implIntBinary multiply:
   intBinaryTemplate(`*`, multiply, "*")
 
 
-impleIntBinary trueDivide:
+implIntBinary trueDivide:
   let casted = newPyFloat(self)
   casted.callMagic(trueDivide, other)
 
 
-impleIntBinary floorDivide:
+implIntBinary floorDivide:
   intBinaryTemplate(`div`, floorDivide, "//")
 
 
-impleIntBinary power:
+implIntBinary power:
   intBinaryTemplate(pow, power, "**")
 
 
-impleIntUnary positive:
+implIntUnary positive:
   self
 
-impleIntUnary negative: 
+implIntUnary negative: 
   newPyInt(-self.v)
 
 
-impleIntUnary bool:
+implIntUnary bool:
   if self.v == 0:
     pyFalseObj
   else:
     pyTrueObj
 
 
-impleIntBinary lt:
+implIntBinary lt:
   if other of PyIntObject:
     if self.v < PyIntObject(other).v:
       result = pyTrueObj
@@ -114,27 +114,37 @@ impleIntBinary lt:
   elif other of PyFloatObject:
     result = other.callMagic(ge, self)
   else:
-    unsupportedType
+    result = newTypeError(fmt"< not supported by int and {other.pyType.name}")
 
 
-impleIntBinary eq:
-  assert other of PyIntObject
-  if self.v == PyIntObject(other).v:
-    pyTrueObj
+implIntBinary eq:
+  if other of PyIntObject:
+    if self.v == PyIntObject(other).v:
+      result = pyTrueObj
+    else:
+      result = pyFalseObj
+  elif other of PyFloatObject:
+    result = other.callMagic(eq, self)
+  elif other of PyBoolObject:
+    if self.v == 1:
+      result = other
+    else:
+      result = other.callMagic(Not)
   else:
-    pyFalseObj
+    result = newTypeError(fmt"== not supported by int and {other.pyType.name}")
 
 
-impleIntUnary str:
+
+implIntUnary str:
   newPyString($self)
 
 
-impleIntUnary repr:
+implIntUnary repr:
   newPyString($self)
 
 
-macro impleFloatUnary(methodName, code:untyped): untyped = 
-  result = impleUnary(methodName, ident("PyFloatObject"), code)
+macro implFloatUnary(methodName, code:untyped): untyped = 
+  result = implUnary(methodName, ident("PyFloatObject"), code)
 
 
 template floatCastType(methodName: string) = 
@@ -147,76 +157,76 @@ template floatCastType(methodName: string) =
     let msg = methodName & fmt" not supported by float and {other.pyType.name}"
     return newTypeError(msg)
 
-macro impleFloatBinary(methodName, code:untyped): untyped = 
+macro implFloatBinary(methodName, code:untyped): untyped = 
   let castType = getAst(floatCastType(methodName.strVal))
-  let imple = newStmtList(castType, code)
-  result = impleBinary(methodName, ident("PyFloatObject"), imple)
+  let impl = newStmtList(castType, code)
+  result = implBinary(methodName, ident("PyFloatObject"), impl)
 
 
-impleFloatBinary add:
+implFloatBinary add:
   newPyFloat(self.v + casted.v)
 
 
-impleFloatBinary subtract:
+implFloatBinary subtract:
   newPyFloat(self.v - casted.v)
 
 
-impleFloatBinary multiply:
+implFloatBinary multiply:
   newPyFloat(self.v * casted.v)
 
 
-impleFloatBinary trueDivide:
+implFloatBinary trueDivide:
   newPyFloat(self.v / casted.v)
 
 
-impleFloatBinary floorDivide:
+implFloatBinary floorDivide:
   newPyFloat(floor(self.v / casted.v))
 
 
-impleFloatBinary power:
+implFloatBinary power:
   newPyFloat(self.v.pow(casted.v))
 
 
-impleFloatUnary positive:
+implFloatUnary positive:
   self
 
-impleFloatUnary negative:
+implFloatUnary negative:
   newPyFloat(-self.v)
 
 
-impleFloatUnary bool:
+implFloatUnary bool:
   if self.v == 0:
     return pyFalseObj
   else:
     return pyTrueObj
 
 
-impleFloatBinary lt:
+implFloatBinary lt:
   if self.v < casted.v:
     return pyTrueObj
   else:
     return pyFalseObj
 
 
-impleFloatBinary eq:
+implFloatBinary eq:
   if self.v == casted.v:
     return pyTrueObj
   else:
     return pyFalseObj
 
 
-impleFloatBinary gt:
+implFloatBinary gt:
   if self.v > casted.v:
     return pyTrueObj
   else:
     return pyFalseObj
 
 
-impleFloatUnary str:
+implFloatUnary str:
   newPyString($self)
 
 
-impleFloatUnary repr:
+implFloatUnary repr:
   newPyString($self)
 
 # let's see how long I can tolerant these 2 stupid workarounds.

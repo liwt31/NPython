@@ -19,9 +19,12 @@ proc builtinList*(elms: seq[PyObject]): PyObject =
 
 # this should be moved to python level
 proc builtinDir*(args: seq[PyObject]): PyObject = 
+  # why in CPython 0 argument becomes `locals()`? no idea
   if args.len != 1:
     return newTypeError("dir expected 1 arguments, got {args.len}")
-  args[0].pyType.getDict.keys
+  let obj = args[0]
+  # get mapping proxy first then talk about how do deal with __dict__ of type
+  obj.pyType.getDict.keys
 
 
 

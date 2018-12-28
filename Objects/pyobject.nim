@@ -49,7 +49,7 @@ proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) =
   t.bltinMethods[name] = fun
 
 
-proc genImple*(methodName, ObjectType, code:NimNode, params: openarray[NimNode]): NimNode= 
+proc genImpl*(methodName, ObjectType, code:NimNode, params: openarray[NimNode]): NimNode= 
 
   result = newStmtList()
   let name = ident($methodName & $ObjectType)
@@ -88,20 +88,20 @@ proc genImple*(methodName, ObjectType, code:NimNode, params: openarray[NimNode])
 
 
 
-proc impleUnary*(methodName, objectType, code:NimNode): NimNode = 
+proc implUnary*(methodName, objectType, code:NimNode): NimNode = 
   let params = [ident("PyObject"), newIdentDefs(ident("selfNoCast"), ident("PyObject"))]
-  result = genImple(methodName, objectType, code, params)
+  result = genImpl(methodName, objectType, code, params)
 
 
 
-proc impleBinary*(methodName, objectType, code:NimNode): NimNode = 
+proc implBinary*(methodName, objectType, code:NimNode): NimNode = 
   let poIdent = ident("PyObject")
   let params = [
                  poIdent, 
                  newIdentDefs(ident("selfNoCast"), poIdent),
                  newIdentDefs(ident("other"), poIdent)
                ]
-  result = genImple(methodName, objectType, code, params)
+  result = genImpl(methodName, objectType, code, params)
 
 
 proc objName2tpObjName(objName: string): string {. compileTime .} = 
@@ -157,7 +157,7 @@ proc checkArgTypes(methodName, argTypes: NimNode): NimNode =
 
 
 # here first argument is casted without checking
-proc impleMethod*(methodName, objectType, argTypes: NimNode, code:NimNode): NimNode = 
+proc implMethod*(methodName, objectType, argTypes: NimNode, code:NimNode): NimNode = 
   let name = ident($methodName & $objectType)
   var typeObjName = objName2tpObjName($objectType)
   let typeObjNode = ident(typeObjName)

@@ -5,6 +5,7 @@ import codeobject
 import dictobject
 import stringobject
 import methodobject
+import listobject
 import ../Python/[opcode, bltinmodule]
 
 
@@ -51,26 +52,29 @@ proc getName*(f: PyFrameObject, idx: int): PyStringObject =
   f.code.names[idx]
 
 
-proc exhausted*(f: PyFrameObject): bool = 
+proc exhausted*(f: PyFrameObject): bool {. inline .} = 
   f.code.len <= f.lastI + 1
 
 
-proc nextInstr*(f: PyFrameObject): (OpCode, int) = 
+proc nextInstr*(f: PyFrameObject): (OpCode, int) {. inline .} = 
   inc f.lastI
-  var (opCode, opArg) = f.code.code[f.lastI]
-  result = (OpCode(opCode), opArg)
+  f.code.code[f.lastI]
 
 
 proc jumpTo*(f: PyFrameObject, target: int) = 
   f.lastI = target - 1
 
 
+proc setupBuiltin(f: PyFrameObject, name:string, obj: PyObject) = 
+  let nameStrObj = newPyString(name)
+  f.globals[nameStrObj] = obj
+
 proc setupBuiltin(f: PyFrameObject, name: string, fun: BltinFunc) = 
   let nameStrObj = newPyString(name)
   f.globals[nameStrObj] = newPyNFunc(fun, nameStrObj)
 
 
-proc newPyFrame*(code: PyCodeObject, fastLocals: seq[PyObject], prevF: PyFrameObject): PyFrameObject = 
+proc newPyFrame*(code: PyCodeObject, args: seq[PyObject], prevF: PyFrameObject): PyFrameObject = 
   assert code != nil
   result = new PyFrameObject
   result.prev = prevF
@@ -85,5 +89,8 @@ proc newPyFrame*(code: PyCodeObject, fastLocals: seq[PyObject], prevF: PyFrameOb
   # simple hack. Should build a "builtin" module in the future
   result.setupBuiltin("print", builtinPrint)
   result.setupBuiltin("dir", builtinDir)
-  result.fastLocals = fastLocals
+  result.setupBuiltin("list", pyListObjectType)
+  result.fastLocals = newSeq[PyObject](code.localVars.len)
+  for idx, arg in args:
+    result.fastLocals[idx] = arg
 
