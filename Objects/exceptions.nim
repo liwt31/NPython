@@ -9,13 +9,14 @@ import strformat
 
 import pyobject
 
-
+# need a lot of work to expose these to upper NPython
+# make a wrapper object should do (exceptionobjects.nim)
 type
   PyExceptionObject* = ref object of PyObject
+    thrown*: bool
     # use a string directly. Don't use PyStringObject
     # Exceptions are tightly binded to the core of NPython
     # reliance on PyStringObject inevitably induces cyclic dependence
-    thrown*: bool
     msg: string
 
   PyNameError* = ref object of PyExceptionObject
@@ -26,6 +27,16 @@ type
 
   PyAttributeError* = ref object of PyExceptionObject
 
+  PyValueError* = ref object of PyExceptionObject
+
+  PyIndexError* = ref object of PyExceptionObject
+
+# need some fine grained control here, so generic is not so good
+# a little bit messy won't harm for now because 
+# 1) the file is expected to be drasticly refactored 
+#    when exposing exceptions to upper level interpreter
+# 2) I need more experience on how excptions are used in the project to 
+#    decide how to refactor this file
 
 proc newNameError*(name:string, thrown=true) : PyNameError = 
   new result
@@ -33,22 +44,31 @@ proc newNameError*(name:string, thrown=true) : PyNameError =
   result.msg = fmt"name {name} is not defined"
 
 
-proc newNotImplementedError*(msg: string, thrown=true) : PyNotImplementedError = 
+template implNew = 
   new result
   result.thrown = thrown
   result.msg = msg
+
+proc newNotImplementedError*(msg: string, thrown=true) : PyNotImplementedError = 
+  implNew
 
 
 proc newTypeError*(msg: string, thrown=true): PyTypeError = 
-  new result
-  result.thrown = thrown
-  result.msg = msg
+  implNew
 
 
 proc newAttributeError*(typeName, attrName: string, thrown=true): PyAttributeError =
   new result
   result.thrown = thrown
   result.msg = fmt"{typeName} object has no attribute {attrName}"
+
+
+proc newValueError*(msg: string, thrown=true): PyValueError = 
+  implNew
+
+
+proc newIndexError*(msg: string, thrown=true): PyIndexError = 
+  implNew
 
 
 method `$`*(e: PyExceptionObject): string = 

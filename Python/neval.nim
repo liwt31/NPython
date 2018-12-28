@@ -7,7 +7,7 @@ import compile
 import opcode
 import bltinmodule
 import ../Objects/[pyobject, typeobject, frameobject, stringobject,
-  codeobject, dictobject, methodobject, boolobject,
+  codeobject, dictobject, methodobject, boolobjectBase,
   funcobject]
 import ../Utils/utils
 

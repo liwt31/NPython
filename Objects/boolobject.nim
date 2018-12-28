@@ -1,44 +1,50 @@
+import strformat
 import macros
 
 import pyobject
-
-type
-  PyBoolObject = ref object of PyObject
-    b: bool
-
-
-let pyBoolObjectType = newPyType("bool")
-
-
-proc newPyBool(b: bool): PyBoolObject = 
-  result = new PyBoolObject
-  result.pyType = pyBoolObjectType
-  result.b = b
-
-
-let pyTrueObj* = newPyBool(true)
-let pyFalseObj* = newPyBool(false)
-
+import stringobject
+import boolobjectBase
 
 method `$`*(obj: PyBoolObject): string = 
   $obj.b
 
-macro impleBoolUnary(methodName, code:untyped): untyped = 
+macro implBoolUnary(methodName, code:untyped): untyped = 
   impleUnary(methodName, ident("PyBoolObject"), code)
 
 
-macro impleBoolBinary(methodName, code:untyped): untyped = 
+macro implBoolBinary(methodName, code:untyped): untyped = 
   impleBinary(methodName, ident("PyBoolObject"), code)
 
 
-impleBoolUnary Not:
+implBoolUnary Not:
   if self == pyTrueObj:
     pyFalseObj
   else:
     pyTrueObj
 
 
-impleBoolUnary bool:
+implBoolUnary bool:
   self
+
+
+implBoolBinary eq:
+  let otherBoolObj = other.callMagic(bool)
+  if not (otherBoolObj of PyBoolObject):
+    return newTypeError(fmt"__bool__ should return bool, got {otherBoolObj.pyType.name}")
+  let otherBool = PyBoolObject(otherBoolObj).b
+  if self.b == otherBool:
+    return pyTrueObj
+  else:
+    return pyFalseObj
+  
+
+implBoolUnary str:
+  if self.b:
+    return newPyString("True")
+  else:
+    return newPyString("False")
+
+implBoolUnary repr:
+  strPyBoolObject(self)
 
 

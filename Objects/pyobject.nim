@@ -121,6 +121,7 @@ proc checkArgNumNimNode(artNum: int, methodName:string): NimNode =
 # tp: PyIntObject like
 # tpObj: pyIntObjectType like
 template checkType(obj, tp, tpObj, methodName) = 
+  # should use a more sophisticated way to judge type
   if not (obj of tp):
     let expected {. inject .} = tpObj.name
     let got {. inject .}= obj.pyType.name
@@ -128,9 +129,11 @@ template checkType(obj, tp, tpObj, methodName) =
     let msg = fmt"{expected} is requred for {mName} (got {got})"
     return newTypeError(msg)
 
-template castType(name, t) = 
-  if t == PyObject:
-    discard
+template declareVar(name, obj) = 
+  let name {. inject .} = obj
+
+template castType(name, tp, obj) = 
+  let name {. inject .} = tp(obj)
 
 proc checkArgTypes(methodName, argTypes: NimNode): NimNode = 
   result = newStmtList()
@@ -143,11 +146,13 @@ proc checkArgTypes(methodName, argTypes: NimNode): NimNode =
     )
     let name = child[0]
     let tp = child[1]
-    if tp.strVal == "PyObject": # don't bother checking this type
-      continue
-    let tpObj = ident(objName2tpObjName(tp.strVal))
-    let methodNameStrNode = newStrLitNode(methodName.strVal)
-    result.add(getAst(checkType(obj, tp, tpObj, methodNameStrNode)))
+    if tp.strVal == "PyObject":  # won't bother checking 
+      result.add(getAst(declareVar(name, obj)))
+    if tp.strVal != "PyObject": 
+      let tpObj = ident(objName2tpObjName(tp.strVal))
+      let methodNameStrNode = newStrLitNode(methodName.strVal)
+      result.add(getAst(checkType(obj, tp, tpObj, methodNameStrNode)))
+      result.add(getAst(castType(name, tp, obj)))
 
 
 

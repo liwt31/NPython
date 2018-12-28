@@ -3,8 +3,10 @@ import sequtils
 import strformat
 import strutils
 
+import bigints
+
 import pyobject
-import boolobject
+import boolobjectBase
 import numobjects
 import stringobject
 import ../Utils/utils
@@ -46,7 +48,7 @@ implListUnary repr:
 
 
 implListMethod append, (item: PyObject):
-  self.items.add(args[0])
+  self.items.add(item)
   pyNone
 
 
@@ -60,25 +62,65 @@ implListMethod copy, ():
   newL.items = self.items # shallow copy
   result = newL
 
-implListMethod count, ():
-  newPyInt(self.items.len)
 
+implListMethod count, (target: PyObject):
+  var count: int
+  for item in self.items:
+    let retObj = item.callMagic(eq, target)
+    if retObj.isThrownException:
+      return retObj
+    if retObj == pyTrueObj:
+      inc count
+  newPyInt(count)
+
+# for checkArgTypes testing
+#[
 implListMethod aInt, (i: PyIntObject):
-  self.items.add(args[0])
+  self.items.add(i)
   pyNone
 
+]#
 
 # implListMethod extend:
 # require iterators
 
 implListMethod index, (target: PyObject):
   for idx, item in self.items:
-    let retObj =  item.callMagic(eq, args[0])
+    let retObj =  item.callMagic(eq, target)
     if retObj.isThrownException:
       return retObj
     if retObj == pyTrueObj:
       return newPyInt(idx)
-  return newPyInt(-1)
+  newValueError(fmt"{target} is not in list")
+
+
+implListMethod insert, (idx: PyIntObject, item: PyObject):
+  var intIdx: int
+  if 0 < idx.v:
+    intIdx = 0
+  # len is of type `int` while the bigint lib only support comparison with `int32`
+  # fix this while dealing with the many problems with bigint lib
+  elif self.items.len.initBigInt < idx.v:
+    intIdx = self.items.len
+  else:
+    intIdx = idx.toInt
+  self.items.insert(item, intIdx)
+  pyNone
+
+
+implListMethod pop, ():
+  if self.items.len == 0:
+    return newIndexError("pop from empty list")
+  self.items.pop
+
+implListMethod remove, (target: PyObject):
+  let retObj = indexPyListObject(selfNoCast, @[target])
+  if retObj.isThrownException:
+    return retObj
+  assert retObj of PyIntObject
+  let idx = PyIntObject(retObj).toInt
+  self.items.delete(idx, idx+1)
+
 
 
 proc newPyList: PyListObject = 

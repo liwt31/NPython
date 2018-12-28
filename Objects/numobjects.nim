@@ -7,17 +7,17 @@ import math
 import bigints
 
 import pyobject
-import boolobject
+import boolobjectBase
 import stringobject
 import ../Utils/utils
 
 
 type 
   PyIntObject* = ref object of PyObject
-    v: BigInt
+    v*: BigInt
 
   PyFloatObject = ref object of PyObject
-    v: float64
+    v*: float64
 
 
 method `$`*(i: PyIntObject): string = 
@@ -219,6 +219,14 @@ impleFloatUnary str:
 impleFloatUnary repr:
   newPyString($self)
 
+# let's see how long I can tolerant these 2 stupid workarounds.
+proc toInt*(pyInt: PyIntObject): int = 
+  # XXX: take care of overflow error, usually this is used for indexing
+  # so builtin int which is the return type of seq.len should be enough
+  parseInt($pyInt)
+
+proc toFloat*(pyInt: PyIntObject): float = 
+  parseFloat($pyInt)
 
 proc newPyInt: PyIntObject = 
   new result
@@ -247,7 +255,7 @@ proc newPyFloat: PyFloatObject =
 
 proc newPyFloat(pyInt: PyIntObject): PyFloatObject = 
   result = newPyFloat()
-  result.v = parseFloat($pyInt) # a stupid workaround...todo: make reasonable one
+  result.v = pyInt.toFloat 
 
 
 proc newPyFloat(v: float): PyFloatObject = 

@@ -4,6 +4,7 @@ import tables
 
 import pyobject
 import dictobject
+import boolobject
 import stringobject
 import methodobject
 import descrobject
