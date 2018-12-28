@@ -29,12 +29,12 @@ proc `[]=`*(dict: PyDictObject, key, value: PyObject) =
 let pyDictObjectType = newPyType("dict")
 
 
-macro impleDictUnary(methodName, code:untyped): untyped = 
+macro implDictUnary(methodName, code:untyped): untyped = 
   result = impleUnary(methodName, ident("PyDictObject"), code)
 
 
-macro impleDictMethod(methodName, code:untyped): untyped = 
-  result = impleMethod(methodName, ident("PyDictObject"), code)
+macro implDictMethod(methodName, argTypes, code:untyped): untyped = 
+  result = impleMethod(methodName, ident("PyDictObject"), argTypes, code)
 
 
 #[
@@ -49,7 +49,7 @@ proc combine*(dict1: PyDictObject, dict2: PyDictObject): PyDictObject =
 ]#
 
 
-impleDictUnary str:
+implDictUnary str:
   var ss: seq[string]
   for k, v in self.table.pairs:
     let kRepr = k.callMagic(repr)
@@ -60,7 +60,7 @@ impleDictUnary str:
   return newPyString("{" & ss.join(", ") & "}")
   
 
-impleDictUnary repr:
+implDictUnary repr:
   strPyDictObject(self)
 
 # in real python this would return a iteration

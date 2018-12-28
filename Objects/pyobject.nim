@@ -1,4 +1,4 @@
-import macros
+import macros except name
 import sequtils
 import strformat
 import strutils
@@ -104,11 +104,58 @@ proc impleBinary*(methodName, objectType, code:NimNode): NimNode =
   result = genImple(methodName, objectType, code, params)
 
 
+proc objName2tpObjName(objName: string): string {. compileTime .} = 
+  result = objName & "Type"
+  result[0] = result[0].toLowerAscii
 
-proc impleMethod*(methodName, objectType, code:NimNode): NimNode = 
+
+#  return `checkArgNum(1, "append")` like
+proc checkArgNumNimNode(artNum: int, methodName:string): NimNode = 
+  result = newCall(ident("checkArgNum"), 
+                   newIntLitNode(artNum), 
+                   newStrLitNode(methodName))
+
+
+# for difinition like `i: PyIntObject`
+# obj: i
+# tp: PyIntObject like
+# tpObj: pyIntObjectType like
+template checkType(obj, tp, tpObj, methodName) = 
+  if not (obj of tp):
+    let expected {. inject .} = tpObj.name
+    let got {. inject .}= obj.pyType.name
+    let mName {. inject .}= methodName
+    let msg = fmt"{expected} is requred for {mName} (got {got})"
+    return newTypeError(msg)
+
+template castType(name, t) = 
+  if t == PyObject:
+    discard
+
+proc checkArgTypes(methodName, argTypes: NimNode): NimNode = 
+  result = newStmtList()
+  let argNum = argTypes.len
+  result.add(checkArgNumNimNode(argNum, methodName.strVal))
+  for idx, child in argTypes:
+    let obj = nnkBracketExpr.newTree(
+      ident("args"),
+      newIntLitNode(idx),
+    )
+    let name = child[0]
+    let tp = child[1]
+    if tp.strVal == "PyObject": # don't bother checking this type
+      continue
+    let tpObj = ident(objName2tpObjName(tp.strVal))
+    let methodNameStrNode = newStrLitNode(methodName.strVal)
+    result.add(getAst(checkType(obj, tp, tpObj, methodNameStrNode)))
+
+
+
+# here first argument is casted without checking
+proc impleMethod*(methodName, objectType, argTypes: NimNode, code:NimNode): NimNode = 
   let name = ident($methodName & $objectType)
-  var typeObjName = $objectType & "Type"
-  typeObjName[0] = typeObjName[0].toLowerAscii
+  var typeObjName = objName2tpObjName($objectType)
+  let typeObjNode = ident(typeObjName)
   result = newStmtList(
     nnkProcDef.newTree(
       nnkPostFix.newTree(
@@ -136,6 +183,7 @@ proc impleMethod*(methodName, objectType, code:NimNode): NimNode =
       newEmptyNode(),
       newEmptyNode(),
       newStmtList(
+        checkArgTypes(methodName, argTypes),
         nnkLetSection.newTree(
           nnkIdentDefs.newTree(
             ident("self"),
@@ -151,7 +199,7 @@ proc impleMethod*(methodName, objectType, code:NimNode): NimNode =
     ),
     nnkCall.newTree(
       nnkDotExpr.newTree(
-        ident(typeObjName),
+        typeObjNode,
         newIdentNode("registerBltinMethod")
       ),
       newLit(methodName.strVal),

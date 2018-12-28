@@ -1,4 +1,4 @@
-import macros
+import macros except name
 import sequtils
 import strformat
 import strutils
@@ -22,8 +22,8 @@ macro implListUnary(methodName, code:untyped): untyped =
   result = impleUnary(methodName, ident("PyListObject"), code)
 
 
-macro implListMethod(methodName, code:untyped): untyped = 
-  result = impleMethod(methodName, ident("PyListObject"), code)
+macro implListMethod(methodName, argTypes, code:untyped): untyped = 
+  result = impleMethod(methodName, ident("PyListObject"), argTypes, code)
 
 
 let pyListObjectType = newPyType("list")
@@ -45,34 +45,33 @@ implListUnary repr:
   strPyListObject(self)
 
 
-implListMethod append:
-  checkArgNum(1, "append")
+implListMethod append, (item: PyObject):
   self.items.add(args[0])
   pyNone
 
 
-implListMethod clear:
-  checkArgNum(0, "clear")
+implListMethod clear, ():
   self.items.setLen 0
   pyNone
 
 
-implListMethod copy:
-  checkArgNum(0, "copy")
+implListMethod copy, ():
   let newL = newPyList()
   newL.items = self.items # shallow copy
   result = newL
 
-implListMethod count:
-  checkArgNum(0, "count")
+implListMethod count, ():
   newPyInt(self.items.len)
+
+implListMethod aInt, (i: PyIntObject):
+  self.items.add(args[0])
+  pyNone
 
 
 # implListMethod extend:
 # require iterators
 
-implListMethod index:
-  checkArgNum(1, "index")
+implListMethod index, (target: PyObject):
   for idx, item in self.items:
     let retObj =  item.callMagic(eq, args[0])
     if retObj.isThrownException:
@@ -80,7 +79,6 @@ implListMethod index:
     if retObj == pyTrueObj:
       return newPyInt(idx)
   return newPyInt(-1)
-
 
 
 proc newPyList: PyListObject = 

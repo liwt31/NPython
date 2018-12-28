@@ -129,8 +129,8 @@ proc genParamsSeq(paramSeq: NimNode): seq[NimNode] {.compileTime.} =
   result.add(paramSeq[0])
   result.add(newIdentDefs(ident("parseNode"), ident("ParseNode")))
   for i in 1..<paramSeq.len:
-    let child = paramSeq[i] # NimNode seems doesn't support slicing
-    expectKind(child, nnkPar)
+    let child = paramSeq[i] # seems NimNode doesn't support slicing
+    expectKind(child, nnkExprColonExpr)
     assert child.len == 2
     result.add(newIdentDefs(child[0], child[1]))
 
@@ -861,7 +861,7 @@ ast testlist_comp, [seq[AsdlExpr]]:
 
   
 # trailer  '(' [arglist] ')' | '[' subscriptlist ']' | '.' NAME
-ast trailer, [AsdlExpr, (leftExpr, AsdlExpr)]:
+ast trailer, [AsdlExpr, leftExpr: AsdlExpr]:
   case parseNode.children[0].tokenNode.token
   of Token.Lpar:
     var callNode = new AstCall
@@ -923,7 +923,7 @@ ast classdef, [AstClassDef]:
   
 # arglist  argument (',' argument)*  [',']
 #proc astArglist(parseNode: ParseNode, callNode: AstCall): AstCall = 
-ast arglist, [AstCall, (callNode, AstCall)]:
+ast arglist, [AstCall, callNode: AstCall]:
   # currently assume `argument` only has simplest `test`, e.g.
   # print(1,3,4), so we can do this
   for child in parseNode.children: 

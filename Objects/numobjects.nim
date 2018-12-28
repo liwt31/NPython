@@ -60,10 +60,10 @@ template unsupportedType =
   assert false
 
 
-let pyIntObjectType = newPyType("int")
+let pyIntObjectType* = newPyType("int")
 
 
-let pyFloatObjectType = newPyType("float")
+let pyFloatObjectType* = newPyType("float")
 
 
 impleIntBinary add:
