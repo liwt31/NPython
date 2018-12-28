@@ -182,6 +182,7 @@ const jumpSet* = {
     OpCode.JUMP_ABSOLUTE,
     OpCode.POP_JUMP_IF_FALSE,
     OpCode.POP_JUMP_IF_TRUE,
+    OpCode.For_ITER, # jump if stopiteration is raised
     }
 
 

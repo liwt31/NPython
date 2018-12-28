@@ -9,6 +9,7 @@ import pyobject
 import boolobjectBase
 import numobjects
 import stringobject
+import iterobject
 import ../Utils/utils
 
 
@@ -122,6 +123,11 @@ implListMethod remove, (target: PyObject):
   self.items.delete(idx, idx+1)
 
 
+proc iter(selfNoCast: PyObject): PyObject = 
+  let self = PyListObject(selfNoCast)
+  newPySeqIter(self.items)
+
+pyListObjectType.iter = iter
 
 proc newPyList: PyListObject = 
   new result

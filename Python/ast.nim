@@ -116,6 +116,7 @@ proc astAtomExpr(parseNode: ParseNode): AsdlExpr
 proc astAtom(parseNode: ParseNode): AsdlExpr
 proc astTestlistComp(parseNode: ParseNode): seq[AsdlExpr]
 proc astTrailer(parseNode: ParseNode, leftExpr: AsdlExpr): AsdlExpr
+proc astExprList(parseNode: ParseNode): AsdlExpr
 proc astTestList(parseNode: ParseNode): AsdlExpr
 proc astClassDef(parseNode: ParseNode): AstClassDef
 proc astArglist(parseNode: ParseNode, callNode: AstCall): AstCall
@@ -541,15 +542,24 @@ ast while_stmt, [AstWhile]:
   result.body = astSuite(parseNode.children[3])
   if not (parseNode.children.len == 4):
     raiseSyntaxError("Else clause in while not implemented")
-  
+
+# for_stmt  'for' exprlist 'in' testlist ':' suite ['else' ':' suite]
 ast for_stmt, [AsdlStmt]:
-  discard
+  if not (parseNode.children.len == 6):
+    raiseSyntaxError("for with else not implemented")
+  let forNode = new AstFor
+  forNode.target = astExprList(parseNode.children[1])
+  forNode.target.setStore
+  forNode.iter = astTestlist(parseNode.children[3])
+  forNode.body = astSuite(parseNode.children[5])
+  result = forNode
   
 ast try_stmt, [AsdlStmt]:
-  discard
+  raiseSyntaxError("try not implemented")
   
+
 ast with_stmt, [AsdlStmt]:
-  discard
+  raiseSyntaxError("with not implemented")
   
   #[
 ast with_item:
@@ -795,6 +805,7 @@ ast atom, [AsdlExpr]:
         # no tuple, just things like (1 + 2) * 3
         if not (testListComp.len == 1):
           raiseSyntaxError("Tuple not implemented")
+        result = testListComp[0]
       else:
         unreachable   
     else:
@@ -901,10 +912,18 @@ ast subscript:
 ast sliceop:
   discard
   
-ast exprlist:
-  discard
-  
   ]#
+
+# exprlist: (expr|star_expr) (',' (expr|star_expr))* [',']
+# currently only used in for stmt, so assume only one child
+ast exprlist, [AsdlExpr]:
+  if not (parseNode.children.len == 1):
+    raiseSyntaxError("unpacking in for loop not implemented")
+  let child = parseNode.children[0]
+  if not (child.tokenNode.token == Token.expr):
+    raiseSyntaxError("unpacking in for loop not implemented")
+  astExpr(child)
+  
 # testlist: test (',' test)* [',']
 ast testlist, [AsdlExpr]:
   if parseNode.children.len == 1:

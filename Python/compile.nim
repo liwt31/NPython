@@ -338,6 +338,21 @@ compileMethod AugAssign:
   unreachable  # should be blocked by ast
 
 
+compileMethod For:
+  assert astNode.orelse.len == 0
+  let start = newBasicBlock()
+  let ending = newBasicBlock()
+  c.compile(astNode.iter)
+  c.addOp(OpCode.GetIter)
+  c.addBlock(start)
+  c.addOp(newJumpInstr(OpCode.ForIter, ending))
+  if not (astNode.target of AstName):
+    raiseSyntaxError("only name as loop variable")
+  c.compile(astNode.target)
+  c.compileSeq(astNode.body)
+  c.addOp(newJumpInstr(OpCode.JumpAbsolute, start))
+  c.addBlock(ending)
+
 compileMethod While:
   assert astNode.orelse.len == 0
   let loop = newBasicBlock()

@@ -31,6 +31,8 @@ type
 
   PyIndexError* = ref object of PyExceptionObject
 
+  PyStopIterError* = ref object of PyExceptionObject
+
 # need some fine grained control here, so generic is not so good
 # a little bit messy won't harm for now because 
 # 1) the file is expected to be drasticly refactored 
@@ -70,6 +72,15 @@ proc newValueError*(msg: string, thrown=true): PyValueError =
 proc newIndexError*(msg: string, thrown=true): PyIndexError = 
   implNew
 
+proc newStopIterError*: PyStopIterError = 
+  new result
+  result.thrown = true
+
+
+proc isStopIter*(obj: PyObject): bool = 
+  if obj of PyStopIterError:
+    return PyStopIterError(obj).thrown
+  false
 
 method `$`*(e: PyExceptionObject): string = 
   $e.msg

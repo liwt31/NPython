@@ -10,11 +10,10 @@ Just for fun and practice. Learn both Python and Nim.
 Capable of:
 * basic arithmetic calculations
 * `if else`
-* loop with `while`
+* loop with `while` and `for`
 * very basic function defination and call
 * interactive mode and file mode
-* builtin print
-* builtin list
+* builtin print, list
 
 Check out tests to see some example.
 
@@ -28,8 +27,7 @@ nim c ./Python/python
 ```
 
 ### Todo
-* for loop
-* import package
+* import modules
 * complete object model and more instrospection
 * more exception handling (with line and col number, stack info)
 * so much more

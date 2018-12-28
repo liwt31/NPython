@@ -44,7 +44,7 @@ method `$`*(code: PyCodeObject): string =
           line &= fmt" ({code.constants[opArg]})"
       of OpCode.LoadFast, OpCode.StoreFast:
         line &= fmt" ({code.localVars[opArg]})"
-      of OpCode.CallFunction, jumpSet:
+      of OpCode.CallFunction, jumpSet, OpCode.BuildList:
         discard
       else:
         line &= " (Unknown OpCode)"

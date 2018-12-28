@@ -69,6 +69,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     of OpCode.BinaryTrueDivide:
       doBinary(trueDivide)
 
+    of OpCode.GetIter:
+      let top = f.top
+      if top.pyType.iter == nil:
+        result = newTypeError(fmt"{top.pyType.name} object is not iterable")
+        break
+      f.setTop(top.pyType.iter(top))
+
     of OpCode.PrintExpr:
       let top = f.pop
       if top != pyNone:
@@ -84,6 +91,20 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     of OpCode.StoreName:
       let name = f.getname(opArg)
       f.locals[name] = f.pop
+
+    of OpCode.ForIter:
+      let top = f.top
+      if top.pyType.iternext != nil:
+        result = newTypeError(fmt"iter() returned non-iterator of type top.pyType.name")
+      let retObj = top.pyType.iternext(top)
+      if retObj.isStopIter:
+        discard f.pop
+        f.jumpTo(opArg)
+      elif retObj.isThrownException:
+        result = retObj
+        break
+      else:
+        f.push retObj
 
     of OpCode.LoadConst:
       f.push(f.getConst(opArg))

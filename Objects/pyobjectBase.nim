@@ -16,6 +16,8 @@ type
 
 
   DescrGet* = proc (descr, obj: PyObject): PyObject
+  GetIterFunc* = proc (self: PyObject): PyObject
+  IterNextFunc* = proc (self: PyObject): PyObject
 
   MagicMethods = tuple
     add: BinaryFunc
@@ -64,6 +66,8 @@ type
     dict*: PyObject 
 
     descrGet*: DescrGet
+    iter*: GetIterFunc
+    iternext*: IterNextFunc
 
 
 method `$`*(obj: PyObject): string {.base.} = 
