@@ -60,7 +60,9 @@ type
     # prevent infinite recursion
     reprLock: bool
     # might be used to avoid GIL in the future?
-    writeLock: int
+    # a semaphore and a mutex...
+    readNum: int
+    writeLock: bool
 
 
   PyTypeObject* = ref object of PyObject

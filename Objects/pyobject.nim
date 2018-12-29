@@ -53,15 +53,15 @@ proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) =
     unreachable(fmt"Method {name} is registered twice for type {t.name}")
   t.bltinMethods[name] = fun
 
+template readEnterTmpl = 
+  if not self.readEnter:
+    return newLockError("Read failed because object is been written.")
 
 # unary methods and binary methods are supposed to be read-only
 # add a guard to prevent write during read process
 macro readMethod*(code: untyped): untyped = 
   code.body = nnkStmtList.newTree(
-                nnkCall.newTree(
-                  ident("readEnter"),
-                  ident("self")
-                ),
+                getAst(readEnterTmpl()),
                 nnkTryStmt.newTree(
                   code.body,
                   nnkFinally.newTree(
@@ -196,15 +196,27 @@ proc checkArgTypes(methodName, argTypes: NimNode): NimNode =
       result.add(getAst(castTypeTmpl(name, tp, obj)))
 
 
+template writeEnterTmpl = 
+  if not self.writeEnter:
+    return newLockError("Write failed because object is been read or written.")
+
 # here first argument is casted without checking
-proc implMethod*(methodNamePrefix, objectType, argTypes: NimNode, code:NimNode): NimNode = 
-  var methodName: NimNode 
-  var write = false
+proc implMethod*(methodNamePrefix, objectType, argTypes: NimNode, body:NimNode): NimNode = 
+  var methodName, enterNode, leaveNode: NimNode 
   if methodNamePrefix.kind == nnkPrefix:
-    write = true
     methodName = methodNamePrefix[1]
+    enterNode = getAst(writeEnterTmpl())
+    leaveNode = nnkCall.newTree(
+      ident("writeLeave"),
+      ident("self")
+    )
   else:
     methodName = methodNamePrefix
+    enterNode = getAst(readEnterTmpl())
+    leaveNode = nnkCall.newTree(
+      ident("readLeave"),
+      ident("self")
+    )
 
   let name = ident($methodName & $objectType)
   var typeObjName = objName2tpObjName($objectType)
@@ -227,12 +239,23 @@ proc implMethod*(methodNamePrefix, objectType, argTypes: NimNode, code:NimNode):
           ident("seq"),
           ident("PyObject")
         ),
-        newEmptyNode()
+        nnkPrefix.newTree(
+          ident("@"),
+          nnkBracket.newTree()
+        )
       )
     ],
     newStmtList(
       checkArgTypes(methodName, argTypes),
-      code,
+      enterNode,
+      nnkTryStmt.newTree(
+        body,
+        nnkFinally.newTree(
+          nnkStmtList.newTree(
+            leaveNode
+          )
+        )
+      )
     ),
   )
   procNode.addPragma(
@@ -265,15 +288,22 @@ proc reprEnter*(obj: PyObject): bool =
 proc reprLeave*(obj: PyObject) = 
   obj.reprLock = false
 
-proc readEnter*(obj: PyObject) = 
-  inc obj.writeLock
+proc readEnter*(obj: PyObject): bool = 
+  if not obj.writeLock:
+    inc obj.readNum
+    return true
+  else:
+    return false
 
 proc readLeave*(obj: PyObject) = 
-  dec obj.writeLock
+  dec obj.readNum
 
 proc writeEnter*(obj: PyObject): bool = 
-  if 0 < obj.writeLock:
+  if 0 < obj.readNum or obj.writeLock:
     return false
   else:
+    obj.writeLock = true
     return true
 
+proc writeLeave*(obj: PyObject) = 
+  obj.writeLock = false

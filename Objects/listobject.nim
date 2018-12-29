@@ -78,6 +78,16 @@ implListMethod count, (target: PyObject):
       inc count
   newPyInt(count)
 
+# for lock testing
+#[
+implListMethod doClear, ():
+  self.clearPyListObject()
+
+implListMethod *doRead, ():
+  return self.doClearPyListObject()
+
+]#
+
 # for checkArgTypes testing
 #[
 implListMethod aInt, (i: PyIntObject):
