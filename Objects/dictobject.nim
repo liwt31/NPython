@@ -11,7 +11,9 @@ import ../Utils/utils
 
 type 
   PyDictObject* = ref object of PyObject
-    table: OrderedTable[PyObject, PyObject]
+    # nim ordered table has O(n) delete time
+    # todo: implement an ordered dict 
+    table: Table[PyObject, PyObject]
 
 
 
@@ -23,7 +25,6 @@ proc `[]`*(dict: PyDictObject, key: PyObject): PyObject =
 
 
 proc `[]=`*(dict: PyDictObject, key, value: PyObject) = 
-  dict.table.del(key) # nothing happens if key is not there
   dict.table[key] = value
 
 let pyDictObjectType = newPyType("dict")
@@ -81,5 +82,5 @@ proc update*(d1, d2: PyDictObject) =
 
 proc newPyDict* : PyDictObject = 
   new result
-  result.table = initOrderedTable[PyObject, PyObject]()
+  result.table = initTable[PyObject, PyObject]()
   result.pyType = pyDictObjectType

@@ -7,7 +7,7 @@ import math
 import bigints
 
 import pyobject
-import boolobjectBase
+import boolobject
 import stringobject
 import ../Utils/utils
 

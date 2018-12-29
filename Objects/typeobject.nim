@@ -4,7 +4,7 @@ import tables
 
 import pyobject
 import dictobject
-import boolobject
+import boolobjectImpl
 import stringobject
 import methodobject
 import descrobject
@@ -38,6 +38,7 @@ const magicNames = [
   "__gt__",
   "__ge__",
 
+  "__len__",
   "__str__",
   "__repr__",
   "__getattribute__",
@@ -101,6 +102,8 @@ proc addGeneric(t: PyTypeObject) =
     t.magicMethods.str = str
   if m.repr == nil:
     t.magicMethods.repr = repr
+  if m.str == nil:
+    t.magicMethods.str = m.repr
 
 
 proc typeReady*(t: PyTypeObject) = 

@@ -8,6 +8,8 @@ template raiseSyntaxError*(msg: string) =
   raise newException(SyntaxError, msg)
 
 template unreachable*(msg = "Shouldn't be here") = 
-  raise newException(InternalError, msg)
+  # let optimizer to eliminate related branch
+  when not defined(release):
+    raise newException(InternalError, msg)
 
 

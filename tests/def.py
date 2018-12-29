@@ -7,7 +7,7 @@ def bar():
 
 def foobar(x,y):
     z = 2
-    return x+y+2
+    return x+y+2 / z
 
 foo(1)
 # some ccomment

@@ -6,7 +6,7 @@ import strutils
 import bigints
 
 import pyobject
-import boolobjectBase
+import boolobject
 import numobjects
 import stringobject
 import iterobject
@@ -32,28 +32,32 @@ macro implListMethod(methodName, argTypes, code:untyped): untyped =
 let pyListObjectType* = newPyType("list")
 
 
-implListUnary str:
-  var ss: seq[string]
-  for item in self.items:
-    let itemRepr = item.callMagic(repr)
-    errorIfNotString(itemRepr, "__str__")
-    if itemRepr of PyStringObject:
-      ss.add(PyStringObject(itemRepr).str)
-    else:
-      let msg = fmt"__str__ returned non-string (type {self.pyType.name})"
-      return newTypeError(msg)
-  return newPyString("[" & ss.join(", ") & "]")
 
 implListUnary repr:
-  strPyListObject(self)
+  var ss: seq[string]
+  for item in self.items:
+    var itemRepr: PyStringObject
+    if item.reprEnter:
+      let retObj = item.callMagic(repr)
+      item.reprLeave
+      errorIfNotString(retObj, "__repr__")
+      itemRepr = PyStringObject(retObj)
+    else:
+      itemRepr = newPyString("[...]")
+    ss.add(itemRepr.str)
+  return newPyString("[" & ss.join(", ") & "]")
 
 
-implListMethod append, (item: PyObject):
+implListUnary len:
+  return newPyInt(self.items.len)
+
+
+implListMethod *append, (item: PyObject):
   self.items.add(item)
   pyNone
 
 
-implListMethod clear, ():
+implListMethod *clear, ():
   self.items.setLen 0
   pyNone
 
@@ -95,7 +99,7 @@ implListMethod index, (target: PyObject):
   newValueError(fmt"{target} is not in list")
 
 
-implListMethod insert, (idx: PyIntObject, item: PyObject):
+implListMethod *insert, (idx: PyIntObject, item: PyObject):
   var intIdx: int
   if 0 < idx.v:
     intIdx = 0
@@ -109,12 +113,12 @@ implListMethod insert, (idx: PyIntObject, item: PyObject):
   pyNone
 
 
-implListMethod pop, ():
+implListMethod *pop, ():
   if self.items.len == 0:
     return newIndexError("pop from empty list")
   self.items.pop
 
-implListMethod remove, (target: PyObject):
+implListMethod *remove, (target: PyObject):
   let retObj = indexPyListObject(selfNoCast, @[target])
   if retObj.isThrownException:
     return retObj

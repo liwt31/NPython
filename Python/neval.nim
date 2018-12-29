@@ -1,4 +1,5 @@
 import os
+import macros except name
 import algorithm
 import strformat
 
@@ -7,34 +8,78 @@ import compile
 import opcode
 import bltinmodule
 import ../Objects/[pyobject, typeobject, frameobject, stringobject,
-  codeobject, dictobject, methodobject, boolobjectBase,
+  codeobject, dictobject, methodobject, boolobject,
   funcobject]
 import ../Utils/utils
 
 
 template doUnary(opName: untyped) = 
-  let top = f.top
-  f.setTop top.callMagic(opName)
+  let top = sTop()
+  let res = top.callMagic(opName)
+  if res.isThrownException:
+    result = res
+    break
+  sSetTop res
 
 template doBinary(opName: untyped) =
-  let op2 = f.pop
-  let op1 = f.top
+  let op2 = sPop()
+  let op1 = sTop()
   let res = op1.callMagic(opName, op2)
   if res.isThrownException:
     result = res
     break
-  f.setTop res
+  sSetTop res
 
 # function call dispatcher
 
 proc evalFrame*(f: PyFrameObject): PyObject = 
-  while not f.exhausted:
-    var (opCode, opArg) = f.nextInstr
+  # instructions are fetched so frequently that we should build a local cache
+  # instead of doing tons of dereference
+  var opCodes = newSeq[OpCode](f.code.len)
+  var opArgs = newSeq[int](f.code.len)
+  for idx, instrTuple in f.code.code:
+    opCodes[idx] = instrTuple[0]
+    opArgs[idx] = instrTuple[1]
+  var lastI = f.lastI
+
+  # instruction helpers
+  var opCode: OpCode
+  var opArg: int
+  template fetchInstr = 
+    inc lastI
+    opCode = opCodes[lastI]
+    opArg = opArgs[lastI]
+
+  template jumpTo(i: int) = 
+    lastI = i - 1
+
+  # value stack helpers
+  var valStack: array[64, PyObject]
+  var sptr = -1
+
+  template sTop: PyObject = 
+    valStack[sptr]
+
+  template sPop: PyObject = 
+    let v = valStack[sptr]
+    dec sptr
+    v
+
+  template sPush(obj: PyObject) = 
+    inc sptr
+    valStack[sptr] = obj
+
+  template sSetTop(obj: PyObject) = 
+    valStack[sptr] = obj
+
+  # the main interpreter loop
+  while true:
+    fetchInstr
     when defined(debug):
       echo opCode
     case opCode
     of OpCode.PopTop:
-      discard f.pop
+      dec sptr
 
     of OpCode.NOP:
       continue
@@ -70,14 +115,14 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       doBinary(trueDivide)
 
     of OpCode.GetIter:
-      let top = f.top
+      let top = sTop()
       if top.pyType.iter == nil:
         result = newTypeError(fmt"{top.pyType.name} object is not iterable")
         break
-      f.setTop(top.pyType.iter(top))
+      sSetTop(top.pyType.iter(top))
 
     of OpCode.PrintExpr:
-      let top = f.pop
+      let top = sPop()
       if top != pyNone:
         let retObj = builtinPrint(@[top])
         if retObj.isThrownException:
@@ -85,29 +130,29 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           break
       
     of OpCode.ReturnValue:
-      result = f.pop
+      result = sPop()
       break
 
     of OpCode.StoreName:
       let name = f.getname(opArg)
-      f.locals[name] = f.pop
+      f.locals[name] = sPop()
 
     of OpCode.ForIter:
-      let top = f.top
+      let top = sTop()
       if top.pyType.iternext != nil:
         result = newTypeError(fmt"iter() returned non-iterator of type top.pyType.name")
       let retObj = top.pyType.iternext(top)
       if retObj.isStopIter:
-        discard f.pop
-        f.jumpTo(opArg)
+        discard sPop()
+        jumpTo(opArg)
       elif retObj.isThrownException:
         result = retObj
         break
       else:
-        f.push retObj
+        sPush retObj
 
     of OpCode.LoadConst:
-      f.push(f.getConst(opArg))
+      sPush(f.getConst(opArg))
 
     of OpCode.LoadName:
       let name = f.getName(opArg)
@@ -122,29 +167,29 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         result = newNameError(name.str)
         break
         
-      f.push(obj)
+      sPush obj
 
     of OpCode.BuildList:
       var args: seq[PyObject]
       for i in 0..<opArg:
-        args.add f.pop
+        args.add sPop()
       args = args.reversed
       let retObj = builtinList(args)
       if retObj.isThrownException:
         result = retObj
         break
       else:
-        f.push retObj
+        sPush retObj
 
     of OpCode.LoadAttr:
       let name = f.getName(opArg)
-      let obj = f.top
+      let obj = sTop()
       let retObj = obj.callMagic(getattr, name)
       if retObj.isThrownException:
         result = retObj
         break
       else:
-        f.setTop retObj
+        sSetTop retObj
 
     of OpCode.CompareOp:
       let cmpOp = CmpOp(opArg)
@@ -165,40 +210,42 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         unreachable  # should be blocked by ast, compiler
 
     of OpCode.JumpIfFalseOrPop:
-      if f.top.callMagic(bool) == pyFalseObj:
-        f.jumpTo(opArg)
+      let top = sTop()
+      if top.callMagic(bool) == pyFalseObj:
+        jumpTo(opArg)
       else:
-        discard f.pop
+        discard sPop()
 
     of OpCode.JumpIfTrueOrPop:
-      if f.top.callMagic(bool) == pyTrueObj:
-        f.jumpTo(opArg)
+      let top = sTop()
+      if top.callMagic(bool) == pyTrueObj:
+        jumpTo(opArg)
       else:
-        discard f.pop
+        discard sPop()
 
     of OpCode.JumpForward, OpCode.JumpAbsolute:
-      f.jumpTo(opArg)
+      jumpTo(opArg)
 
     of OpCode.PopJumpIfFalse:
-      let top = f.pop
+      let top = sPop()
       let boolTop = top.callMagic(bool)
       if boolTop == pyTrueObj:
         discard
       else:
-        f.jumpTo(opArg)
+        jumpTo(opArg)
 
     of OpCode.LoadFast:
-      f.push f.fastLocals[opArg]
+      sPush f.fastLocals[opArg]
 
     of OpCode.StoreFast:
-      f.fastLocals[opArg] = f.pop
+      f.fastLocals[opArg] = sPop()
 
     of OpCode.CallFunction:
       var args: seq[PyObject]
       for i in 0..<opArg:
-        args.add f.pop
+        args.add sPop()
       args = args.reversed
-      let funcObj = f.pop
+      let funcObj = sPop()
       var retObj: PyObject
       # runtime function, evaluate recursively
       if funcObj of PyFunctionObject:
@@ -211,20 +258,21 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         # should handle here, currently simply throw it again
         result = retObj
         break
-      f.push retObj
+      sPush retObj
 
     of OpCode.MakeFunction:
       assert opArg == 0
-      let name = f.pop
+      let name = sPop()
       assert name of PyStringObject
-      let code = f.pop
+      let code = sPop()
       assert code of PyCodeObject
-      f.push newPyFunction(PyStringObject(name), PyCodeObject(code))
+      sPush newPyFunction(PyStringObject(name), PyCodeObject(code))
 
     else:
       let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
       result = newNotImplementedError(msg)
       break
+
 
 
 proc runCode*(co: PyCodeObject): PyObject = 

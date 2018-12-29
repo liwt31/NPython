@@ -34,7 +34,9 @@ proc hasLocal*(ste: SymTableEntry, localName: PyStringObject): bool =
   ste.localVars.hasKey(localName)
 
 proc addLocalVar*(ste: SymTableEntry, localName: AsdlIdentifier) =
-  ste.localVars[localName.value] = ste.localVars.len
+  let nameStr = localName.value
+  if not ste.localVars.hasKey(nameStr):
+    ste.localVars[nameStr] = ste.localVars.len
 
 proc localId*(ste: SymTableEntry, localName: PyStringObject): int =
   ste.localVars[localName]

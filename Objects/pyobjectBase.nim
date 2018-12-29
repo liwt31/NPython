@@ -47,6 +47,8 @@ type
     gt: BinaryFunc
     ge: BinaryFunc
 
+    len: UnaryFunc
+
     str: UnaryFunc
     repr: UnaryFunc
 
@@ -55,6 +57,10 @@ type
 
   PyObject* = ref object of RootObj
     pyType*: PyTypeObject
+    # prevent infinite recursion
+    reprLock: bool
+    # might be used to avoid GIL in the future?
+    writeLock: int
 
 
   PyTypeObject* = ref object of PyObject

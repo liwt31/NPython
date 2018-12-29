@@ -8,14 +8,14 @@ Just for fun and practice. Learn both Python and Nim.
 
 ### Status
 Capable of:
-* basic arithmetic calculations
+* basic arithmetic calculations (+ - * / // ** % int float)
 * `if else`
 * loop with `while` and `for`
 * very basic function defination and call
+* builtin print, list (by []), dir
 * interactive mode and file mode
-* builtin print, list
 
-Check out tests to see some example.
+Check out `./tests` to see more examples.
 
 
 ### How to use
@@ -28,9 +28,17 @@ nim c ./Python/python
 
 ### Todo
 * import modules
-* complete object model and more instrospection
-* more exception handling (with line and col number, stack info)
+* `yield`
+* complete object model and more instrospections
+* user defined class
+* more exception handlings (with line and col number, stack info)
 * so much more
+
+### Performance
+Nim is claimed to be as fast as C, and indeed it is. According to some really primitive benchmarks (`spin.py` and `f_spin.py`), although NPython is currently 5x-10x slower than CPython 3.7, it is at least in some cases faster than CPython < 2.4. This is alreay a huge achievement considering the numerous optimizations out there in the CPython codebase and NPython literally has no nim code level optimization.
+The majority of time spent is on object allocation along with the slow big int library. The object allocation issue is basically impossible to solve
+unless we do GC on our own just like CPython. 
+
 
 ### License
 Follow CPython license.

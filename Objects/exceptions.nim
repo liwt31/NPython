@@ -2,12 +2,12 @@
 # CPython relies on NULL as return value to inform the caller 
 # that exception happens in that function. 
 # Using NULL or nil as "expected" return value is bad idea
-# let alone using global variable so
+# let alone using global variables so
 # we return exception object directly with a thrown flag inside
 
 import strformat
 
-import pyobject
+import pyobjectBase
 
 # need a lot of work to expose these to upper NPython
 # make a wrapper object should do (exceptionobjects.nim)
@@ -98,6 +98,13 @@ template errorIfNotString*(pyObj: untyped, methodName: string) =
       let typeName {. inject .} = pyObj.pyType.name
       let msg = methodName & fmt" returned non-string (type {typeName})"
       return newTypeError(msg)
+
+template errorIfNotBool*(pyObj: untyped, methodName: string) = 
+    if not pyObj.isPyBoolType:
+      let typeName {. inject .} = pyObj.pyType.name
+      let msg = methodName & fmt" returned non-bool (type {typeName})"
+      return newTypeError(msg)
+
 
 
 template checkArgNum*(expected: int, name="") = 

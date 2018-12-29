@@ -26,11 +26,11 @@ let pyStringObjectType = newPyType("str")
 
 
 macro implStringUnary(methodName, code:untyped): untyped = 
-  result = implUnary(methodName, ident("PyStringObject"), code)
+  implUnary(methodName, ident("PyStringObject"), code)
 
 
 macro implStringBinary(methodName, code:untyped): untyped = 
-  result = implBinary(methodName, ident("PyStringObject"), code)
+  implBinary(methodName, ident("PyStringObject"), code)
 
 implStringUnary str:
   self
@@ -48,6 +48,7 @@ proc newPyString*(str: string): PyStringObject =
 
 proc isPyStringType*(obj: PyObject): bool = 
   # currently just check exact string
+  # include inherit in the future
   obj of PyStringObject
 
 

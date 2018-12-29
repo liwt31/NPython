@@ -12,8 +12,8 @@ import ../Python/[opcode, bltinmodule]
 
 type PyFrameObject* = ref object of PyObject 
   prev: PyFrameObject
-  code: PyCodeObject
-  lastI: int
+  code*: PyCodeObject
+  lastI*: int
   valStack: seq[PyObject]
   # dicts and sequences for variable lookup
   locals*: PyDictObject
@@ -30,6 +30,7 @@ method `$`(f: PyFrameObject):string =
   stringSeq.add("Frame")
   stringSeq.join("\n\n")
 
+#[
 proc push*(f: PyFrameObject, obj: PyObject) = 
   f.valStack.add(obj)
 
@@ -45,6 +46,7 @@ proc setTop*(f: PyFrameObject, obj: PyObject) =
   f.valStack[^1] = obj
 
 
+]#
 proc getConst*(f: PyFrameObject, idx: int): PyObject = 
   f.code.constants[idx]
 

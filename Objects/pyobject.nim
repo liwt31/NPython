@@ -1,9 +1,14 @@
+# the object file is devided into two parts. pyobjectBase.nim is for very basic and 
+# generic pyobject behavior. pyobject.nim as for helper macros for object method
+# definition
 import macros except name
+import sets
 import sequtils
 import strformat
 import strutils
 import hashes
 import tables
+
 
 include pyobjectBase
 include exceptions
@@ -49,11 +54,31 @@ proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) =
   t.bltinMethods[name] = fun
 
 
-proc genImpl*(methodName, ObjectType, code:NimNode, params: openarray[NimNode]): NimNode= 
+# unary methods and binary methods are supposed to be read-only
+# add a guard to prevent write during read process
+macro readMethod*(code: untyped): untyped = 
+  code.body = nnkStmtList.newTree(
+                nnkCall.newTree(
+                  ident("readEnter"),
+                  ident("self")
+                ),
+                nnkTryStmt.newTree(
+                  code.body,
+                  nnkFinally.newTree(
+                    nnkStmtList.newTree(
+                      nnkCall.newTree(
+                        ident("readLeave"),
+                        ident("self")
+                      )
+                    )
+                  )
+                )
+              )
+  code
 
-  result = newStmtList()
-  let name = ident($methodName & $ObjectType)
-  let body = newStmtList(
+# assert self type then cast
+macro castSelf*(ObjectType: untyped, code: untyped): untyped = 
+  code.body = newStmtList(
     nnkCommand.newTree(
       ident("assert"),
       nnkInfix.newTree(
@@ -66,10 +91,27 @@ proc genImpl*(methodName, ObjectType, code:NimNode, params: openarray[NimNode]):
       ident("self"),
       newCall(ObjectType, ident("selfNoCast"))
     ),
-    code
+    code.body
   )
+  code
 
-  result.add(newProc(name, params, body))
+
+proc genImpl*(methodName, ObjectType, body:NimNode, params: varargs[NimNode]): NimNode= 
+
+  result = newStmtList()
+  let name = ident($methodName & $ObjectType)
+
+  let procNode = newProc(name, params, body)
+  procNode.addPragma(
+    ident("readMethod")
+  )
+  procNode.addPragma(
+    nnkExprColonExpr.newTree(
+      ident("castSelf"),
+      ObjectType
+    )
+  )
+  result.add(procNode)
 
   var typeObjName = $ObjectType & "Type"
   typeObjName[0] = typeObjName[0].toLowerAscii
@@ -85,7 +127,6 @@ proc genImpl*(methodName, ObjectType, code:NimNode, params: openarray[NimNode]):
       name
     )
   )
-
 
 
 proc implUnary*(methodName, objectType, code:NimNode): NimNode = 
@@ -120,7 +161,7 @@ proc checkArgNumNimNode(artNum: int, methodName:string): NimNode =
 # obj: i
 # tp: PyIntObject like
 # tpObj: pyIntObjectType like
-template checkType(obj, tp, tpObj, methodName) = 
+template checkTypeTmpl(obj, tp, tpObj, methodName) = 
   # should use a more sophisticated way to judge type
   if not (obj of tp):
     let expected {. inject .} = tpObj.name
@@ -129,10 +170,10 @@ template checkType(obj, tp, tpObj, methodName) =
     let msg = fmt"{expected} is requred for {mName} (got {got})"
     return newTypeError(msg)
 
-template declareVar(name, obj) = 
+template declareVarTmpl(name, obj) = 
   let name {. inject .} = obj
 
-template castType(name, tp, obj) = 
+template castTypeTmpl(name, tp, obj) = 
   let name {. inject .} = tp(obj)
 
 proc checkArgTypes(methodName, argTypes: NimNode): NimNode = 
@@ -147,61 +188,62 @@ proc checkArgTypes(methodName, argTypes: NimNode): NimNode =
     let name = child[0]
     let tp = child[1]
     if tp.strVal == "PyObject":  # won't bother checking 
-      result.add(getAst(declareVar(name, obj)))
+      result.add(getAst(declareVarTmpl(name, obj)))
     if tp.strVal != "PyObject": 
       let tpObj = ident(objName2tpObjName(tp.strVal))
       let methodNameStrNode = newStrLitNode(methodName.strVal)
-      result.add(getAst(checkType(obj, tp, tpObj, methodNameStrNode)))
-      result.add(getAst(castType(name, tp, obj)))
-
+      result.add(getAst(checkTypeTmpl(obj, tp, tpObj, methodNameStrNode)))
+      result.add(getAst(castTypeTmpl(name, tp, obj)))
 
 
 # here first argument is casted without checking
-proc implMethod*(methodName, objectType, argTypes: NimNode, code:NimNode): NimNode = 
+proc implMethod*(methodNamePrefix, objectType, argTypes: NimNode, code:NimNode): NimNode = 
+  var methodName: NimNode 
+  var write = false
+  if methodNamePrefix.kind == nnkPrefix:
+    write = true
+    methodName = methodNamePrefix[1]
+  else:
+    methodName = methodNamePrefix
+
   let name = ident($methodName & $objectType)
   var typeObjName = objName2tpObjName($objectType)
   let typeObjNode = ident(typeObjName)
-  result = newStmtList(
-    nnkProcDef.newTree(
-      nnkPostFix.newTree(
-        ident("*"),
-        name,
-      ),
-      newEmptyNode(),
-      newEmptyNode(),
-      nnkFormalParams.newTree(
-        ident("PyObject"),
-        nnkIdentDefs.newTree(
-          ident("selfNoCast"),
-          ident("PyObject"),
-          newEmptyNode(),
-        ),
-        nnkIdentDefs.newTree(
-          newIdentNode("args"),
-          nnkBracketExpr.newTree(
-            ident("seq"),
-            ident("PyObject")
-          ),
-          newEmptyNode()
-        )
-      ),
-      newEmptyNode(),
-      newEmptyNode(),
-      newStmtList(
-        checkArgTypes(methodName, argTypes),
-        nnkLetSection.newTree(
-          nnkIdentDefs.newTree(
-            ident("self"),
-            newEmptyNode(),
-            newCall(
-              objectType,
-              ident("selfNoCast")
-            )
-          )
-        ),
-        code,
-      ),
+  let procNode = newProc(
+    nnkPostFix.newTree(
+      ident("*"),  # let other modules call without having to lookup in the dict
+      name,
     ),
+    [
+      ident("PyObject"),
+      nnkIdentDefs.newTree(
+        ident("selfNoCast"),
+        ident("PyObject"),
+        newEmptyNode(),
+      ),
+      nnkIdentDefs.newTree(
+        newIdentNode("args"),
+        nnkBracketExpr.newTree(
+          ident("seq"),
+          ident("PyObject")
+        ),
+        newEmptyNode()
+      )
+    ],
+    newStmtList(
+      checkArgTypes(methodName, argTypes),
+      code,
+    ),
+  )
+  procNode.addPragma(
+    nnkExprColonExpr.newTree(
+      ident("castSelf"),
+      objectType
+    )
+  )
+
+  result = newStmtList(
+    procNode,
     nnkCall.newTree(
       nnkDotExpr.newTree(
         typeObjNode,
@@ -211,3 +253,27 @@ proc implMethod*(methodName, objectType, argTypes: NimNode, code:NimNode): NimNo
       name
     )
   )
+
+
+proc reprEnter*(obj: PyObject): bool = 
+  if obj.reprLock:
+    return false
+  else:
+    obj.reprLock = true
+    return true
+
+proc reprLeave*(obj: PyObject) = 
+  obj.reprLock = false
+
+proc readEnter*(obj: PyObject) = 
+  inc obj.writeLock
+
+proc readLeave*(obj: PyObject) = 
+  dec obj.writeLock
+
+proc writeEnter*(obj: PyObject): bool = 
+  if 0 < obj.writeLock:
+    return false
+  else:
+    return true
+
