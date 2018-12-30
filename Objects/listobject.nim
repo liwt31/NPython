@@ -33,26 +33,26 @@ implListUnary repr:
 
 
 implListUnary len:
-  return newPyInt(self.items.len)
+  newPyInt(self.items.len)
 
 
-implListMethod *append, (item: PyObject):
+implListMethod *append(item: PyObject):
   self.items.add(item)
   pyNone
 
 
-implListMethod *clear:
+implListMethod *clear():
   self.items.setLen 0
   pyNone
 
 
-implListMethod copy:
+implListMethod copy():
   let newL = newPyList()
   newL.items = self.items # shallow copy
-  result = newL
+  newL
 
 
-implListMethod count, (target: PyObject):
+implListMethod count(target: PyObject):
   var count: int
   for item in self.items:
     let retObj = item.callMagic(eq, target)
@@ -64,26 +64,37 @@ implListMethod count, (target: PyObject):
 
 # for lock testing
 #[
-implListMethod doClear, ():
+implListMethod doClear():
   self.clearPyListObject()
 
-implListMethod *doRead, ():
+implListMethod *doRead():
   return self.doClearPyListObject()
 
 ]#
 
 # for checkArgTypes testing
 #[
-implListMethod aInt, (i: PyIntObject):
+implListMethod aInt(i: PyIntObject):
   self.items.add(i)
   pyNone
-
 ]#
 
 # implListMethod extend:
 # require iterators
+#
 
-implListMethod index, (target: PyObject):
+
+# for macro pragma testing
+#[
+macro hello(code: untyped): untyped = 
+  code.body.insert(0, nnkCommand.newTree(ident("echo"), newStrLitNode("hello")))
+  code
+
+implListMethod hello(), [hello]:
+  pyNone
+]#
+
+implListMethod index(target: PyObject):
   for idx, item in self.items:
     let retObj =  item.callMagic(eq, target)
     if retObj.isThrownException:
@@ -93,7 +104,7 @@ implListMethod index, (target: PyObject):
   newValueError(fmt"{target} is not in list")
 
 
-implListMethod *insert, (idx: PyIntObject, item: PyObject):
+implListMethod *insert(idx: PyIntObject, item: PyObject):
   var intIdx: int
   if 0 < idx.v:
     intIdx = 0
@@ -107,12 +118,12 @@ implListMethod *insert, (idx: PyIntObject, item: PyObject):
   pyNone
 
 
-implListMethod *pop:
+implListMethod *pop():
   if self.items.len == 0:
     return newIndexError("pop from empty list")
   self.items.pop
 
-implListMethod *remove, (target: PyObject):
+implListMethod *remove(target: PyObject):
   let retObj = indexPyListObject(selfNoCast, @[target])
   if retObj.isThrownException:
     return retObj

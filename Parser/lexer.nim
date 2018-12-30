@@ -203,6 +203,7 @@ proc getNextToken(
     raiseSyntaxError("\"{\"  \"}\" not implemented")
   of '!':
     if tailing('='):
+      inc idx
       addSingleCharToken(NotEqual)
     else:
       raiseSyntaxError("Single ! not allowed")

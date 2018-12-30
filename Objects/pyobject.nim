@@ -62,7 +62,7 @@ template readEnterTmpl =
 
 # unary methods and binary methods are supposed to be read-only
 # add a guard to prevent write during read process
-macro readMethod*(code: untyped): untyped = 
+macro readOnly*(code: untyped): untyped = 
   code.body = nnkStmtList.newTree(
                 getAst(readEnterTmpl()),
                 nnkTryStmt.newTree(
@@ -111,7 +111,7 @@ proc genImpl*(methodName, ObjectType, body:NimNode,
 
   let procNode = newProc(name, params, body)
   procNode.addPragma(
-    ident("readMethod")
+    ident("readOnly")
   )
   for p in pragmas:
     procNode.addPragma(p)
@@ -192,13 +192,17 @@ template checkTypeTmpl(obj, tp, tpObj, methodName) =
 template declareVarTmpl(name, obj) = 
   let name {. inject .} = obj
 
+
 template castTypeTmpl(name, tp, obj) = 
   let name {. inject .} = tp(obj)
 
-proc checkArgTypes(methodName, argTypes: NimNode): NimNode = 
-  result = newStmtList()
+
+macro checkArgTypes*(nameAndArg, code: untyped): untyped = 
+  let methodName = nameAndArg[0]
+  let argTypes = nameAndArg[1]
+  let body = newStmtList()
   let argNum = argTypes.len
-  result.add(checkArgNumNimNode(argNum, methodName.strVal))
+  body.add(checkArgNumNimNode(argNum, methodName.strVal))
   for idx, child in argTypes:
     let obj = nnkBracketExpr.newTree(
       ident("args"),
@@ -207,29 +211,48 @@ proc checkArgTypes(methodName, argTypes: NimNode): NimNode =
     let name = child[0]
     let tp = child[1]
     if tp.strVal == "PyObject":  # won't bother checking 
-      result.add(getAst(declareVarTmpl(name, obj)))
+      body.add(getAst(declareVarTmpl(name, obj)))
     if tp.strVal != "PyObject": 
       let tpObj = ident(objName2tpObjName(tp.strVal))
       let methodNameStrNode = newStrLitNode(methodName.strVal)
-      result.add(getAst(checkTypeTmpl(obj, tp, tpObj, methodNameStrNode)))
-      result.add(getAst(castTypeTmpl(name, tp, obj)))
+      body.add(getAst(checkTypeTmpl(obj, tp, tpObj, methodNameStrNode)))
+      body.add(getAst(castTypeTmpl(name, tp, obj)))
+  body.add(code.body)
+  code.body = body
+  code
 
 
 template writeEnterTmpl = 
   if not self.writeEnter:
     return newLockError("Write failed because object is been read or written.")
 
-proc implMethod*(methodNamePrefix, objectType, argTypes, body:NimNode): NimNode = 
-  var methodName, enterNode, leaveNode: NimNode 
-  if methodNamePrefix.kind == nnkPrefix:
-    methodName = methodNamePrefix[1]
+proc getNameAndArgTypes(prototype: NimNode): (NimNode, NimNode) = 
+  let argTypes = nnkPar.newTree()
+  let methodName = prototype[0]
+  if prototype.kind == nnkObjConstr:
+    for i in 1..<prototype.len:
+      argTypes.add prototype[i]
+  elif prototype.kind == nnkCall:
+    discard # empty arg list
+  else:
+    error("got prototype: " & prototype.treeRepr)
+
+  (methodName, argTypes)
+
+
+proc implMethod*(prototype, objectType, body, pragmas: NimNode): NimNode = 
+  var methodName, argTypes, enterNode, leaveNode: NimNode 
+  # a write method
+  if prototype.kind == nnkPrefix:
+    (methodName, argTypes) = getNameAndArgTypes(prototype[1])
     enterNode = getAst(writeEnterTmpl())
     leaveNode = nnkCall.newTree(
       ident("writeLeave"),
       ident("self")
     )
+  # a read-only method
   else:
-    methodName = methodNamePrefix
+    (methodName, argTypes) = getNameAndArgTypes(prototype)
     enterNode = getAst(readEnterTmpl())
     leaveNode = nnkCall.newTree(
       ident("readLeave"),
@@ -264,7 +287,6 @@ proc implMethod*(methodNamePrefix, objectType, argTypes, body:NimNode): NimNode 
       )
     ],
     newStmtList(  # the function body
-      checkArgTypes(methodName, argTypes),
       enterNode,
       nnkTryStmt.newTree(
         body,
@@ -282,6 +304,18 @@ proc implMethod*(methodNamePrefix, objectType, argTypes, body:NimNode): NimNode 
       objectType
     )
   )
+
+  procNode.addPragma(
+    nnkExprColonExpr.newTree(
+      ident("checkArgTypes"),
+      nnkPar.newTree(
+        methodName,
+        argTypes
+      ) 
+    )
+  )
+  for p in pragmas:
+    procNode.addPragma(p)
 
   result = newStmtList(
     procNode,
@@ -341,12 +375,11 @@ template methodMacroTmpl*(name: untyped, nameStr: string) =
   macro `impl name Binary`(methodName, code:untyped): untyped {. used .}= 
     implBinary(methodName, ident(objNameStr), code, nnkBracket.newTree())
 
-  macro `impl name Method`(methodName, argTypes, code:untyped): untyped {. used .}= 
-    implMethod(methodName, ident(objNameStr), argTypes, code)
+  macro `impl name Method`(prototype, pragmas, code:untyped): untyped {. used .}= 
+    implMethod(prototype, ident(objNameStr), code, pragmas)
 
-  macro `impl name Method`(methodName, code:untyped): untyped {. used .}= 
-    let argTypes = nnkPar.newTree()
-    implMethod(methodName, ident(objNameStr), argTypes, code)
+  macro `impl name Method`(prototype, code:untyped): untyped {. used .}= 
+    implMethod(prototype, ident(objNameStr), code, nnkBracket.newTree())
 
 
 macro declarePyType*(prototype, fields: untyped): untyped = 

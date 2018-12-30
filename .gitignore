@@ -4,3 +4,5 @@ trash/
 *.txt
 # nimpretty backup file
 *.backup
+
+./Objects/test.nim

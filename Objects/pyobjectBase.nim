@@ -57,6 +57,8 @@ type
 
   PyObject* = ref object of RootObj
     pyType*: PyTypeObject
+    # the below fields are possible for a PyObject
+    # depending on how you declare it (mutable, dict, etc)
     # every obj has dict field, but some are set nil
     # this is not efficient enough complared to CPython. 
     # CPython uses type obj and some sort of hack to indicate 
@@ -66,6 +68,10 @@ type
     reprLock*: bool
     # might be used to avoid GIL in the future?
     # a semaphore and a mutex...
+    # but Nim has only thread local heap...
+    # maybe interpreter level thread?
+    # or real pthread but kind of read-only
+    # or both?
     readNum*: int
     writeLock*: bool
 
