@@ -22,3 +22,8 @@ if 0  or False:
 
 
 print(l)
+
+
+b = []
+b.append(b)
+print(b)

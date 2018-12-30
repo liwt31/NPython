@@ -329,6 +329,7 @@ proc implMethod*(prototype, objectType, body, pragmas: NimNode): NimNode =
     )
   )
 
+  
 
 proc reprEnter*(obj: PyObject): bool = 
   if obj.reprLock:
@@ -361,31 +362,66 @@ proc writeLeave*(obj: PyObject) =
   obj.writeLock = false
 
 
-template methodMacroTmpl*(name: untyped, nameStr: string) = 
-  const objNameStr = "Py" & nameStr & "Object"
-  macro `impl name Unary`(methodName, code:untyped): untyped {. used .} = 
-    implUnary(methodName, ident(objNameStr), code, nnkBracket.newTree())
+template reprEnterTmpl = 
+  if not self.reprEnter:
+    return newPyString("...")
 
+template reprLeaveTmpl = 
+  self.reprLeave
+
+
+macro reprLock*(methodName, code: untyped): untyped = 
+  if methodName.strVal != "repr":
+    return code
+  code.body = newStmtList( 
+      getAst(reprEnterTmpl()),
+      nnkTryStmt.newTree(
+        code.body,
+        nnkFinally.newTree(
+          nnkStmtList.newTree(
+            getAst(reprLeaveTmpl())
+          )
+        )
+      )
+    )
+  code
+
+
+template methodMacroTmpl*(name: untyped, nameStr: string, 
+                          mutable:bool=false, dict:bool=false, reprLock:bool=false) = 
+  const objNameStr = "Py" & nameStr & "Object"
+
+  # default args won't work here, so use overload
   macro `impl name Unary`(methodName, pragmas, code:untyped): untyped {. used .} = 
+    when reprLock:
+      pragmas.add(
+        nnkExprColonExpr.newTree(
+          ident("reprLock"),
+          methodName
+        )
+      )
     implUnary(methodName, ident(objNameStr), code, pragmas)
+
+  macro `impl name Unary`(methodName, code:untyped): untyped {. used .} = 
+    getAst(`impl name Unary`(methodName, nnkBracket.newTree(), code))
 
   macro `impl name Binary`(methodName, pragmas, code:untyped): untyped {. used .} = 
     implBinary(methodName, ident(objNameStr), code, pragmas)
 
   macro `impl name Binary`(methodName, code:untyped): untyped {. used .}= 
-    implBinary(methodName, ident(objNameStr), code, nnkBracket.newTree())
+    getAst(`impl name Binary`(methodName, nnkBracket.newTree(), code))
 
   macro `impl name Method`(prototype, pragmas, code:untyped): untyped {. used .}= 
     implMethod(prototype, ident(objNameStr), code, pragmas)
 
   macro `impl name Method`(prototype, code:untyped): untyped {. used .}= 
-    implMethod(prototype, ident(objNameStr), code, nnkBracket.newTree())
+    getAst(`impl name Method`(prototype, nnkBracket.newTree(), code))
 
 
 macro declarePyType*(prototype, fields: untyped): untyped = 
   prototype.expectKind(nnkCall)
   fields.expectKind(nnkStmtList)
-  var mutable, dict, repr: bool
+  var mutable, dict, reprLock: bool
   for i in 1..<prototype.len:
     prototype[i].expectKind(nnkIdent)
     let property = prototype[i].strVal
@@ -393,8 +429,8 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       mutable = true
     elif property == "dict":
       dict = true
-    elif property == "repr":
-      repr = true
+    elif property == "reprLock":
+      reprLock = true
     else:
       error("unexpected property: " & property)
 
@@ -403,19 +439,24 @@ macro declarePyType*(prototype, fields: untyped): untyped =
 
   result = newStmtList()
   var reclist = nnkRecList.newTree()
-  for field in fields.children:
-    field.expectKind(nnkCall)
-    let identDef = nnkIdentDefs.newTree(
+  proc newField(recList, name, tp: NimNode)=
+    let newField = nnkIdentDefs.newTree(
       nnkPostFix.newTree(
         ident("*"),
-        field[0],
+        name
       ),
-      field[1][0],
+      tp,
       newEmptyNode()
-    )
-    reclist.add(identDef)
-  # if mutable, etc, add fields here
+    )  
+    recList.add(newField)
 
+  for field in fields.children:
+    field.expectKind(nnkCall)
+    reclist.newField(field[0], field[1][0])
+
+  if reprLock:
+    reclist.newField(ident("repr"), ident("bool"))
+  # if mutable, etc, add fields here
 
   let decObjNode = nnkTypeSection.newTree(
     nnkTypeDef.newTree(
@@ -442,5 +483,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
 
   result.add(getAst(initTypeTmpl(nameIdent, nameIdent.strVal)))
 
-  result.add(getAst(methodMacroTmpl(nameIdent, nameIdent.strVal)))
+
+  result.add(getAst(methodMacroTmpl(nameIdent, nameIdent.strVal, 
+                                    newLit(mutable), newLit(dict), newLit(reprLock))))
 

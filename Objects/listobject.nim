@@ -12,7 +12,7 @@ import stringobject
 import iterobject
 import ../Utils/utils
 
-declarePyType List():
+declarePyType List(reprLock):
   items: seq[PyObject]
 
 proc newPyList*: PyListObject
@@ -21,13 +21,9 @@ implListUnary repr:
   var ss: seq[string]
   for item in self.items:
     var itemRepr: PyStrObject
-    if item.reprEnter:
-      let retObj = item.callMagic(repr)
-      item.reprLeave
-      errorIfNotString(retObj, "__repr__")
-      itemRepr = PyStrObject(retObj)
-    else:
-      itemRepr = newPyString("[...]")
+    let retObj = item.callMagic(repr)
+    errorIfNotString(retObj, "__repr__")
+    itemRepr = PyStrObject(retObj)
     ss.add(itemRepr.str)
   return newPyString("[" & ss.join(", ") & "]")
 
