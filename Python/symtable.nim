@@ -22,15 +22,15 @@ type
     # def foo(x):
     #   global x
     # will result in an error (in CPython)
-    names: Table[PyStringObject, int]
-    localVars: Table[PyStringObject, int]
+    names: Table[PyStrObject, int]
+    localVars: Table[PyStrObject, int]
 
 proc newSymTableEntry*: SymTableEntry =
   result = new SymTableEntry
-  result.names = initTable[PyStringObject, int]()
-  result.localVars = initTable[PyStringObject, int]()
+  result.names = initTable[PyStrObject, int]()
+  result.localVars = initTable[PyStrObject, int]()
 
-proc hasLocal*(ste: SymTableEntry, localName: PyStringObject): bool =
+proc hasLocal*(ste: SymTableEntry, localName: PyStrObject): bool =
   ste.localVars.hasKey(localName)
 
 proc addLocalVar*(ste: SymTableEntry, localName: AsdlIdentifier) =
@@ -38,10 +38,10 @@ proc addLocalVar*(ste: SymTableEntry, localName: AsdlIdentifier) =
   if not ste.localVars.hasKey(nameStr):
     ste.localVars[nameStr] = ste.localVars.len
 
-proc localId*(ste: SymTableEntry, localName: PyStringObject): int =
+proc localId*(ste: SymTableEntry, localName: PyStrObject): int =
   ste.localVars[localName]
 
-proc nameId*(ste: SymTableEntry, nameStr: PyStringObject): int =
+proc nameId*(ste: SymTableEntry, nameStr: PyStrObject): int =
   if ste.names.hasKey(nameStr):
     return ste.names[nameStr]
   else:
@@ -49,15 +49,15 @@ proc nameId*(ste: SymTableEntry, nameStr: PyStringObject): int =
     ste.names[nameStr] = newId
     return newId
 
-proc toInverseSeq(t: Table[PyStringObject, int]): seq[PyStringObject] =
-  result = newSeq[PyStringObject](t.len)
+proc toInverseSeq(t: Table[PyStrObject, int]): seq[PyStrObject] =
+  result = newSeq[PyStrObject](t.len)
   for name, id in t:
     result[id] = name
 
-proc namesToSeq*(ste: SymTableEntry): seq[PyStringObject] = 
+proc namesToSeq*(ste: SymTableEntry): seq[PyStrObject] = 
   ste.names.toInverseSeq
 
-proc localVarsToSeq*(ste: SymTableEntry): seq[PyStringObject] = 
+proc localVarsToSeq*(ste: SymTableEntry): seq[PyStrObject] = 
   ste.localVars.toInverseSeq
 
 # traverse the ast to collect local vars
@@ -110,6 +110,9 @@ visitMethod Assign:
   assert astNode.targets.len == 1
   ste.visit(astNode.targets[0])
 
+
+visitMethod For:
+  ste.visit(astNode.target)
 
 visitMethod While:
   # the test part seems doesn't matter

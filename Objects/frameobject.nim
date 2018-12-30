@@ -50,7 +50,7 @@ proc setTop*(f: PyFrameObject, obj: PyObject) =
 proc getConst*(f: PyFrameObject, idx: int): PyObject = 
   f.code.constants[idx]
 
-proc getName*(f: PyFrameObject, idx: int): PyStringObject = 
+proc getName*(f: PyFrameObject, idx: int): PyStrObject = 
   f.code.names[idx]
 
 

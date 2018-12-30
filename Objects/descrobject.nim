@@ -12,7 +12,7 @@ type
     dType: PyTypeObject
 
   PyMethodDescrObject = ref object of PyDescrObject
-    name: PyStringObject
+    name: PyStrObject
 
 
   PyUnaryFuncDescrObject = ref object of PyMethodDescrObject
@@ -42,21 +42,21 @@ template implNew =
 
 proc newPyMethodDescr*(t: PyTypeObject, 
                        meth: UnaryFunc,
-                       name: PyStringObject,
+                       name: PyStrObject,
                        ): PyUnaryFuncDescrObject = 
   implNew
 
 
 proc newPyMethodDescr*(t: PyTypeObject, 
                        meth: BinaryFunc,
-                       name: PyStringObject,
+                       name: PyStrObject,
                        ): PyBinaryFuncDescrObject = 
   implNew
 
 
 proc newPyMethodDescr*(t: PyTypeObject, 
                        meth: BltinMethod,
-                       name: PyStringObject,
+                       name: PyStrObject,
                        ): PyBltinMethDescrObject = 
   implNew
 

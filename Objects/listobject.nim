@@ -12,36 +12,20 @@ import stringobject
 import iterobject
 import ../Utils/utils
 
-
-type
-  PyListObject* = ref object of PyObject
-    items: seq[PyObject]
-
+declarePyType List():
+  items: seq[PyObject]
 
 proc newPyList*: PyListObject
-
-
-macro implListUnary(methodName, code:untyped): untyped = 
-  result = implUnary(methodName, ident("PyListObject"), code)
-
-
-macro implListMethod(methodName, argTypes, code:untyped): untyped = 
-  result = implMethod(methodName, ident("PyListObject"), argTypes, code)
-
-
-let pyListObjectType* = newPyType("list")
-
-
 
 implListUnary repr:
   var ss: seq[string]
   for item in self.items:
-    var itemRepr: PyStringObject
+    var itemRepr: PyStrObject
     if item.reprEnter:
       let retObj = item.callMagic(repr)
       item.reprLeave
       errorIfNotString(retObj, "__repr__")
-      itemRepr = PyStringObject(retObj)
+      itemRepr = PyStrObject(retObj)
     else:
       itemRepr = newPyString("[...]")
     ss.add(itemRepr.str)
@@ -57,12 +41,12 @@ implListMethod *append, (item: PyObject):
   pyNone
 
 
-implListMethod *clear, ():
+implListMethod *clear:
   self.items.setLen 0
   pyNone
 
 
-implListMethod copy, ():
+implListMethod copy:
   let newL = newPyList()
   newL.items = self.items # shallow copy
   result = newL
@@ -123,7 +107,7 @@ implListMethod *insert, (idx: PyIntObject, item: PyObject):
   pyNone
 
 
-implListMethod *pop, ():
+implListMethod *pop:
   if self.items.len == 0:
     return newIndexError("pop from empty list")
   self.items.pop

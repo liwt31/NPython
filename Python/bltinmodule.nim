@@ -6,7 +6,7 @@ proc builtinPrint*(args: seq[PyObject]): PyObject =
   for obj in args:
     let objStr = obj.callMagic(str)
     errorIfNotString(objStr, "__str__")
-    echo PyStringObject(objStr).str
+    echo PyStrObject(objStr).str
   pyNone
 
 

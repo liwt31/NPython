@@ -4,11 +4,11 @@ import stringobject
 
 type
   PyFunctionObject* = ref object of PyObject
-    name*: PyStringObject
+    name*: PyStrObject
     code*: PyCodeObject
 
 
-proc newPyFunction*(name: PyStringObject, code: PyCodeObject): PyFunctionObject = 
+proc newPyFunction*(name: PyStrObject, code: PyCodeObject): PyFunctionObject = 
   result = new PyFunctionObject
   result.name = name
   result.code = code

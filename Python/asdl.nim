@@ -12,7 +12,7 @@ type
     value*: int
 
   AsdlIdentifier* = ref object of AstNodeBase
-    value*: PyStringObject
+    value*: PyStrObject
 
   AsdlConstant* = ref object of AstNodeBase
     value*: PyObject

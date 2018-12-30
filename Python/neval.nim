@@ -263,10 +263,10 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     of OpCode.MakeFunction:
       assert opArg == 0
       let name = sPop()
-      assert name of PyStringObject
+      assert name of PyStrObject
       let code = sPop()
       assert code of PyCodeObject
-      sPush newPyFunction(PyStringObject(name), PyCodeObject(code))
+      sPush newPyFunction(PyStrObject(name), PyCodeObject(code))
 
     else:
       let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"

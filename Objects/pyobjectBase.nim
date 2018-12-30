@@ -1,8 +1,8 @@
 import strformat
+import strutils
 import hashes
 import tables
 
-import pyobject
 
 type 
   # these two function types are types that number of arguments can be
@@ -57,12 +57,17 @@ type
 
   PyObject* = ref object of RootObj
     pyType*: PyTypeObject
+    # every obj has dict field, but some are set nil
+    # this is not efficient enough complared to CPython. 
+    # CPython uses type obj and some sort of hack to indicate 
+    # if instances have dict and where
+    dict*: PyObject 
     # prevent infinite recursion
-    reprLock: bool
+    reprLock*: bool
     # might be used to avoid GIL in the future?
     # a semaphore and a mutex...
-    readNum: int
-    writeLock: bool
+    readNum*: int
+    writeLock*: bool
 
 
   PyTypeObject* = ref object of PyObject
@@ -71,7 +76,6 @@ type
     bltinMethods*: Table[string, BltinMethod]
     # this is actually a dict. but we haven't defined dict yet.
     # the values are set in typeobject.nim when the type is ready
-    dict*: PyObject 
 
     descrGet*: DescrGet
     iter*: GetIterFunc
@@ -100,15 +104,14 @@ proc idStr*(obj: PyObject): string =
 var bltinTypes*: seq[PyTypeObject]
 
 
-proc newPyType*(name: string, bltin=true): PyTypeObject =
+proc newPyType*(name: string): PyTypeObject =
   new result
-  result.name = name
+  result.name = name.toLowerAscii
   result.bltinMethods = initTable[string, BltinMethod]()
-  if bltin:
-    bltinTypes.add(result)
+  bltinTypes.add(result)
 
 
-# todo: make it a object with type
+# todo: make it an object with type
 type 
   PyNone = ref object of PyObject
 

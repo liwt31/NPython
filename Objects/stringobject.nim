@@ -4,52 +4,41 @@ import macros
 import pyobject
 
 
-type
-  PyStringObject* = ref object of PyObject
-    str*: string
+declarePyType Str():
+  str: string
 
-proc newPyString*(str: string): PyStringObject
+proc newPyString*(str: string): PyStrObject
 
-method `$`*(strObj: PyStringObject): string =
+method `$`*(strObj: PyStrObject): string =
   "\"" & $strObj.str & "\""
 
 
-method hash*(obj: PyStringObject): Hash =
+method hash*(obj: PyStrObject): Hash =
   return hash(obj.str)
 
 # have to define this to override the PyObject default
-method `==`*(str1, str2: PyStringObject): bool =
+method `==`*(str1, str2: PyStrObject): bool =
   return str1.str == str2.str
 
 
-let pyStringObjectType = newPyType("str")
-
-
-macro implStringUnary(methodName, code:untyped): untyped = 
-  implUnary(methodName, ident("PyStringObject"), code)
-
-
-macro implStringBinary(methodName, code:untyped): untyped = 
-  implBinary(methodName, ident("PyStringObject"), code)
-
-implStringUnary str:
+implStrUnary str:
   self
 
 
-implStringUnary repr:
+implStrUnary repr:
   newPyString($self)
 
 
-proc newPyString*(str: string): PyStringObject =
-  result = new PyStringObject
-  result.pyType = pyStringObjectType
+proc newPyString*(str: string): PyStrObject =
+  result = new PyStrObject
+  result.pyType = pyStrObjectType
   result.str = str
 
 
 proc isPyStringType*(obj: PyObject): bool = 
   # currently just check exact string
   # include inherit in the future
-  obj of PyStringObject
+  obj of PyStrObject
 
 
 when isMainModule:
@@ -59,6 +48,6 @@ when isMainModule:
   echo d.hasKey(newPyString("kkk"))
   import tables
 
-  var t = initTable[PyStringObject, int]()
+  var t = initTable[PyStrObject, int]()
   t[newPyString("kkk")] = 0
   echo t.hasKey(newPyString("kkk"))

@@ -9,10 +9,13 @@ import strutils
 import hashes
 import tables
 
-
-include pyobjectBase
-include exceptions
 import ../Utils/utils
+import pyobjectBase
+
+export macros except name
+export pyobjectBase
+
+include exceptions
 
 template getFun*(obj: PyObject, fun, methodName: untyped) = 
   if obj.pyType == nil:
@@ -96,7 +99,12 @@ macro castSelf*(ObjectType: untyped, code: untyped): untyped =
   code
 
 
-proc genImpl*(methodName, ObjectType, body:NimNode, params: varargs[NimNode]): NimNode= 
+proc genImpl*(methodName, ObjectType, body:NimNode, 
+              params: openarray[NimNode],
+              pragmas: seq[NimNode]): NimNode= 
+  methodName.expectKind(nnkIdent)
+  ObjectType.expectKind(nnkIdent)
+  body.expectKind(nnkStmtList)
 
   result = newStmtList()
   let name = ident($methodName & $ObjectType)
@@ -105,6 +113,8 @@ proc genImpl*(methodName, ObjectType, body:NimNode, params: varargs[NimNode]): N
   procNode.addPragma(
     ident("readMethod")
   )
+  for p in pragmas:
+    procNode.addPragma(p)
   procNode.addPragma(
     nnkExprColonExpr.newTree(
       ident("castSelf"),
@@ -129,20 +139,29 @@ proc genImpl*(methodName, ObjectType, body:NimNode, params: varargs[NimNode]): N
   )
 
 
-proc implUnary*(methodName, objectType, code:NimNode): NimNode = 
+proc getPragmas*(node: NimNode): seq[NimNode] = 
+  node.expectKind(nnkBracket)
+  for p in node.children:
+    result.add p
+
+
+proc implUnary*(methodName, objectType, code:NimNode, 
+                pragmasBracket:NimNode): NimNode = 
   let params = [ident("PyObject"), newIdentDefs(ident("selfNoCast"), ident("PyObject"))]
-  result = genImpl(methodName, objectType, code, params)
+  let pragmas = getPragmas(pragmasBracket)
+  genImpl(methodName, objectType, code, params, pragmas)
 
 
 
-proc implBinary*(methodName, objectType, code:NimNode): NimNode = 
-  let poIdent = ident("PyObject")
+proc implBinary*(methodName, objectType, code:NimNode,
+                 pragmasBracket:NimNode): NimNode = 
   let params = [
-                 poIdent, 
-                 newIdentDefs(ident("selfNoCast"), poIdent),
-                 newIdentDefs(ident("other"), poIdent)
+                 ident("PyObject"), 
+                 newIdentDefs(ident("selfNoCast"), ident("PyObject")),
+                 newIdentDefs(ident("other"), ident("PyObject"))
                ]
-  result = genImpl(methodName, objectType, code, params)
+  let pragmas = getPragmas(pragmasBracket)
+  genImpl(methodName, objectType, code, params, pragmas)
 
 
 proc objName2tpObjName(objName: string): string {. compileTime .} = 
@@ -200,8 +219,7 @@ template writeEnterTmpl =
   if not self.writeEnter:
     return newLockError("Write failed because object is been read or written.")
 
-# here first argument is casted without checking
-proc implMethod*(methodNamePrefix, objectType, argTypes: NimNode, body:NimNode): NimNode = 
+proc implMethod*(methodNamePrefix, objectType, argTypes, body:NimNode): NimNode = 
   var methodName, enterNode, leaveNode: NimNode 
   if methodNamePrefix.kind == nnkPrefix:
     methodName = methodNamePrefix[1]
@@ -227,13 +245,13 @@ proc implMethod*(methodNamePrefix, objectType, argTypes: NimNode, body:NimNode):
       name,
     ),
     [
-      ident("PyObject"),
-      nnkIdentDefs.newTree(
+      ident("PyObject"), # return value
+      nnkIdentDefs.newTree( # first arg
         ident("selfNoCast"),
         ident("PyObject"),
         newEmptyNode(),
       ),
-      nnkIdentDefs.newTree(
+      nnkIdentDefs.newTree( # second arg
         newIdentNode("args"),
         nnkBracketExpr.newTree(
           ident("seq"),
@@ -245,7 +263,7 @@ proc implMethod*(methodNamePrefix, objectType, argTypes: NimNode, body:NimNode):
         )
       )
     ],
-    newStmtList(
+    newStmtList(  # the function body
       checkArgTypes(methodName, argTypes),
       enterNode,
       nnkTryStmt.newTree(
@@ -307,3 +325,89 @@ proc writeEnter*(obj: PyObject): bool =
 
 proc writeLeave*(obj: PyObject) = 
   obj.writeLock = false
+
+
+template methodMacroTmpl*(name: untyped, nameStr: string) = 
+  const objNameStr = "Py" & nameStr & "Object"
+  macro `impl name Unary`(methodName, code:untyped): untyped {. used .} = 
+    implUnary(methodName, ident(objNameStr), code, nnkBracket.newTree())
+
+  macro `impl name Unary`(methodName, pragmas, code:untyped): untyped {. used .} = 
+    implUnary(methodName, ident(objNameStr), code, pragmas)
+
+  macro `impl name Binary`(methodName, pragmas, code:untyped): untyped {. used .} = 
+    implBinary(methodName, ident(objNameStr), code, pragmas)
+
+  macro `impl name Binary`(methodName, code:untyped): untyped {. used .}= 
+    implBinary(methodName, ident(objNameStr), code, nnkBracket.newTree())
+
+  macro `impl name Method`(methodName, argTypes, code:untyped): untyped {. used .}= 
+    implMethod(methodName, ident(objNameStr), argTypes, code)
+
+  macro `impl name Method`(methodName, code:untyped): untyped {. used .}= 
+    let argTypes = nnkPar.newTree()
+    implMethod(methodName, ident(objNameStr), argTypes, code)
+
+
+macro declarePyType*(prototype, fields: untyped): untyped = 
+  prototype.expectKind(nnkCall)
+  fields.expectKind(nnkStmtList)
+  var mutable, dict, repr: bool
+  for i in 1..<prototype.len:
+    prototype[i].expectKind(nnkIdent)
+    let property = prototype[i].strVal
+    if property == "mutable":
+      mutable = true
+    elif property == "dict":
+      dict = true
+    elif property == "repr":
+      repr = true
+    else:
+      error("unexpected property: " & property)
+
+  let nameIdent = prototype[0]
+  let fullNameIdent = ident("Py" & nameIdent.strVal & "Object")
+
+  result = newStmtList()
+  var reclist = nnkRecList.newTree()
+  for field in fields.children:
+    field.expectKind(nnkCall)
+    let identDef = nnkIdentDefs.newTree(
+      nnkPostFix.newTree(
+        ident("*"),
+        field[0],
+      ),
+      field[1][0],
+      newEmptyNode()
+    )
+    reclist.add(identDef)
+  # if mutable, etc, add fields here
+
+
+  let decObjNode = nnkTypeSection.newTree(
+    nnkTypeDef.newTree(
+      nnkPostFix.newTree(
+        ident("*"),
+        fullNameIdent,
+      ),
+      newEmptyNode(),
+      nnkRefTy.newTree(
+        nnkObjectTy.newTree(
+          newEmptyNode(),
+          nnkOfInherit.newTree(
+            ident("PyObject")
+          ),
+          recList
+        )
+      )
+    )
+  )
+  result.add(decObjNode)
+
+  template initTypeTmpl(name, nameStr) = 
+    let `py name ObjectType`* {. inject .} = newPyType(nameStr)
+
+  result.add(getAst(initTypeTmpl(nameIdent, nameIdent.strVal)))
+
+  result.add(getAst(methodMacroTmpl(nameIdent, nameIdent.strVal)))
+

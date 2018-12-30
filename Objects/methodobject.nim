@@ -1,7 +1,6 @@
 import strformat
-import macros except name
 
-import pyobject
+import pyobject except name
 import stringobject
 
 
@@ -10,21 +9,21 @@ type
 
   PyBltinFuncObject* = ref object of PyNFuncObject
     fun: BltinFunc
-    name: PyStringObject
+    name: PyStrObject
 
   PyBltinMethodObject* = ref object of PyNFuncObject
     fun: BltinMethod
-    name: PyStringObject
+    name: PyStrObject
     self: PyObject
 
   PyUnaryFuncObject* = ref object of PyNFuncObject
     fun: UnaryFunc
-    name: PyStringObject
+    name: PyStrObject
     self: PyObject
 
   PyBinaryFuncObject* = ref object of PyNFuncObject
     fun: BinaryFunc
-    name: PyStringObject
+    name: PyStrObject
     self: PyObject
 
 let pyNFuncObjectType = newPyType("Nim-function")
@@ -60,19 +59,19 @@ template impl(withSelf=true) =
   result.pyType = pyNFuncObjectType
 
 
-proc newPyNFunc*(fun: BltinFunc, name: PyStringObject): PyBltinFuncObject =
+proc newPyNFunc*(fun: BltinFunc, name: PyStrObject): PyBltinFuncObject =
   impl(false)
 
 
-proc newPyNFunc*(fun: UnaryFunc, name: PyStringObject, self: PyObject): PyUnaryFuncObject = 
+proc newPyNFunc*(fun: UnaryFunc, name: PyStrObject, self: PyObject): PyUnaryFuncObject = 
   impl
 
 
-proc newPyNFunc*(fun: BinaryFunc, name: PyStringObject, self: PyObject): PyBinaryFuncObject = 
+proc newPyNFunc*(fun: BinaryFunc, name: PyStrObject, self: PyObject): PyBinaryFuncObject = 
   impl
 
 
-proc newPyNFunc*(fun: BltinMethod, name: PyStringObject, self: PyObject): PyBltinMethodObject = 
+proc newPyNFunc*(fun: BltinMethod, name: PyStrObject, self: PyObject): PyBltinMethodObject = 
   impl
 
 

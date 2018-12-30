@@ -8,13 +8,7 @@ import boolobject
 method `$`*(obj: PyBoolObject): string = 
   $obj.b
 
-macro implBoolUnary(methodName, code:untyped): untyped = 
-  implUnary(methodName, ident("PyBoolObject"), code)
-
-
-macro implBoolBinary(methodName, code:untyped): untyped = 
-  implBinary(methodName, ident("PyBoolObject"), code)
-
+methodMacroTmpl(Bool, "Bool")
 
 implBoolUnary Not:
   if self == pyTrueObj:

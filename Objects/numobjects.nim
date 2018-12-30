@@ -1,4 +1,5 @@
 import tables
+import parseutils
 import macros
 import strformat
 import strutils
@@ -12,12 +13,11 @@ import stringobject
 import ../Utils/utils
 
 
-type 
-  PyIntObject* = ref object of PyObject
-    v*: BigInt
+declarePyType Int():
+  v: BigInt
 
-  PyFloatObject = ref object of PyObject
-    v*: float64
+declarePyType Float():
+  v: float
 
 
 method `$`*(i: PyIntObject): string = 
@@ -27,8 +27,7 @@ method `$`*(i: PyIntObject): string =
 method `$`*(f: PyFloatObject): string = 
   $f.v
 
-# currently see no need for an abstract layer to do type casting
-# not much gain and decreases readability
+# the CPython abstract.c seems can be replaced by macors
 
 proc newPyInt: PyIntObject
 proc newPyInt*(n: BigInt): PyIntObject
@@ -46,24 +45,6 @@ template intBinaryTemplate(op, methodName: untyped, methodNameStr:string) =
     result = newPyFloat(self).callMagic(methodName, other)
   else:
     result = newTypeError(methodnameStr & fmt" not supported by int and {other.pyType.name}")
-
-# the macros will assert the type of the first argument
-# cast the first argument to corresponding type
-# and add the resulting method to type object
-macro implIntUnary(methodName, code:untyped): untyped = 
-  result = implUnary(methodName, ident("PyIntObject"), code)
-
-macro implIntBinary(methodName, code:untyped): untyped = 
-  result = implBinary(methodName, ident("PyIntObject"), code)
-
-template unsupportedType = 
-  assert false
-
-
-let pyIntObjectType* = newPyType("int")
-
-
-let pyFloatObjectType* = newPyType("float")
 
 
 implIntBinary add:
@@ -143,11 +124,7 @@ implIntUnary repr:
   newPyString($self)
 
 
-macro implFloatUnary(methodName, code:untyped): untyped = 
-  result = implUnary(methodName, ident("PyFloatObject"), code)
-
-
-template floatCastType(methodName: string) = 
+template castOtherTypeTmpl(methodName) = 
   var casted {. inject .} : PyFloatObject
   if other of PyFloatObject:
     casted = PyFloatObject(other)
@@ -157,33 +134,38 @@ template floatCastType(methodName: string) =
     let msg = methodName & fmt" not supported by float and {other.pyType.name}"
     return newTypeError(msg)
 
-macro implFloatBinary(methodName, code:untyped): untyped = 
-  let castType = getAst(floatCastType(methodName.strVal))
-  let impl = newStmtList(castType, code)
-  result = implBinary(methodName, ident("PyFloatObject"), impl)
+macro castOther(code:untyped):untyped = 
+  let fullName = code.name.strVal
+  let d = fullName.skipUntil('P') # add'P'yFloatObj, luckily there's no 'P' in magics
+  let methodName = fullName[0..<d]
+  code.body = newStmtList(
+    getAst(castOtherTypeTmpl(methodName)),
+    code.body
+  )
+  code
 
 
-implFloatBinary add:
+implFloatBinary add, [castOther]:
   newPyFloat(self.v + casted.v)
 
 
-implFloatBinary subtract:
+implFloatBinary subtract, [castOther]:
   newPyFloat(self.v - casted.v)
 
 
-implFloatBinary multiply:
+implFloatBinary multiply, [castOther]:
   newPyFloat(self.v * casted.v)
 
 
-implFloatBinary trueDivide:
+implFloatBinary trueDivide, [castOther]:
   newPyFloat(self.v / casted.v)
 
 
-implFloatBinary floorDivide:
+implFloatBinary floorDivide, [castOther]:
   newPyFloat(floor(self.v / casted.v))
 
 
-implFloatBinary power:
+implFloatBinary power, [castOther]:
   newPyFloat(self.v.pow(casted.v))
 
 
@@ -201,21 +183,21 @@ implFloatUnary bool:
     return pyTrueObj
 
 
-implFloatBinary lt:
+implFloatBinary lt, [castOther]:
   if self.v < casted.v:
     return pyTrueObj
   else:
     return pyFalseObj
 
 
-implFloatBinary eq:
+implFloatBinary eq, [castOther]:
   if self.v == casted.v:
     return pyTrueObj
   else:
     return pyFalseObj
 
 
-implFloatBinary gt:
+implFloatBinary gt, [castOther]:
   if self.v > casted.v:
     return pyTrueObj
   else:
@@ -229,7 +211,7 @@ implFloatUnary str:
 implFloatUnary repr:
   newPyString($self)
 
-# let's see how long I can tolerant these 2 stupid workarounds.
+# let's see how long I can stand with these 2 stupid workarounds.
 proc toInt*(pyInt: PyIntObject): int = 
   # XXX: take care of overflow error, usually this is used for indexing
   # so builtin int which is the return type of seq.len should be enough

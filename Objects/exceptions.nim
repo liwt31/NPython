@@ -14,9 +14,9 @@ import pyobjectBase
 type
   PyExceptionObject* = ref object of PyObject
     thrown*: bool
-    # use a string directly. Don't use PyStringObject
+    # use a string directly. Don't use PyStrObject
     # Exceptions are tightly binded to the core of NPython
-    # reliance on PyStringObject inevitably induces cyclic dependence
+    # reliance on PyStrObject inevitably induces cyclic dependence
     msg: string
 
   PyNameError* = ref object of PyExceptionObject

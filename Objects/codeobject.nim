@@ -10,8 +10,8 @@ type
   PyCodeObject* = ref object of PyObject
     code*: seq[(OpCode, int)]
     constants*: seq[PyObject]
-    names*: seq[PyStringObject]
-    localVars*: seq[PyStringObject]
+    names*: seq[PyStrObject]
+    localVars*: seq[PyStrObject]
 
 
 # code objects are initialized in compile.nim

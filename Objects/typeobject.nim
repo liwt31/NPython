@@ -9,6 +9,8 @@ import stringobject
 import methodobject
 import descrobject
 
+import ../Utils/utils
+
 proc getDict*(tp: PyTypeObject): PyDictObject = 
   PyDictObject(tp.dict)
 
@@ -71,21 +73,26 @@ proc repr(self: PyObject): PyObject =
   self.str
 
 
+# generic getattr
 proc getAttr(self: PyObject, nameObj: PyObject): PyObject = 
   if not nameObj.isPyStringType:
     let typeStr = nameObj.pyType.name
     return newTypeError(fmt"attribute name must be string, not {typeStr}")
-  let name = PyStringObject(nameObj)
-  let d = self.pyType.getDict
-  # todo, check if d is null and return exception
-  if not (d.hasKey(name)):
-    return newAttributeError($self.pyType.name, $name)
-  let descr = d[name]
-  if descr.pyType.descrGet == nil:
-    return descr
-  else:
-    let getFun = descr.pyType.descrGet
-    return descr.getFun(self)
+  let name = PyStrObject(nameObj)
+  let typeDict = self.pyType.getDict
+  if typeDict == nil:
+    unreachable("for type object d must not be nil")
+  if typeDict.hasKey(name):
+    let descr = typeDict[name]
+    if descr.pyType.descrGet == nil:
+      return descr
+    else:
+      let getFun = descr.pyType.descrGet
+      return descr.getFun(self)
+
+  # todo: check dict of current obj
+  # a hasDict attribute in type object
+  return newAttributeError($self.pyType.name, $name)
   
 
 proc addGeneric(t: PyTypeObject) = 
