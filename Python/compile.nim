@@ -262,7 +262,8 @@ proc addLoadOp(c: Compiler, name: AsdlIdentifier) =
   if isLocal:
     opCode = OpCode.LoadFast
   else:
-    opCode = OpCode.LoadName
+    # locals() scope not implemented
+    opCode = OpCode.LoadGlobal
 
   let instr = newArgInstr(opCode, opArg)
   c.addOp(instr)
@@ -284,12 +285,13 @@ proc addStoreOp(c: Compiler, name: AsdlIdentifier) =
   if isLocal:
     opCode = OpCode.StoreFast
   else:
-    opCode = OpCode.StoreName
+    opCode = OpCode.StoreGlobal
 
   let instr = newArgInstr(opCode, opArg)
   c.addOp(instr)
 
 
+# todo: too many dispacher here! used astNode token to dispatch
 method compile(c: Compiler, astNode: AstNodeBase) {.base.} =
   echo "!!!WARNING, ast node compile method not implemented"
   echo astNode

@@ -134,8 +134,11 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       break
 
     of OpCode.StoreName:
+      unreachable("locals() scope not implemented")
+      #[
       let name = f.getname(opArg)
       f.locals[name] = sPop()
+      ]#
 
     of OpCode.ForIter:
       let top = sTop()
@@ -151,10 +154,17 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       else:
         sPush retObj
 
+    of OpCode.StoreGlobal:
+      let name = f.getname(opArg)
+      f.globals[name] = sPop()
+
     of OpCode.LoadConst:
       sPush(f.getConst(opArg))
 
     of OpCode.LoadName:
+      unreachable("locals() scope not implemented")
+      #[
+      # todo: hash only once when dict is improved
       let name = f.getName(opArg)
       var obj: PyObject
       if f.locals.hasKey(name):
@@ -168,6 +178,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         break
         
       sPush obj
+      ]#
 
     of OpCode.BuildList:
       var args: seq[PyObject]
@@ -234,6 +245,16 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       else:
         jumpTo(opArg)
 
+    of OpCode.LoadGlobal:
+      let name = f.getName(opArg)
+      var obj: PyObject
+      if f.globals.hasKey(name):
+        obj = f.globals[name]
+      else:
+        result = newNameError(name.str)
+        break
+      sPush obj
+
     of OpCode.LoadFast:
       sPush f.fastLocals[opArg]
 
@@ -249,9 +270,10 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       var retObj: PyObject
       # runtime function, evaluate recursively
       if funcObj of PyFunctionObject:
-        let newF = newPyFrame(PyFunctionObject(funcObj).code, args, f)
+        let newF = newPyFrame(PyFunctionObject(funcObj), args, f)
         retObj = newF.evalFrame
       # else use dispatcher defined in methodobject.nim
+      # todo: should first dispatch Nim level function
       else:
         retObj = funcObj.call(args)
       if retObj.isThrownException:
@@ -266,7 +288,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       assert name of PyStrObject
       let code = sPop()
       assert code of PyCodeObject
-      sPush newPyFunction(PyStrObject(name), PyCodeObject(code))
+      sPush newPyFunction(PyStrObject(name), PyCodeObject(code), f.globals)
 
     else:
       let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
@@ -278,7 +300,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 proc runCode*(co: PyCodeObject): PyObject = 
   when defined(debug):
     echo co
-  let f = newPyFrame(co, @[], nil)
+  let fun = newPyFunction(newPyString("main"), co, newPyDict())
+  let f = newPyFrame(fun, @[], nil)
   f.evalFrame
 
 

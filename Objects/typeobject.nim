@@ -11,8 +11,34 @@ import descrobject
 
 import ../Utils/utils
 
-proc getDict*(tp: PyTypeObject): PyDictObject = 
-  PyDictObject(tp.dict)
+
+methodMacroTmpl(Type, "Type")
+
+
+let pyTypeObjectType = newPyType("type")
+
+
+implTypeUnary repr:
+  newPyString(self.name)
+
+implTypeUnary str:
+  self.reprPyTypeObject
+
+
+proc getTypeDict*(obj: PyObject): PyDictObject = 
+  PyDictObject(obj.pyType.dict)
+
+
+proc hasDict*(obj: PyObject): bool {. inline .} = 
+  0 < obj.pyType.dictOffset
+
+
+proc getDict*(obj: PyObject): PyDictObject = 
+  let tp = obj.pyType
+  if tp.dictOffset < 0:
+    unreachable("obj has no dict. Use hasDict before get dict")
+  let dictPtr = cast[ptr PyDictObject](cast[int](obj[].addr) + tp.dictOffset)
+  dictPtr[]
 
 const magicNames = [
   "__add__",
@@ -46,7 +72,6 @@ const magicNames = [
   "__getattribute__",
 ]
 
-let pyTypeObjectType = newPyType("type")
 
 static:
   assert type(PyTypeObject.magicMethods).arity == magicNames.len
@@ -79,7 +104,7 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject =
     let typeStr = nameObj.pyType.name
     return newTypeError(fmt"attribute name must be string, not {typeStr}")
   let name = PyStrObject(nameObj)
-  let typeDict = self.pyType.getDict
+  let typeDict = self.getTypeDict
   if typeDict == nil:
     unreachable("for type object d must not be nil")
   if typeDict.hasKey(name):
@@ -91,6 +116,10 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject =
       return descr.getFun(self)
 
   # todo: check dict of current obj
+  if self.hasDict:
+    let instDict = self.getDict
+    if instDict.hasKey(name):
+      return instDict[name]
   # a hasDict attribute in type object
   return newAttributeError($self.pyType.name, $name)
   

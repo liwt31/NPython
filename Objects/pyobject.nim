@@ -393,6 +393,8 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   let fullNameIdent = ident("Py" & nameIdent.strVal & "Object")
 
   result = newStmtList()
+  if dict:
+    result.add nnkImportStmt.newTree(ident("dictobject"))
   var reclist = nnkRecList.newTree()
   proc addField(recList, name, tp: NimNode)=
     let newField = nnkIdentDefs.newTree(
@@ -439,7 +441,10 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   result.add(decObjNode)
 
   template initTypeTmpl(name, nameStr, hasDict) = 
-    let `py name ObjectType`* {. inject .} = newPyType(nameStr, hasDict)
+    let `py name ObjectType`* {. inject .} = newPyType(nameStr)
+    when hasDict:
+      var tmp: `Py name Object`
+      `py name ObjectType`.dictOffset = cast[int](tmp.dict.addr) - cast[int](tmp.addr)
 
   result.add(getAst(initTypeTmpl(nameIdent, nameIdent.strVal, newLit(dict))))
 

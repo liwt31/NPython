@@ -1,15 +1,19 @@
 import pyobject
 import codeobject
 import stringobject
+import dictobject
 
-type
-  PyFunctionObject* = ref object of PyObject
-    name*: PyStrObject
-    code*: PyCodeObject
+declarePyType Function():
+  name: PyStrObject
+  code: PyCodeObject
+  globals: PyDictObject
 
 
-proc newPyFunction*(name: PyStrObject, code: PyCodeObject): PyFunctionObject = 
+proc newPyFunction*(name: PyStrObject, 
+                    code: PyCodeObject, 
+                    globals: PyDictObject): PyFunctionObject = 
   result = new PyFunctionObject
   result.name = name
   result.code = code
+  result.globals = globals
 

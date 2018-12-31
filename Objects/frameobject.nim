@@ -2,6 +2,7 @@ import strutils
 
 import pyobject
 import codeobject
+import funcobject
 import dictobject
 import stringobject
 import methodobject
@@ -11,15 +12,15 @@ import ../Python/[opcode, bltinmodule]
 
 
 type PyFrameObject* = ref object of PyObject 
-  prev: PyFrameObject
+  back: PyFrameObject
   code*: PyCodeObject
   lastI*: int
   valStack: seq[PyObject]
   # dicts and sequences for variable lookup
+  # locals and builtins not used for now
   locals*: PyDictObject
   globals*: PyDictObject
   builtins*: PyDictObject
-  # arguments of functions
   fastLocals*: seq[PyObject]
 
 method `$`(f: PyFrameObject):string = 
@@ -76,22 +77,30 @@ proc setupBuiltin(f: PyFrameObject, name: string, fun: BltinFunc) =
   f.globals[nameStrObj] = newPyNFunc(fun, nameStrObj)
 
 
-proc newPyFrame*(code: PyCodeObject, args: seq[PyObject], prevF: PyFrameObject): PyFrameObject = 
+proc newPyFrame*(fun: PyFunctionObject, 
+                 args: seq[PyObject], 
+                 back: PyFrameObject): PyFrameObject = 
+  let code = fun.code
   assert code != nil
   result = new PyFrameObject
-  result.prev = prevF
+  result.back = back
   result.code = code
   result.lastI = -1
-  result.locals = newPyDict()
-  result.globals = newPyDict()
-  if prevF != nil:
-    result.globals.update(prevF.globals)
-    result.globals.update(prevF.locals)
-  result.builtins = newPyDict()
+  # locals not used for now
+  result.locals = nil
+  result.globals = fun.globals
+  #[
+  if back != nil:
+    result.globals.update(back.globals)
+    result.globals.update(back.locals)
+  ]#
+  # builtins not used for now
+  result.builtins = nil
   # simple hack. Should build a "builtin" module in the future
   result.setupBuiltin("print", builtinPrint)
   result.setupBuiltin("dir", builtinDir)
   result.setupBuiltin("list", pyListObjectType)
+  result.setupBuiltin("type", builtinType)
   result.fastLocals = newSeq[PyObject](code.localVars.len)
   for idx, arg in args:
     result.fastLocals[idx] = arg

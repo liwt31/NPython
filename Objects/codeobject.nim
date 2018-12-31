@@ -33,7 +33,8 @@ method `$`*(code: PyCodeObject): string =
     if opCode in hasArgSet:
       line &= fmt"{opArg:<4}"
       case opCode
-      of OpCode.LoadName, OpCode.StoreName, OpCode.LoadAttr:
+      of OpCode.LoadName, OpCode.StoreName, OpCode.LoadAttr, 
+        OpCode.LoadGlobal, OpCode.StoreGlobal:
         line &= fmt" ({code.names[opArg]})"
       of OpCode.LoadConst:
         let constObj = code.constants[opArg]

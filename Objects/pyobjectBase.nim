@@ -19,6 +19,7 @@ type
   GetIterFunc* = proc (self: PyObject): PyObject
   IterNextFunc* = proc (self: PyObject): PyObject
 
+  # modify their name in typeobject.nim when modify the magic methods
   MagicMethods = tuple
     add: BinaryFunc
     subtract: BinaryFunc
@@ -77,45 +78,51 @@ type
     name*: string
     magicMethods*: MagicMethods
     bltinMethods*: Table[string, BltinMethod]
-    # not whether `PyTypeObject` itself has dict, 
-    # but whether instances of this type has dict
-    hasDict: bool
-    # this is actually a dict. but we haven't defined dict yet.
+
+    # this is actually a PyDictObject. but we haven't defined dict yet.
     # the values are set in typeobject.nim when the type is ready
     dict*: PyObject
+
+    # not offset of `PyTypeObject` itself 
+    # but instances of this type 
+    dictOffset*: int
+
+    # what to do when getting attribute of its intances
     descrGet*: DescrGet
+    # what to do when iter, next is operating on its instances
     iter*: GetIterFunc
     iternext*: IterNextFunc
 
 
-method `$`*(obj: PyObject): string {.base.} = 
+method `$`*(obj: PyObject): string {.base, inline.} = 
   "Python object"
 
 
-method hash*(obj: PyObject): Hash {.base.} = 
+method hash*(obj: PyObject): Hash {.base, inline.} = 
   hash(addr(obj[]))
 
 
-method `==`*(obj1, obj2: PyObject): bool {.base.} =
+method `==`*(obj1, obj2: PyObject): bool {.base, inline.} =
   obj1[].addr == obj2[].addr
 
-proc id*(obj: PyObject): int = 
+proc id*(obj: PyObject): int {. inline .} = 
   cast[int](obj[].addr)
 
 
-proc idStr*(obj: PyObject): string = 
+proc idStr*(obj: PyObject): string {. inline .} = 
   fmt"{obj.id:#x}"
 
 
 var bltinTypes*: seq[PyTypeObject]
 
 
-proc newPyType*(name: string, hasDict=false): PyTypeObject =
+proc newPyType*(name: string): PyTypeObject =
   new result
   result.name = name.toLowerAscii
   result.bltinMethods = initTable[string, BltinMethod]()
-  result.hasDict = hasDict
+  result.dictOffset = -1
   bltinTypes.add(result)
+
 
 
 # todo: make it an object with type

@@ -61,6 +61,7 @@ proc newPyMethodDescr*(t: PyTypeObject,
   implNew
 
 
+# too many dispather here! harmful to performance.
 method getMethodDispatch(descr: PyObject, owner: PyObject): PyObject {. base .}=
   unreachable
 

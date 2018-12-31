@@ -1,6 +1,7 @@
 import ../Objects/[pyobject, typeobject, dictobject, stringobject, listobject]
 import ../Utils/utils
 
+# can well use some macros for argument checking
 
 proc builtinPrint*(args: seq[PyObject]): PyObject =
   for obj in args:
@@ -24,7 +25,12 @@ proc builtinDir*(args: seq[PyObject]): PyObject =
     return newTypeError("dir expected 1 arguments, got {args.len}")
   let obj = args[0]
   # get mapping proxy first then talk about how do deal with __dict__ of type
-  obj.pyType.getDict.keys
+  obj.getTypeDict.keys
 
+proc builtinType*(args: seq[PyObject]): PyObject = 
+  if args.len != 1:
+    return newTypeError("type expected 1 arguments, got {args.len}")
+  let obj = args[0]
+  obj.pyType
 
 

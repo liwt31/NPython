@@ -8,7 +8,7 @@ import neval
 import compile
 import lifecycle
 import ../Parser/[lexer, parser]
-import ../Objects/[pyobject, frameobject, codeobject]
+import ../Objects/[pyobject, stringobject, dictobject, frameobject, codeobject, funcobject]
 import ../Utils/utils
 
 
@@ -54,8 +54,14 @@ proc interactiveShell =
 
     when defined(debug):
       echo co
-    
-    let f = newPyFrame(co, @[], prevF)
+
+    var globals: PyDictObject
+    if prevF != nil:
+      globals = prevF.globals
+    else:
+      globals = newPyDict()
+    let fun = newPyFunction(newPyString("Bla"), co, globals)
+    let f = newPyFrame(fun, @[], prevF)
     var retObj = f.evalFrame
     if retObj.isThrownException:
       echo retObj
