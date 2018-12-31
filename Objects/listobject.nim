@@ -12,7 +12,7 @@ import stringobject
 import iterobject
 import ../Utils/utils
 
-declarePyType List(reprLock):
+declarePyType List(reprLock, mutable):
   items: seq[PyObject]
 
 proc newPyList*: PyListObject
@@ -58,37 +58,35 @@ implListMethod count(target: PyObject):
       inc count
   newPyInt(count)
 
-# for lock testing
-#[
-implListMethod doClear():
-  self.clearPyListObject()
+# some test methods just for debugging
+when not defined(release):
+  # for lock testing
+  implListMethod doClear():
+  # should fail because trying to write while reading
+    self.clearPyListObject()
 
-implListMethod *doRead():
-  return self.doClearPyListObject()
+  implListMethod *doRead():
+    # trying to read whiel writing
+    return self.doClearPyListObject()
 
-]#
 
-# for checkArgTypes testing
-#[
-implListMethod aInt(i: PyIntObject):
-  self.items.add(i)
-  pyNone
-]#
+  # for checkArgTypes testing
+  implListMethod aInt(i: PyIntObject):
+    self.items.add(i)
+    pyNone
+
+
+
+  # for macro pragma testing
+  macro hello(code: untyped): untyped = 
+    code.body.insert(0, nnkCommand.newTree(ident("echo"), newStrLitNode("hello")))
+    code
+
+  implListMethod hello(), [hello]:
+    pyNone
 
 # implListMethod extend:
 # require iterators
-#
-
-
-# for macro pragma testing
-#[
-macro hello(code: untyped): untyped = 
-  code.body.insert(0, nnkCommand.newTree(ident("echo"), newStrLitNode("hello")))
-  code
-
-implListMethod hello(), [hello]:
-  pyNone
-]#
 
 implListMethod index(target: PyObject):
   for idx, item in self.items:

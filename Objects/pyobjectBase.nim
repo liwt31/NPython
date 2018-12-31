@@ -57,33 +57,32 @@ type
 
   PyObject* = ref object of RootObj
     pyType*: PyTypeObject
-    # the below fields are possible for a PyObject
+    # the following fields are possible for a PyObject
     # depending on how you declare it (mutable, dict, etc)
     
-    # every obj has dict field, but some are set nil
-    # this is not efficient enough complared to CPython. 
-    # CPython uses type obj and some sort of hack to indicate 
-    # if instances have dict and where
-    dict*: PyObject 
-    # prevent infinite recursion
+    # prevent infinite recursion evaluating repr
     # reprLock*: bool
+    
     # might be used to avoid GIL in the future?
     # a semaphore and a mutex...
     # but Nim has only thread local heap...
     # maybe interpreter level thread?
-    # or real pthread but kind of read-only, then what's the difference with process?
+    # or real pthread but kind of read-only, then what's the difference with processes?
     # or both?
-    readNum*: int
-    writeLock*: bool
+    # readNum*: int
+    # writeLock*: bool
 
 
   PyTypeObject* = ref object of PyObject
     name*: string
     magicMethods*: MagicMethods
     bltinMethods*: Table[string, BltinMethod]
+    # not whether `PyTypeObject` itself has dict, 
+    # but whether instances of this type has dict
+    hasDict: bool
     # this is actually a dict. but we haven't defined dict yet.
     # the values are set in typeobject.nim when the type is ready
-
+    dict*: PyObject
     descrGet*: DescrGet
     iter*: GetIterFunc
     iternext*: IterNextFunc
@@ -111,10 +110,11 @@ proc idStr*(obj: PyObject): string =
 var bltinTypes*: seq[PyTypeObject]
 
 
-proc newPyType*(name: string): PyTypeObject =
+proc newPyType*(name: string, hasDict=false): PyTypeObject =
   new result
   result.name = name.toLowerAscii
   result.bltinMethods = initTable[string, BltinMethod]()
+  result.hasDict = hasDict
   bltinTypes.add(result)
 
 
