@@ -1,5 +1,5 @@
 # the object file is devided into two parts. pyobjectBase.nim is for very basic and 
-# generic pyobject behavior. pyobject.nim as for helper macros for object method
+# generic pyobject behavior. pyobject.nim is for helpful macros for object method
 # definition
 import macros except name
 import sets
@@ -17,26 +17,27 @@ export pyobjectBase
 
 include exceptions
 
-template getFun*(obj: PyObject, fun, methodName: untyped) = 
+template getFun*(obj: PyObject, methodName: untyped):untyped = 
   if obj.pyType == nil:
     unreachable("Py type not set")
-  fun = obj.pyType.magicMethods.methodName
+  let fun = obj.pyType.magicMethods.methodName
   if fun == nil:
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
     return newTypeError("No " & methodStr & " method for " & objTypeStr & " defined")
+  fun
 
 
+#XXX: `obj` is used twice so it better be a simple identity
+# if it's a function then the function is called twice!
 template callMagic*(obj: PyObject, methodName: untyped): PyObject = 
-  var fun: UnaryFunc
-  obj.getFun(fun, methodName)
+  let fun = obj.getFun(methodName)
   fun(obj)
   
 
 
 template callMagic*(obj: PyObject, methodName: untyped, arg1: PyObject): PyObject = 
-  var fun: BinaryFunc
-  obj.getFun(fun, methodName)
+  let fun = obj.getFun(methodName)
   fun(obj, arg1)
 
 
@@ -330,17 +331,6 @@ proc implMethod*(prototype, objectType, body, pragmas: NimNode): NimNode =
   )
 
   
-
-proc reprEnter*(obj: PyObject): bool = 
-  if obj.reprLock:
-    return false
-  else:
-    obj.reprLock = true
-    return true
-
-proc reprLeave*(obj: PyObject) = 
-  obj.reprLock = false
-
 proc readEnter*(obj: PyObject): bool = 
   if not obj.writeLock:
     inc obj.readNum
@@ -363,14 +353,15 @@ proc writeLeave*(obj: PyObject) =
 
 
 template reprEnterTmpl = 
-  if not self.reprEnter:
+  if self.reprLock:
     return newPyString("...")
+  self.reprLock = true
 
 template reprLeaveTmpl = 
-  self.reprLeave
+  self.reprLock = false
 
 
-macro reprLock*(methodName, code: untyped): untyped = 
+macro hasReprLock*(methodName, code: untyped): untyped = 
   if methodName.strVal != "repr":
     return code
   code.body = newStmtList( 
@@ -396,7 +387,7 @@ template methodMacroTmpl*(name: untyped, nameStr: string,
     when reprLock:
       pragmas.add(
         nnkExprColonExpr.newTree(
-          ident("reprLock"),
+          ident("hasReprLock"),
           methodName
         )
       )
@@ -455,7 +446,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     reclist.newField(field[0], field[1][0])
 
   if reprLock:
-    reclist.newField(ident("repr"), ident("bool"))
+    reclist.newField(ident("reprLock"), ident("bool"))
   # if mutable, etc, add fields here
 
   let decObjNode = nnkTypeSection.newTree(

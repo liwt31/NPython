@@ -42,7 +42,8 @@ template intBinaryTemplate(op, methodName: untyped, methodNameStr:string) =
   if other of PyIntObject:
     result = newPyInt(self.v.op PyIntObject(other).v)
   elif other of PyFloatObject:
-    result = newPyFloat(self).callMagic(methodName, other)
+    let newFloat = newPyFloat(self)
+    result = newFloat.callMagic(methodName, other)
   else:
     result = newTypeError(methodnameStr & fmt" not supported by int and {other.pyType.name}")
 
