@@ -61,8 +61,9 @@ proc localVarsToSeq*(ste: SymTableEntry): seq[PyStrObject] =
   ste.localVars.toInverseSeq
 
 # traverse the ast to collect local vars
-# local vars can be defined in Name List Tuple and For
-# currently we only have Name, so it's pretty simple. lot's of discard out there
+# local vars can be defined in Name List Tuple For Import
+# currently we only have Name, For, Import, so it's pretty simple. 
+# lot's of discard out there
 
 macro visitMethod(astNodeName, funcDef: untyped): untyped =
   result = nnkMethodDef.newTree(
@@ -123,6 +124,10 @@ visitMethod While:
 visitMethod If:
   ste.visitSeq(astNode.body)
   ste.visitSeq(astNode.orelse)
+
+visitMethod Import:
+  assert astNode.names.len == 1
+  ste.addLocalVar(AstAlias(astNode.names[0]).name)
 
 visitMethod Expr:
   discard

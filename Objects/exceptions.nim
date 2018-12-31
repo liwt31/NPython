@@ -35,6 +35,8 @@ type
 
   PyLockError* = ref object of PyExceptionObject
 
+  PyImportError* = ref object of PyExceptionObject
+
 # need some fine grained control here, so generic is not so good
 # a little bit messy won't harm for now because 
 # 1) the file is expected to be drasticly refactored 
@@ -78,7 +80,6 @@ proc newStopIterError*: PyStopIterError =
   new result
   result.thrown = true
 
-
 proc newLockError*(msg: string, thrown=true): PyLockError = 
   implNew
 
@@ -86,6 +87,10 @@ proc isStopIter*(obj: PyObject): bool =
   if obj of PyStopIterError:
     return PyStopIterError(obj).thrown
   false
+
+proc newImportError*(msg: string, thrown=true): PyImportError = 
+  implNew
+
 
 method `$`*(e: PyExceptionObject): string = 
   $e.msg

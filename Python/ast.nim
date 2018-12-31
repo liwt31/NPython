@@ -84,6 +84,9 @@ proc astYieldStmt(parseNode: ParseNode): AsdlStmt
 proc astRaiseStmt(parseNode: ParseNode): AsdlStmt
 
 proc astImportStmt(parseNode: ParseNode): AsdlStmt
+proc astImportName(parseNode: ParseNode): AsdlStmt
+proc astDottedAsNames(parseNode: ParseNode): seq[AstAlias]
+proc astDottedName(parseNode: ParseNode): AstAlias
 proc astGlobalStmt(parseNode: ParseNode): AsdlStmt
 proc astNonlocalStmt(parseNode: ParseNode): AsdlStmt
 proc astAssertStmt(parseNode: ParseNode): AsdlStmt
@@ -470,40 +473,64 @@ ast raise_stmt, [AsdlStmt]:
   raiseSyntaxError("Raise not implemented")
   
 
-proc astImportStmt(parseNode: ParseNode): AsdlStmt = 
-  raiseSyntaxError("Import not implemented")
+# import_stmt  import_name | import_from
+ast import_stmt, [AsdlStmt]:
+  let child = parseNode.children[0]
+  case child.tokenNode.token 
+  of Token.import_name:
+    result = astImportName(child)
+  of Token.import_from:
+    raiseSyntaxError("Import from not implemented")
+  else:
+    unreachable("wrong import_stmt")
+
+# import_name  'import' dotted_as_names
+ast import_name, [AsdlStmt]:
+  let node = new AstImport
+  for c in parseNode.children[1].astDottedAsNames:
+    node.names.add c
+  node
   
   #[
-ast import_name:
-  discard
-  
 ast import_from:
   discard
   
 ast import_as_name:
   discard
+]#
+
+# dotted_as_name  dotted_name ['as' NAME]
+ast dotted_as_name, [AstAlias]:
+  if parseNode.children.len != 1:
+    raiseSyntaxError("import alias not implemented")
+  parseNode.children[0].astDottedName
   
-ast dotted_as_name:
-  discard
   
-ast import_as_names:
-  discard
+#ast import_as_names:
+#  discard
+
   
-ast dotted_as_names:
-  discard
+# dotted_as_names  dotted_as_name (',' dotted_as_name)*
+ast dotted_as_names, [seq[AstAlias]]:
+  if parseNode.children.len != 1:
+    raiseSyntaxError("import multiple modules in one line not implemented")
+  result.add parseNode.children[0].astDottedAsName
   
-ast dotted_name:
-  discard
+# dotted_name  NAME ('.' NAME)*
+ast dotted_name, [AstAlias]:
+  if parseNode.children.len != 1:
+    raiseSyntaxError("dotted import name not supported")
+  new result
+  result.name = newIdentifier(parseNode.children[0].tokenNode.content)
   
-  ]#
 proc astGlobalStmt(parseNode: ParseNode): AsdlStmt = 
-  discard
+  raiseSyntaxError("global stmt not implemented")
   
 proc astNonlocalStmt(parseNode: ParseNode): AsdlStmt = 
-  discard
+  raiseSyntaxError("nonlocal stmt not implemented")
   
 proc astAssertStmt(parseNode: ParseNode): AsdlStmt = 
-  discard
+  raiseSyntaxError("assert stmt not implemented")
   
 # compound_stmt  if_stmt | while_stmt | for_stmt | try_stmt | with_stmt | funcdef | classdef | decorated | async_stmt
 ast compound_stmt, [AsdlStmt]:

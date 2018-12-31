@@ -291,7 +291,7 @@ proc addStoreOp(c: Compiler, name: AsdlIdentifier) =
   c.addOp(instr)
 
 
-# todo: too many dispacher here! used astNode token to dispatch
+# todo: too many dispachers here! used astNode token to dispatch (if have spare time...)
 method compile(c: Compiler, astNode: AstNodeBase) {.base.} =
   echo "!!!WARNING, ast node compile method not implemented"
   echo astNode
@@ -389,6 +389,15 @@ compileMethod If:
     c.addBlock(next)
     c.compileSeq(astNode.orelse)
   c.addBlock(ending)
+
+
+compileMethod Import:
+  if not astNode.names.len == 1:
+    unreachable
+  let name = AstAlias(astNode.names[0]).name
+  c.addOp(newArgInstr(OpCode.ImportName, c.tste.nameId(name.value)))
+  c.addStoreOp(name)
+  
 
 
 compileMethod Expr:

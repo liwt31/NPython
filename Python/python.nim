@@ -6,6 +6,7 @@ import cligen
 
 import neval
 import compile
+import coreconfig
 import lifecycle
 import ../Parser/[lexer, parser]
 import ../Objects/[pyobject, stringobject, dictobject, frameobject, codeobject, funcobject]
@@ -71,16 +72,15 @@ proc interactiveShell =
 
 
 
-proc nPython(filenames: seq[string], dis = false) =
-  pyInit()
-  if filenames.len == 0:
+proc nPython(args: seq[string]) =
+  pyInit(args)
+  if pyConfig.filepath == "":
     interactiveShell()
 
-  let filename = filenames[0]
-
-  if not filename.existsFile:
+  if not pyConfig.filepath.existsFile:
     echo "File does not exist"
-  let input = readFile(filename)
+    quit()
+  let input = readFile(pyConfig.filepath)
   var retObj = input.runString
   if retObj.isThrownException:
     echo retObj

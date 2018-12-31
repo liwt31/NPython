@@ -414,7 +414,6 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   if reprLock:
     reclist.addField(ident("reprLock"), ident("bool"))
   if dict:
-    # declare as PyObject to avoid cyclic Dependence on 
     reclist.addField(ident("dict"), ident("PyDictObject"))
   if mutable:
     reclist.addField(ident("readNum"), ident("int"))
@@ -443,8 +442,9 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   template initTypeTmpl(name, nameStr, hasDict) = 
     let `py name ObjectType`* {. inject .} = newPyType(nameStr)
     when hasDict:
-      var tmp: `Py name Object`
-      `py name ObjectType`.dictOffset = cast[int](tmp.dict.addr) - cast[int](tmp.addr)
+      block tmp:
+        var t: `Py name Object`
+        `py name ObjectType`.dictOffset = cast[int](t.dict.addr) - cast[int](t[].addr)
 
   result.add(getAst(initTypeTmpl(nameIdent, nameIdent.strVal, newLit(dict))))
 

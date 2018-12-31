@@ -6,12 +6,14 @@ import strformat
 import compile
 
 import opcode
+import coreconfig
 import bltinmodule
 import ../Objects/[pyobject, typeobject, frameobject, stringobject,
   codeobject, dictobject, methodobject, boolobject,
-  funcobject]
+  funcobject, moduleobject]
 import ../Utils/utils
 
+proc pyImport*(name: PyStrObject): PyObject
 
 template doUnary(opName: untyped) = 
   let top = sTop()
@@ -220,6 +222,14 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       else:
         unreachable  # should be blocked by ast, compiler
 
+    of OpCode.ImportName:
+      let name = f.getName(opArg)
+      let retObj = pyImport(name)
+      if retObj.isThrownException:
+        result = retObj
+        break
+      sPush retObj
+
     of OpCode.JumpIfFalseOrPop:
       let top = sTop()
       if top.callMagic(bool) == pyFalseObj:
@@ -295,6 +305,28 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       result = newNotImplementedError(msg)
       break
 
+
+proc pyImport*(name: PyStrObject): PyObject =
+  let filepath = pyConfig.path.joinPath(name.str).addFileExt("py")
+  if not filepath.existsFile:
+    return newImportError(fmt"File {filepath} not found")
+  let input = readFile(filepath)
+  var co: PyCodeObject
+  try:
+    co = compile(input)
+  except SyntaxError:
+    let msg = getCurrentExceptionMsg()
+    return newImportError(fmt"Syntax Error: {msg}")
+  when defined(debug):
+    echo co
+  let fun = newPyFunction(name, co, newPyDict())
+  let f = newPyFrame(fun, @[], nil)
+  let retObj = f.evalFrame
+  if retObj.isThrownException:
+    return retObj
+  let module = newPyModule(name)
+  module.dict = f.globals
+  module
 
 
 proc runCode*(co: PyCodeObject): PyObject = 

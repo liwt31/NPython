@@ -13,6 +13,7 @@ Capable of:
 * loop with `while` and `for`
 * very basic function defination and call
 * builtin print, list (by []), dir
+* basic import `import foo`, no alias, no `from`, etc
 * interactive mode and file mode
 
 Check out `./tests` to see more examples.
@@ -27,8 +28,8 @@ nim c ./Python/python
 ```
 
 ### Todo
-* import modules
 * `yield`
+* assert statement(useful for testing)
 * complete object model and more instrospections
 * user defined class
 * more exception handlings (with line and col number, stack info)

@@ -1,4 +1,5 @@
-import ../Objects/[pyobject, typeobject, dictobject, stringobject, listobject]
+import ../Objects/[pyobject, typeobject, dictobject, 
+                   stringobject, listobject, moduleobject]
 import ../Utils/utils
 
 # can well use some macros for argument checking
@@ -18,7 +19,6 @@ proc builtinList*(elms: seq[PyObject]): PyObject =
     if retObj.isThrownException:
       return retObj
 
-# this should be moved to python level
 proc builtinDir*(args: seq[PyObject]): PyObject = 
   # why in CPython 0 argument becomes `locals()`? no idea
   if args.len != 1:
@@ -34,3 +34,6 @@ proc builtinType*(args: seq[PyObject]): PyObject =
   obj.pyType
 
 
+
+
+  
