@@ -446,6 +446,12 @@ macro declarePyType*(prototype, fields: untyped): untyped =
         var t: `Py name Object`
         `py name ObjectType`.dictOffset = cast[int](t.dict.addr) - cast[int](t[].addr)
 
+    proc `newPy name Simple`: `Py name Object` = 
+      # use result here seems to be buggy
+      let obj = new `Py name Object`
+      obj.pyType = `py name ObjectType`
+      obj
+
   result.add(getAst(initTypeTmpl(nameIdent, nameIdent.strVal, newLit(dict))))
 
 

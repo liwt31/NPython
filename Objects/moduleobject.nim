@@ -6,9 +6,8 @@ declarePyType Module(dict):
   name: PyStrObject
 
 
-
 proc newPyModule*(name: PyStrObject): PyModuleObject = 
-  new result
+  result = newPyModuleSimple()
   result.pyType = pyModuleObjectType
   result.name = name
 

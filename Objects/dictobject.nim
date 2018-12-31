@@ -58,6 +58,6 @@ proc update*(d1, d2: PyDictObject) =
 
 
 proc newPyDict* : PyDictObject = 
-  new result
+  result = newPyDictSimple()
   result.table = initTable[PyObject, PyObject]()
   result.pyType = pyDictObjectType

@@ -47,7 +47,7 @@ type
 proc newNameError*(name:string, thrown=true) : PyNameError = 
   new result
   result.thrown = thrown
-  result.msg = fmt"name {name} is not defined"
+  result.msg = fmt"name '{name}' is not defined"
 
 
 template implNew = 

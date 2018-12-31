@@ -115,12 +115,10 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject =
       let getFun = descr.pyType.descrGet
       return descr.getFun(self)
 
-  # todo: check dict of current obj
   if self.hasDict:
     let instDict = self.getDict
     if instDict.hasKey(name):
       return instDict[name]
-  # a hasDict attribute in type object
   return newAttributeError($self.pyType.name, $name)
   
 

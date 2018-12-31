@@ -29,11 +29,9 @@ method `$`*(f: PyFloatObject): string =
 
 # the CPython abstract.c seems can be replaced by macors
 
-proc newPyInt: PyIntObject
 proc newPyInt*(n: BigInt): PyIntObject
 proc newPyInt*(str: string): PyIntObject
 
-proc newPyFloat: PyFloatObject
 proc newPyFloat*(pyInt: PyIntObject): PyFloatObject
 proc newPyFloat*(v: float): PyFloatObject
 
@@ -221,37 +219,28 @@ proc toInt*(pyInt: PyIntObject): int =
 proc toFloat*(pyInt: PyIntObject): float = 
   parseFloat($pyInt)
 
-proc newPyInt: PyIntObject = 
-  new result
-  result.pyType = pyIntObjectType
-
 
 proc newPyInt*(n: BigInt): PyIntObject = 
-  result = newPyInt()
+  result = newPyIntSimple()
   result.v = n
 
 
 proc newPyInt*(str: string): PyIntObject = 
-  result = newPyInt()
+  result = newPyIntSimple()
   result.v = str.initBigInt
 
 
 proc newPyInt*(i: int): PyIntObject = 
-  result = newPyInt()
+  result = newPyIntSimple()
   result.v = i.initBigInt
 
 
-proc newPyFloat: PyFloatObject = 
-  new result
-  result.pyType = pyFloatObjectType
-
-
 proc newPyFloat(pyInt: PyIntObject): PyFloatObject = 
-  result = newPyFloat()
+  result = newPyFloatSimple()
   result.v = pyInt.toFloat 
 
 
 proc newPyFloat(v: float): PyFloatObject = 
-  result = newPyFloat()
+  result = newPyFloatSimple()
   result.v = v
 

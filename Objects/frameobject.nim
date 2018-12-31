@@ -31,42 +31,11 @@ method `$`(f: PyFrameObject):string =
   stringSeq.add("Frame")
   stringSeq.join("\n\n")
 
-#[
-proc push*(f: PyFrameObject, obj: PyObject) = 
-  f.valStack.add(obj)
-
-
-proc top*(f: PyFrameObject): PyObject = 
-  f.valStack[^1]
-
-
-proc pop*(f: PyFrameObject): PyObject = 
-  f.valStack.pop
-
-proc setTop*(f: PyFrameObject, obj: PyObject) = 
-  f.valStack[^1] = obj
-
-
-]#
 proc getConst*(f: PyFrameObject, idx: int): PyObject = 
   f.code.constants[idx]
 
 proc getName*(f: PyFrameObject, idx: int): PyStrObject = 
   f.code.names[idx]
-
-
-proc exhausted*(f: PyFrameObject): bool {. inline .} = 
-  f.code.len <= f.lastI + 1
-
-
-proc nextInstr*(f: PyFrameObject): (OpCode, int) {. inline .} = 
-  inc f.lastI
-  f.code.code[f.lastI]
-
-
-proc jumpTo*(f: PyFrameObject, target: int) = 
-  f.lastI = target - 1
-
 
 proc setupBuiltin(f: PyFrameObject, name:string, obj: PyObject) = 
   let nameStrObj = newPyString(name)
@@ -75,7 +44,6 @@ proc setupBuiltin(f: PyFrameObject, name:string, obj: PyObject) =
 proc setupBuiltin(f: PyFrameObject, name: string, fun: BltinFunc) = 
   let nameStrObj = newPyString(name)
   f.globals[nameStrObj] = newPyNFunc(fun, nameStrObj)
-
 
 proc newPyFrame*(fun: PyFunctionObject, 
                  args: seq[PyObject], 
@@ -89,11 +57,6 @@ proc newPyFrame*(fun: PyFunctionObject,
   # locals not used for now
   result.locals = nil
   result.globals = fun.globals
-  #[
-  if back != nil:
-    result.globals.update(back.globals)
-    result.globals.update(back.locals)
-  ]#
   # builtins not used for now
   result.builtins = nil
   # simple hack. Should build a "builtin" module in the future

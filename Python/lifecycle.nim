@@ -10,7 +10,7 @@ proc pyInit*(args: seq[string]) =
     t.typeReady
 
   if args.len == 0:
-    pyConfig.path = os.getAppDir()
+    pyConfig.path = os.getCurrentDir()
   else:
     pyConfig.filepath = joinPath(os.getAppDir(), args[0])
     pyConfig.filename = pyConfig.filepath.extractFilename()

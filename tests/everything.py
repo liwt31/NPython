@@ -27,3 +27,7 @@ print(l)
 b = []
 b.append(b)
 print(b)
+
+import function
+
+print(function.foobar(1,2))

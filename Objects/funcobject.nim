@@ -12,7 +12,7 @@ declarePyType Function():
 proc newPyFunction*(name: PyStrObject, 
                     code: PyCodeObject, 
                     globals: PyDictObject): PyFunctionObject = 
-  result = new PyFunctionObject
+  result = newPyFunctionSimple()
   result.name = name
   result.code = code
   result.globals = globals

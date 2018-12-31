@@ -15,7 +15,9 @@ import ../Utils/utils
 declarePyType List(reprLock, mutable):
   items: seq[PyObject]
 
-proc newPyList*: PyListObject
+
+proc newPyList*: PyListObject = 
+  newPyListSimple()
 
 implListUnary repr:
   var ss: seq[string]
@@ -132,6 +134,3 @@ proc iter(selfNoCast: PyObject): PyObject =
 
 pyListObjectType.iter = iter
 
-proc newPyList: PyListObject = 
-  new result
-  result.pyType = pyListObjectType

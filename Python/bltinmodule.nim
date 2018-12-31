@@ -25,7 +25,12 @@ proc builtinDir*(args: seq[PyObject]): PyObject =
     return newTypeError("dir expected 1 arguments, got {args.len}")
   let obj = args[0]
   # get mapping proxy first then talk about how do deal with __dict__ of type
-  obj.getTypeDict.keys
+  var mergedDict = newPyDict()
+  mergedDict.update(obj.getTypeDict)
+  if obj.hasDict:
+    mergedDict.update(obj.getDict)
+  mergedDict.keys
+
 
 proc builtinType*(args: seq[PyObject]): PyObject = 
   if args.len != 1:
