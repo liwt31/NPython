@@ -116,6 +116,16 @@ template errorIfNotBool*(pyObj: untyped, methodName: string) =
       return newTypeError(msg)
 
 
+proc checkIterable*(obj: PyObject): PyObject = 
+  let iterFunc = obj.pyType.magicMethods.iter
+  if iterFunc == nil:
+    return newTypeError(fmt"{obj.pyType.name} object is not iterable")
+  let iterObj = iterFunc(obj)
+  if iterObj.pyType.magicMethods.iternext == nil:
+    let msg = fmt"iter() returned non-iterator of type {iterObj.pyType.name}"
+    return newTypeError(msg)
+  return iterobj
+
 
 template checkArgNum*(expected: int, name="") = 
   if args.len != expected:

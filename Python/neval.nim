@@ -120,14 +120,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
     of OpCode.GetIter:
       let top = sTop()
-      let iterFunc = top.pyType.magicMethods.iter
-      if iterFunc == nil:
-        result = newTypeError(fmt"{top.pyType.name} object is not iterable")
-        break
-      let iterObj = iterFunc(top)
-      if iterObj.pyType.magicMethods.iternext == nil:
-        let msg = fmt"iter() returned non-iterator of type {iterObj.pyType.name}"
-        result = newTypeError(msg)
+      let iterObj = checkIterable(top)
+      if iterObj.isThrownException:
+        result = iterObj
         break
       sSetTop(iterObj)
 

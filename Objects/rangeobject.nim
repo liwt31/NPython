@@ -42,15 +42,21 @@ proc newRange(theType: PyObject, args:seq[PyObject]): PyObject =
   of 3:
     start = PyIntObject(args[0])
     ending = PyIntObject(args[1])
+    step = PyIntObject(args[2])
     if step.v == 0:
       return newValueError("range() step must not be 0")
-    step = PyIntObject(args[2])
   else:
     return newTypeError("range() expected 1-3 arguments")
+  var length: BigInt
+  # might need to refine this if duck typing is used
   # range(0, 2, 3): l = 1
   # range(0, 3, 3): l = 1
   # range(0, 3, 4): l = 2
-  var length = (ending.v - start.v + step.v - 1) div step.v
+  if 0 < step.v:
+    length = (ending.v - start.v + step.v - 1) div step.v
+  # range(1, -1, -1): l = 2
+  elif step.v < 0:
+    length = (-ending.v + start.v - step.v - 1) div -step.v
   if length < 0:
     length = initBigInt(0)
   let newPyRange = newPyRangeSimple()

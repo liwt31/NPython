@@ -29,13 +29,19 @@ implListUnary repr:
     ss.add(itemRepr.str)
   return newPyString("[" & ss.join(", ") & "]")
 
+implListUnary str:
+  self.reprPyListObject
 
 implListUnary len:
   newPyInt(self.items.len)
 
 
-implListMethod *append(item: PyObject):
+proc append(self: PyListObject, item: PyObject) {. inline .} = 
   self.items.add(item)
+
+
+implListMethod *append(item: PyObject):
+  self.append(item)
   pyNone
 
 
@@ -128,9 +134,37 @@ implListMethod *remove(target: PyObject):
   self.items.delete(idx, idx+1)
 
 
-proc iter(selfNoCast: PyObject): PyObject = 
-  let self = PyListObject(selfNoCast)
+proc iter(selfNoCast: PyObject): 
+  PyObject {. castSelf: PyListObject .} = 
   newPySeqIter(self.items)
 
+
 pyListObjectType.magicMethods.iter = iter
+
+
+proc newList(theType: PyObject, args:seq[PyObject]): PyObject = 
+  # todo: use macro, add iterable to checkArgTypes
+  case args.len:
+  of 0:
+    result = newPyListSimple()
+  of 1:
+    let iterable = checkIterable(args[0])
+    if iterable.isThrownException:
+      return iterable
+    let nextMethod = iterable.pyType.magicMethods.iternext
+    let newList = newPyListSimple()
+    while true:
+      let nextObj = nextMethod(iterable)
+      if nextObj.isStopIter:
+        break
+      if nextObj.isThrownException:
+        return nextObj
+      newList.append(nextObj)
+    result = newList
+
+  else:
+    return newTypeError(fmt"list expected at most 1 args, got {args.len}")
+  
+
+pyListObjectType.magicMethods.new = newList
 

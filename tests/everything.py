@@ -5,6 +5,9 @@ def foo():
     for i in [1,2,3,4,5]:
         l.append(i ** i / (i + 2 * (i - 10)))
 
+    for j in range(10):
+        l.append(j * i)
+
 
 def bar():
     i = 1
