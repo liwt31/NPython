@@ -7,8 +7,9 @@ import tables
 type 
   # these two function types are types that number of arguments can be
   # directly obtained from OpCode
-  UnaryFunc* = proc (o: PyObject): PyObject
-  BinaryFunc* = proc (o1, o2: PyObject): PyObject
+  UnaryFunc* = proc (self: PyObject): PyObject
+  BinaryFunc* = proc (self, other: PyObject): PyObject
+
 
   # for those that number of arguments unknown (and potentially kwarg?)
   BltinFunc* = proc (args: seq[PyObject]): PyObject
@@ -79,6 +80,8 @@ type
     magicMethods*: MagicMethods
     bltinMethods*: Table[string, BltinMethod]
 
+    call*: BltinMethod 
+
     # this is actually a PyDictObject. but we haven't defined dict yet.
     # the values are set in typeobject.nim when the type is ready
     dict*: PyObject
@@ -92,6 +95,8 @@ type
     # what to do when iter, next is operating on its instances
     iter*: GetIterFunc
     iternext*: IterNextFunc
+
+    new*: BltinMethod
 
 
 method `$`*(obj: PyObject): string {.base, inline.} = 

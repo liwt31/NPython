@@ -9,7 +9,7 @@ import opcode
 import coreconfig
 import bltinmodule
 import ../Objects/[pyobject, typeobject, frameobject, stringobject,
-  codeobject, dictobject, methodobject, boolobject,
+  codeobject, dictobject, methodobject, boolobject, listobject,
   funcobject, moduleobject]
 import ../Utils/utils
 
@@ -56,6 +56,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     lastI = i - 1
 
   # value stack helpers
+  # XXX: a dangerous workaround! use uncheckedarray and
+  # compute the max size during compilation!
   var valStack: array[64, PyObject]
   var sptr = -1
 
@@ -183,16 +185,18 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       ]#
 
     of OpCode.BuildList:
+      # this can be done more elegantly with setItem
       var args: seq[PyObject]
       for i in 0..<opArg:
         args.add sPop()
       args = args.reversed
-      let retObj = builtinList(args)
-      if retObj.isThrownException:
-        result = retObj
-        break
-      else:
-        sPush retObj
+      let newList = newPyList()
+      for item in args:
+        let retObj = newList.appendPyListObject(@[item])
+        if retObj.isThrownException:
+          result = retObj
+          break
+      sPush newList 
 
     of OpCode.LoadAttr:
       let name = f.getName(opArg)
@@ -283,7 +287,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         let newF = newPyFrame(PyFunctionObject(funcObj), args, f)
         retObj = newF.evalFrame
       # else use dispatcher defined in methodobject.nim
-      # todo: should first dispatch Nim level function
+      # todo: should first dispatch Nim level function. low priority because
+      # profit is unknown
       else:
         retObj = funcObj.call(args)
       if retObj.isThrownException:

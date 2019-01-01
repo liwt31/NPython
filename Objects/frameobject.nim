@@ -61,9 +61,9 @@ proc newPyFrame*(fun: PyFunctionObject,
   result.builtins = nil
   # simple hack. Should build a "builtin" module in the future
   result.setupBuiltin("print", builtinPrint)
-  result.setupBuiltin("dir", builtinDir)
+  result.setupBuiltin("dir", bltinDir)
   result.setupBuiltin("list", pyListObjectType)
-  result.setupBuiltin("type", builtinType)
+  result.setupBuiltin("type", bltinType)
   result.fastLocals = newSeq[PyObject](code.localVars.len)
   for idx, arg in args:
     result.fastLocals[idx] = arg

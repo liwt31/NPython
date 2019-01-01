@@ -28,9 +28,10 @@ nim c ./Python/python
 ```
 
 ### Todo
-* builtin `range`
-* assert statement(useful for testing)
+* default args and kwargs
 * complete object model and more introspections
+* assert statement(useful for testing)
+* builtin `range`
 * user defined class
 * more exception handlings (with line and col number, stack info)
 * so much more

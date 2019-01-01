@@ -161,3 +161,12 @@ proc typeReady*(t: PyTypeObject) =
   t.dict = d
 
 pyTypeObjectType.typeReady()
+
+#[
+proc newInstance*(selfNoCast: PyObject, args: seq[PyObject]): 
+  PyObject {. castSelf: PyTypeObject .} = 
+  if self.new == nil:
+    return newTypeError("cannot create '{self.name}' instances")
+
+pyTypeObjectType.call = newInstance
+]#

@@ -176,13 +176,14 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
 
 
 
-proc getNameAndArgTypes(prototype: NimNode): (NimNode, NimNode) = 
+# works with thingks like `append(obj: PyObject)`
+proc getNameAndArgTypes*(prototype: NimNode): (NimNode, NimNode) = 
   let argTypes = nnkPar.newTree()
   let methodName = prototype[0]
   if prototype.kind == nnkObjConstr:
     for i in 1..<prototype.len:
       argTypes.add prototype[i]
-  elif prototype.kind == nnkCall:
+  elif prototype.kind == nnkCall: # `clear()` for no arg case
     discard # empty arg list
   elif prototype.kind == nnkPrefix:
     error("got prefix prototype, forget to declare object as mutable?")
@@ -192,7 +193,7 @@ proc getNameAndArgTypes(prototype: NimNode): (NimNode, NimNode) =
   (methodName, argTypes)
 
 
-proc implMethod*(prototype, objectType, body, pragmas: NimNode): NimNode = 
+proc implMethod*(prototype, objectType, pragmas, body: NimNode): NimNode = 
   var (methodName, argTypes) = getNameAndArgTypes(prototype)
   let name = ident($methodName & $objectType)
   var typeObjName = objName2tpObjName($objectType)
@@ -362,12 +363,12 @@ template methodMacroTmpl*(name: untyped, nameStr: string,
     when mutable:
       if prototype.kind == nnkPrefix: # indication of a write method
         pragmas.add(getMutableWritePragma())
-        result = implMethod(prototype[1], ident(objNameStr), code, pragmas)
+        result = implMethod(prototype[1], ident(objNameStr), pragmas, code)
       else:
         pragmas.add(getMutableReadPragma())
-        result = implMethod(prototype, ident(objNameStr), code, pragmas)
+        result = implMethod(prototype, ident(objNameStr), pragmas, code)
     else:
-      result = implMethod(prototype, ident(objNameStr), code, pragmas)
+      result = implMethod(prototype, ident(objNameStr), pragmas, code)
 
   macro `impl name Method`(prototype, code:untyped): untyped {. used .}= 
     getAst(`impl name Method`(prototype, nnkBracket.newTree(), code))
