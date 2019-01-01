@@ -28,9 +28,9 @@ nim c ./Python/python
 ```
 
 ### Todo
-* `yield`
+* builtin `range`
 * assert statement(useful for testing)
-* complete object model and more instrospections
+* complete object model and more introspections
 * user defined class
 * more exception handlings (with line and col number, stack info)
 * so much more

@@ -38,7 +38,3 @@ proc builtinType*(args: seq[PyObject]): PyObject =
   let obj = args[0]
   obj.pyType
 
-
-
-
-  

@@ -16,6 +16,7 @@ methodMacroTmpl(Type, "Type")
 
 
 let pyTypeObjectType = newPyType("type")
+setDictOffset(Type)
 
 
 implTypeUnary repr:

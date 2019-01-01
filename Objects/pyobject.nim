@@ -373,6 +373,11 @@ template methodMacroTmpl*(name: untyped, nameStr: string,
     getAst(`impl name Method`(prototype, nnkBracket.newTree(), code))
 
 
+template setDictOffset*(name) = 
+  var t: `Py name Object`
+  `py name ObjectType`.dictOffset = cast[int](t.dict.addr) - cast[int](t[].addr)
+
+
 macro declarePyType*(prototype, fields: untyped): untyped = 
   prototype.expectKind(nnkCall)
   fields.expectKind(nnkStmtList)
@@ -442,9 +447,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   template initTypeTmpl(name, nameStr, hasDict) = 
     let `py name ObjectType`* {. inject .} = newPyType(nameStr)
     when hasDict:
-      block tmp:
-        var t: `Py name Object`
-        `py name ObjectType`.dictOffset = cast[int](t.dict.addr) - cast[int](t[].addr)
+      setDictOffset(name)
 
     proc `newPy name Simple`: `Py name Object` = 
       # use result here seems to be buggy
