@@ -7,6 +7,7 @@ import dictobject
 import stringobject
 import methodobject
 import listobject
+import rangeobject
 import ../Python/[opcode, bltinmodule]
 
 
@@ -63,6 +64,7 @@ proc newPyFrame*(fun: PyFunctionObject,
   result.setupBuiltin("print", builtinPrint)
   result.setupBuiltin("dir", bltinDir)
   result.setupBuiltin("list", pyListObjectType)
+  result.setupBuiltin("range", pyRangeObjectType)
   result.setupBuiltin("type", bltinType)
   result.fastLocals = newSeq[PyObject](code.localVars.len)
   for idx, arg in args:

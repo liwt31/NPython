@@ -3,9 +3,14 @@ import strutils
 import hashes
 import tables
 
+import ../Utils/utils
+
 
 type 
-  # these two function types are types that number of arguments can be
+  # function prototypes, magic methods tuple, PyObject and PyTypeObject
+  # rely on each other, so they have to be declared in the same `type`
+
+  # these two function are used when number of arguments can be
   # directly obtained from OpCode
   UnaryFunc* = proc (self: PyObject): PyObject
   BinaryFunc* = proc (self, other: PyObject): PyObject
@@ -16,11 +21,12 @@ type
   BltinMethod* = proc (self: PyObject, args: seq[PyObject]): PyObject
 
 
+  # type-specfic alias
   DescrGet* = proc (descr, obj: PyObject): PyObject
   GetIterFunc* = proc (self: PyObject): PyObject
   IterNextFunc* = proc (self: PyObject): PyObject
 
-  # modify their name in typeobject.nim when modify the magic methods
+  # modify their names in typeobject.nim when modify the magic methods
   MagicMethods = tuple
     add: BinaryFunc
     subtract: BinaryFunc
@@ -55,6 +61,17 @@ type
     repr: UnaryFunc
 
     getattr: BinaryFunc
+    dict: UnaryFunc
+    call: BltinMethod 
+    new: BltinMethod
+    init: BltinMethod
+
+    # what to do when getting attribute of its intances
+    descrGet: DescrGet
+    
+    # what to do when iter, next is operating on its instances
+    iter: GetIterFunc
+    iternext: IterNextFunc
 
 
   PyObject* = ref object of RootObj
@@ -73,14 +90,14 @@ type
     # or both?
     # readNum*: int
     # writeLock*: bool
+    #
+    # dict*: PyDictObject
 
 
   PyTypeObject* = ref object of PyObject
     name*: string
     magicMethods*: MagicMethods
     bltinMethods*: Table[string, BltinMethod]
-
-    call*: BltinMethod 
 
     # this is actually a PyDictObject. but we haven't defined dict yet.
     # the values are set in typeobject.nim when the type is ready
@@ -90,13 +107,6 @@ type
     # but instances of this type 
     dictOffset*: int
 
-    # what to do when getting attribute of its intances
-    descrGet*: DescrGet
-    # what to do when iter, next is operating on its instances
-    iter*: GetIterFunc
-    iternext*: IterNextFunc
-
-    new*: BltinMethod
 
 
 method `$`*(obj: PyObject): string {.base, inline.} = 
@@ -127,6 +137,13 @@ proc newPyType*(name: string): PyTypeObject =
   result.bltinMethods = initTable[string, BltinMethod]()
   result.dictOffset = -1
   bltinTypes.add(result)
+
+proc getDict*(obj: PyObject): PyObject = 
+  let tp = obj.pyType
+  if tp.dictOffset < 0:
+    unreachable("obj has no dict. Use hasDict before getDict")
+  let dictPtr = cast[ptr PyObject](cast[int](obj[].addr) + tp.dictOffset)
+  dictPtr[]
 
 
 

@@ -87,12 +87,10 @@ implBltinFunc dir(obj: PyObject), []:
   var mergedDict = newPyDict()
   mergedDict.update(obj.getTypeDict)
   if obj.hasDict:
-    mergedDict.update(obj.getDict)
+    mergedDict.update(PyDictObject(obj.getDict))
   mergedDict.keys
 
 
 implBltinFunc type(obj: PyObject), []:
   obj.pyType
 
-implBltinFunc range(n1, n2, n3: PyIntObject), []:
-  discard

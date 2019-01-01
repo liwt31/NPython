@@ -9,7 +9,7 @@ import listobject
 import stringobject
 import ../Utils/utils
 
-declarePyType dict():
+declarePyType dict(reprLock, mutable):
   # nim ordered table has O(n) delete time
   # todo: implement an ordered dict 
   table: Table[PyObject, PyObject]
@@ -26,20 +26,21 @@ proc `[]`*(dict: PyDictObject, key: PyObject): PyObject =
 proc `[]=`*(dict: PyDictObject, key, value: PyObject) = 
   dict.table[key] = value
 
-
-implDictUnary str:
+implDictUnary repr:
   var ss: seq[string]
   for k, v in self.table.pairs:
     let kRepr = k.callMagic(repr)
     let vRepr = v.callMagic(repr)
     errorIfNotString(kRepr, "__str__")
     errorIfNotString(vRepr, "__str__")
-    ss.add fmt"{kRepr}: {vRepr}"
+    ss.add fmt"{PyStrObject(kRepr).str}: {PyStrObject(vRepr).str}"
   return newPyString("{" & ss.join(", ") & "}")
+
+
+implDictUnary str:
+  reprPyDictObject(self)
   
 
-implDictUnary repr:
-  strPyDictObject(self)
 
 # in real python this would return a iteration
 # this function is used internally

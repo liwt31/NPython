@@ -16,7 +16,7 @@ proc iterNextFunc(selfNoCast: PyObject): PyObject =
   result = self.items[self.idx]
   inc self.idx
 
-pySeqIterObjectType.iternext = iterNextFunc
+pySeqIterObjectType.magicMethods.iternext = iterNextFunc
 
 proc newPySeqIter*(items: seq[PyObject]): PySeqIterObject = 
   new result

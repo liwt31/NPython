@@ -449,12 +449,21 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     let `py name ObjectType`* {. inject .} = newPyType(nameStr)
     when hasDict:
       setDictOffset(name)
+      # this isn't quite right... should be a descriptor
+      # move it to typeReady
+      `py name ObjectType`.magicMethods.dict = getDict
 
+    # base constructor that should be used for any custom constructors
     proc `newPy name Simple`: `Py name Object` = 
-      # use result here seems to be buggy
+      # use `result` here seems to be buggy
       let obj = new `Py name Object`
       obj.pyType = `py name ObjectType`
       obj
+
+    # default for __new__ hook, could be overrided at any time
+    proc `newPy name Default`(self: PyObject, args: seq[PyObject]): PyObject = 
+      `newPy name Simple`()
+    `py name ObjectType`.magicMethods.new = `newPy name Default`
 
   result.add(getAst(initTypeTmpl(nameIdent, nameIdent.strVal, newLit(dict))))
 

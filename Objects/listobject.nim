@@ -132,5 +132,5 @@ proc iter(selfNoCast: PyObject): PyObject =
   let self = PyListObject(selfNoCast)
   newPySeqIter(self.items)
 
-pyListObjectType.iter = iter
+pyListObjectType.magicMethods.iter = iter
 

@@ -34,13 +34,6 @@ proc hasDict*(obj: PyObject): bool {. inline .} =
   0 < obj.pyType.dictOffset
 
 
-proc getDict*(obj: PyObject): PyDictObject = 
-  let tp = obj.pyType
-  if tp.dictOffset < 0:
-    unreachable("obj has no dict. Use hasDict before get dict")
-  let dictPtr = cast[ptr PyDictObject](cast[int](obj[].addr) + tp.dictOffset)
-  dictPtr[]
-
 const magicNames = [
   "__add__",
   "__sub__",
@@ -71,6 +64,15 @@ const magicNames = [
   "__str__",
   "__repr__",
   "__getattribute__",
+  "__dict__",
+  "__call__",
+  "__new__",
+  "__init__",
+
+  "__get__",
+
+  "__iter__",
+  "__next__",
 ]
 
 
@@ -92,11 +94,12 @@ proc ge(o1, o2: PyObject): PyObject =
   let eq = o1.callMagic(eq, o2)
   gt.callMagic(Or, eq)
 
-proc str(self: PyObject): PyObject = 
+proc reprDefault(self: PyObject): PyObject = 
   newPyString(fmt"<{self.pyType.name} at {self.idStr}>")
 
-proc repr(self: PyObject): PyObject = 
-  self.str
+
+proc strDefault(self: PyObject): PyObject = 
+  self.reprDefault
 
 
 # generic getattr
@@ -110,14 +113,14 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject =
     unreachable("for type object d must not be nil")
   if typeDict.hasKey(name):
     let descr = typeDict[name]
-    if descr.pyType.descrGet == nil:
+    let descrGet = descr.pyType.magicMethods.descrGet
+    if descrGet == nil:
       return descr
     else:
-      let getFun = descr.pyType.descrGet
-      return descr.getFun(self)
+      return descr.descrGet(self)
 
   if self.hasDict:
-    let instDict = self.getDict
+    let instDict = PyDictObject(self.getDict)
     if instDict.hasKey(name):
       return instDict[name]
   return newAttributeError($self.pyType.name, $name)
@@ -134,11 +137,9 @@ proc addGeneric(t: PyTypeObject) =
     t.magicMethods.ge = ge
   t.magicMethods.getattr = getAttr
   if m.str == nil:
-    t.magicMethods.str = str
+    t.magicMethods.str = strDefault
   if m.repr == nil:
-    t.magicMethods.repr = repr
-  if m.str == nil:
-    t.magicMethods.str = m.repr
+    t.magicMethods.repr = reprDefault
 
 
 proc typeReady*(t: PyTypeObject) = 
@@ -162,11 +163,19 @@ proc typeReady*(t: PyTypeObject) =
 
 pyTypeObjectType.typeReady()
 
-#[
 proc newInstance*(selfNoCast: PyObject, args: seq[PyObject]): 
   PyObject {. castSelf: PyTypeObject .} = 
-  if self.new == nil:
-    return newTypeError("cannot create '{self.name}' instances")
+  let newFunc = self.magicMethods.new
+  if newFunc == nil:
+    return newTypeError(fmt"cannot create '{self.name}' instances because __new__ is not set")
+  let newObj = self.newFunc(args)
+  if newObj.isThrownException:
+    return newObj
+  let initFunc = self.magicMethods.init
+  if initFunc != nil:
+    let initRet = self.initFunc(args)
+    if initRet.isThrownException:
+      return initRet
+  return newObj
 
-pyTypeObjectType.call = newInstance
-]#
+pyTypeObjectType.magicMethods.call = newInstance

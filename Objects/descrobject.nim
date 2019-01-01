@@ -91,4 +91,4 @@ proc getMethod(descr: PyObject, owner: PyObject): PyObject =
   descr.getMethodDispatch(owner)
 
 
-pyMethodDescrType.descrGet = getMethod
+pyMethodDescrType.magicMethods.descrGet = getMethod

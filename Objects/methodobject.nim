@@ -30,8 +30,9 @@ let pyNFuncObjectType = newPyType("Nim-function")
 
 
 method call*(f: PyObject, args: seq[PyObject]): PyObject {. base .} = 
-  if f.pyType.call != nil:
-    return f.pyType.call(f, args)
+  let callFunc = f.pyType.magicMethods.call
+  if callFunc != nil:
+    return callFunc(f, args)
   newTypeError(fmt"{f.pyType.name} is not callable")
 
 

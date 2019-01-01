@@ -10,7 +10,7 @@ import coreconfig
 import bltinmodule
 import ../Objects/[pyobject, typeobject, frameobject, stringobject,
   codeobject, dictobject, methodobject, boolobject, listobject,
-  funcobject, moduleobject]
+  funcobject, moduleobject, iterobject]
 import ../Utils/utils
 
 proc pyImport*(name: PyStrObject): PyObject
@@ -120,10 +120,16 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
     of OpCode.GetIter:
       let top = sTop()
-      if top.pyType.iter == nil:
+      let iterFunc = top.pyType.magicMethods.iter
+      if iterFunc == nil:
         result = newTypeError(fmt"{top.pyType.name} object is not iterable")
         break
-      sSetTop(top.pyType.iter(top))
+      let iterObj = iterFunc(top)
+      if iterObj.pyType.magicMethods.iternext == nil:
+        let msg = fmt"iter() returned non-iterator of type {iterObj.pyType.name}"
+        result = newTypeError(msg)
+        break
+      sSetTop(iterObj)
 
     of OpCode.PrintExpr:
       let top = sPop()
@@ -146,9 +152,10 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
     of OpCode.ForIter:
       let top = sTop()
-      if top.pyType.iternext != nil:
-        result = newTypeError(fmt"iter() returned non-iterator of type top.pyType.name")
-      let retObj = top.pyType.iternext(top)
+      let nextFunc = top.pyType.magicMethods.iternext
+      if nextFunc == nil:
+        unreachable
+      let retObj = nextFunc(top)
       if retObj.isStopIter:
         discard sPop()
         jumpTo(opArg)

@@ -12,7 +12,7 @@ Capable of:
 * `if else`
 * loop with `while` and `for`
 * very basic function defination and call
-* builtin print, list (by []), dir
+* builtin print, list, dir, range
 * basic import `import foo`, no alias, no `from`, etc
 * interactive mode and file mode
 
@@ -31,7 +31,6 @@ nim c ./Python/python
 * default args and kwargs
 * complete object model and more introspections
 * assert statement(useful for testing)
-* builtin `range`
 * user defined class
 * more exception handlings (with line and col number, stack info)
 * so much more
