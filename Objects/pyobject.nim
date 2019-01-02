@@ -75,8 +75,9 @@ proc genImpl*(methodName, ObjectType, body:NimNode,
 
   result = newStmtList()
   let name = ident($methodName & $ObjectType)
+  let namePublic = nnkPostfix.newTree(ident("*"), name)
 
-  let procNode = newProc(name, params, body)
+  let procNode = newProc(namePublic, params, body)
   for p in pragmas:
     procNode.addPragma(p)
   procNode.addPragma(

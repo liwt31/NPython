@@ -2,6 +2,7 @@ import os
 import macros except name
 import algorithm
 import strformat
+import tables
 
 import compile
 
@@ -14,6 +15,9 @@ import ../Objects/[pyobject, typeobject, frameobject, stringobject,
 import ../Utils/utils
 
 proc pyImport*(name: PyStrObject): PyObject
+proc newPyFrame*(fun: PyFunctionObject, 
+                 args: seq[PyObject], 
+                 back: PyFrameObject): PyFrameObject
 
 template doUnary(opName: untyped) = 
   let top = sTop()
@@ -37,44 +41,82 @@ template doBinary(opName: untyped) =
 proc evalFrame*(f: PyFrameObject): PyObject = 
   # instructions are fetched so frequently that we should build a local cache
   # instead of doing tons of dereference
+  # in future, should get rid of the abstraction of seq and use a dynamically
+  # create buffer directly
+  #[
   var opCodes = newSeq[OpCode](f.code.len)
   var opArgs = newSeq[int](f.code.len)
   for idx, instrTuple in f.code.code:
     opCodes[idx] = instrTuple[0]
     opArgs[idx] = instrTuple[1]
-  var lastI = f.lastI
+  ]#
+
+  let opCodes = cast[int](createU(OpCode, f.code.len))
+  let opArgs = cast[int](createU(int, f.code.len))
+  for idx, instrTuple in f.code.code:
+    cast[ptr OpCode](opCodes + idx * sizeof(OpCode))[] = instrTuple[0]
+    cast[ptr int](opArgs + idx * sizeof(int))[] = instrTuple[1]
+
+
+  var lastI = -1
 
   # instruction helpers
   var opCode: OpCode
   var opArg: int
   template fetchInstr = 
     inc lastI
-    opCode = opCodes[lastI]
-    opArg = opArgs[lastI]
+    opCode = cast[ptr OpCode](opCodes + lastI * sizeof(OpCode))[]
+    opArg = cast[ptr int](opArgs + lastI * sizeof(int))[]
 
   template jumpTo(i: int) = 
     lastI = i - 1
 
-  # value stack helpers
-  # XXX: a dangerous workaround! use uncheckedarray and
-  # compute the max size during compilation!
-  var valStack: array[64, PyObject]
-  var sptr = -1
+   
+  # todo: determine max stackSz at compile time
+  # mixing GCed and not GCed objects is dangerous in Nim, so here
+  # we treat pointers as ints and do completely manual management.
+  # `GCref()` and `GCunref` very time consuming,
+  # far from something like `inc refCount`, contains loop...
+  var stackSz = 32
+  var valStack = cast[int](createU(int, stackSz))
+  var sIdx = -1
 
+  # retain these templates for future optimization
   template sTop: PyObject = 
-    valStack[sptr]
+    cast[PyObject](cast[ptr int](valStack + sIdx * sizeof(int))[])
 
   template sPop: PyObject = 
-    let v = valStack[sptr]
-    dec sptr
-    v
-
-  template sPush(obj: PyObject) = 
-    inc sptr
-    valStack[sptr] = obj
+    let top = sTop()
+    dec sIdx
+    GCunref(top)
+    top
 
   template sSetTop(obj: PyObject) = 
-    valStack[sptr] = obj
+    let topPtr = cast[ptr int](valStack + sIdx * sizeof(int)) 
+    GCunref(cast[PyObject](topPtr[]))
+    topPtr[] = cast[int](obj[].addr)
+    GCref(obj)
+
+  template sPush(obj: PyObject) = 
+    inc sIdx
+    GCref(obj)
+    if sIdx == stackSz:
+      stackSz *= 2
+      valStack = cast[int](realloc(cast[ptr int](valStack), stackSz * sizeof(int)))
+
+    cast[ptr int](valStack + sIdx * sizeof(int))[] = cast[int](obj[].addr)
+
+  template cleanUp = 
+    while sIdx != -1:
+      discard sPop
+    dealloc(cast[ptr OpCode](opCodes))
+    dealloc(cast[ptr int](opArgs))
+    dealloc(cast[ptr int](valStack))
+
+  # local cache
+  let constants = f.code.constants
+  let names = f.code.names
+  var fastLocals = f.fastLocals
 
   # the main interpreter loop
   while true:
@@ -83,7 +125,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       echo opCode
     case opCode
     of OpCode.PopTop:
-      dec sptr
+      discard sPop
 
     of OpCode.NOP:
       continue
@@ -148,7 +190,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     of OpCode.ForIter:
       let top = sTop()
       let nextFunc = top.pyType.magicMethods.iternext
-      if nextFunc == nil:
+      if nextFunc.isNil:
         unreachable
       let retObj = nextFunc(top)
       if retObj.isStopIter:
@@ -161,11 +203,11 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         sPush retObj
 
     of OpCode.StoreGlobal:
-      let name = f.getname(opArg)
+      let name = names[opArg]
       f.globals[name] = sPop()
 
     of OpCode.LoadConst:
-      sPush(f.getConst(opArg))
+      sPush(constants[opArg])
 
     of OpCode.LoadName:
       unreachable("locals() scope not implemented")
@@ -201,7 +243,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       sPush newList 
 
     of OpCode.LoadAttr:
-      let name = f.getName(opArg)
+      let name = names[opArg]
       let obj = sTop()
       let retObj = obj.callMagic(getattr, name)
       if retObj.isThrownException:
@@ -229,7 +271,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         unreachable  # should be blocked by ast, compiler
 
     of OpCode.ImportName:
-      let name = f.getName(opArg)
+      let name = names[opArg]
       let retObj = pyImport(name)
       if retObj.isThrownException:
         result = retObj
@@ -262,20 +304,28 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         jumpTo(opArg)
 
     of OpCode.LoadGlobal:
-      let name = f.getName(opArg)
+      let name = names[opArg]
       var obj: PyObject
       if f.globals.hasKey(name):
         obj = f.globals[name]
+      elif bltinDict.hasKey(name):
+        obj = bltinDict[name]
       else:
         result = newNameError(name.str)
         break
       sPush obj
 
     of OpCode.LoadFast:
-      sPush f.fastLocals[opArg]
+      let obj = fastLocals[opArg]
+      if obj.isNil:
+        let name = f.code.localVars[opArg]
+        let msg = fmt"local variable {name} referenced before assignment"
+        result = newUnboundLocalError(msg)
+        break
+      sPush obj
 
     of OpCode.StoreFast:
-      f.fastLocals[opArg] = sPop()
+      fastLocals[opArg] = sPop()
 
     of OpCode.CallFunction:
       var args: seq[PyObject]
@@ -312,6 +362,10 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       result = newNotImplementedError(msg)
       break
 
+  cleanUp()
+  # currently no cleaning should be done, but in future 
+  # f.fastLocals = fastLocals could be necessary
+
 
 proc pyImport*(name: PyStrObject): PyObject =
   let filepath = pyConfig.path.joinPath(name.str).addFileExt("py")
@@ -335,6 +389,20 @@ proc pyImport*(name: PyStrObject): PyObject =
   module.dict = f.globals
   module
 
+proc newPyFrame*(fun: PyFunctionObject, 
+                 args: seq[PyObject], 
+                 back: PyFrameObject): PyFrameObject = 
+  let code = fun.code
+  assert code != nil
+  result = new PyFrameObject
+  result.back = back
+  result.code = code
+  result.globals = fun.globals
+  # builtins not used for now
+  # result.builtins = bltinDict
+  result.fastLocals = newSeq[PyObject](code.localVars.len)
+  for idx, arg in args:
+    result.fastLocals[idx] = arg
 
 proc runCode*(co: PyCodeObject): PyObject = 
   when defined(debug):

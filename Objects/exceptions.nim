@@ -37,6 +37,8 @@ type
 
   PyImportError* = ref object of PyExceptionObject
 
+  PyUnboundLocalError* = ref object of PyExceptionObject
+
 # need some fine grained control here, so generic is not so good
 # a little bit messy won't harm for now because 
 # 1) the file is expected to be drasticly refactored 
@@ -91,6 +93,8 @@ proc isStopIter*(obj: PyObject): bool =
 proc newImportError*(msg: string, thrown=true): PyImportError = 
   implNew
 
+proc newUnboundLocalError*(msg: string, thrown=true): PyUnboundLocalError =  
+  implNew
 
 method `$`*(e: PyExceptionObject): string = 
   $e.msg

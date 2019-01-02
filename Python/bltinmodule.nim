@@ -1,10 +1,10 @@
 import macros
 
-import ../Objects/[pyobject, typeobject, dictobject, 
+import ../Objects/[pyobject, typeobject, dictobject, rangeobject,
                    stringobject, listobject, moduleobject, methodobject]
 import ../Utils/utils
 
-let bltinDict = newPyDict()
+let bltinDict* = newPyDict()
 
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
@@ -94,3 +94,6 @@ implBltinFunc dir(obj: PyObject), []:
 implBltinFunc type(obj: PyObject), []:
   obj.pyType
 
+
+bltinDict[newPyString("range")] = pyRangeObjectType
+bltinDict[newPyString("list")] = pyListObjectType

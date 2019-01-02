@@ -25,6 +25,7 @@ if 0  or False:
 
 
 print(l)
+print(list(range(-1, -14, -2)))
 
 
 b = []
@@ -34,3 +35,11 @@ print(b)
 import function
 
 print(function.foobar(1,2))
+
+def stress():
+    ll = []
+    for i in range(10**6):
+        ll.append(i)
+    for j in range(10**6):
+        ll.pop()
+
