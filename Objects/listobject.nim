@@ -19,6 +19,11 @@ declarePyType List(reprLock, mutable):
 proc newPyList*: PyListObject = 
   newPyListSimple()
 
+
+implListUnary iter: 
+  newPySeqIter(self.items)
+
+
 implListUnary repr:
   var ss: seq[string]
   for item in self.items:
@@ -134,15 +139,7 @@ implListMethod *remove(target: PyObject):
   self.items.delete(idx, idx+1)
 
 
-proc iter(selfNoCast: PyObject): 
-  PyObject {. castSelf: PyListObject .} = 
-  newPySeqIter(self.items)
-
-
-pyListObjectType.magicMethods.iter = iter
-
-
-proc newList(theType: PyObject, args:seq[PyObject]): PyObject = 
+proc newList(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} = 
   # todo: use macro, add iterable to checkArgTypes
   case args.len:
   of 0:

@@ -22,7 +22,7 @@ implRangeUnary str:
   self.reprPyRangeObject
   
 
-proc newRange(theType: PyObject, args:seq[PyObject]): PyObject = 
+proc newRange(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} = 
   for arg in args:
     if not (arg of PyIntObject):
       # CPython uses duck typing here, anything behaves like an int
@@ -77,8 +77,7 @@ declarePyType RangeIter():
   index: PyIntObject
 
 
-proc iterRange(selfNoCast: PyObject): 
-  PyObject {. castSelf: PyRangeObject .} = 
+implRangeUnary iter:
   let iter = newPyRangeIterSimple()
   iter.start = self.start
   iter.step = self.step
@@ -87,8 +86,7 @@ proc iterRange(selfNoCast: PyObject):
   iter
 
 
-proc nextRangeIter(selfNoCast: PyObject):
-  PyObject {. castSelf: PyRangeIterObject .} = 
+implRangeIterUnary iternext:
   if self.index.callMagic(lt, self.length) == pyTrueObj:
     result = newPyInt(self.start.v + self.index.v * self.step.v)
     let newIndex = self.index.callMagic(add, newPyInt(1))
@@ -96,6 +94,3 @@ proc nextRangeIter(selfNoCast: PyObject):
   else:
     return newStopIterError()
 
-
-pyRangeObjectType.magicMethods.iter = iterRange
-pyRangeIterObjectType.magicMethods.iternext = nextRangeIter

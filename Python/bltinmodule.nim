@@ -9,7 +9,7 @@ let bltinDict* = newPyDict()
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
   let nameStr = newPyString(name)
-  bltinDict[nameStr] = newPyNFunc(fun, nameStr)
+  bltinDict[nameStr] = newPyNimFunc(fun, nameStr)
 
 
 macro implBltinFunc(prototype, pragmas, body: untyped): untyped = 
@@ -51,6 +51,8 @@ macro implBltinFunc(prototype, pragmas, body: untyped): untyped =
     )
   )
 
+  procNode.addPragma(ident("cdecl"))
+
   result = newStmtList(
     procNode,
     nnkCall.newTree(
@@ -63,7 +65,7 @@ macro implBltinFunc(prototype, pragmas, body: untyped): untyped =
 # haven't think of how to deal with infinite num of args yet
 # kwargs seems to be neccessary. So stay this way for now
 # luckily it does not require much boilerplate
-proc builtinPrint*(args: seq[PyObject]): PyObject =
+proc builtinPrint*(args: seq[PyObject]): PyObject {. cdecl .} =
   for obj in args:
     let objStr = obj.callMagic(str)
     errorIfNotString(objStr, "__str__")

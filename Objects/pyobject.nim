@@ -86,6 +86,7 @@ proc genImpl*(methodName, ObjectType, body:NimNode,
       ObjectType
     )
   )
+  procNode.addPragma(ident("cdecl"))
   result.add(procNode)
 
   var typeObjName = $ObjectType & "Type"
@@ -246,6 +247,7 @@ proc implMethod*(prototype, objectType, pragmas, body: NimNode): NimNode =
       ) 
     )
   )
+  procNode.addPragma(ident("cdecl"))
 
   result = newStmtList(
     procNode,
@@ -402,6 +404,8 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   result = newStmtList()
   if dict:
     result.add nnkImportStmt.newTree(ident("dictobject"))
+  # the fields are not recognized as type attribute declaration
+  # need to cast here, but can not handle object variants
   var reclist = nnkRecList.newTree()
   proc addField(recList, name, tp: NimNode)=
     let newField = nnkIdentDefs.newTree(
@@ -462,7 +466,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       obj
 
     # default for __new__ hook, could be overrided at any time
-    proc `newPy name Default`(self: PyObject, args: seq[PyObject]): PyObject = 
+    proc `newPy name Default`(self: PyObject, args: seq[PyObject]): PyObject {. cdecl .} = 
       `newPy name Simple`()
     `py name ObjectType`.magicMethods.new = `newPy name Default`
 

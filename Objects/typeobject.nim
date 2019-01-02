@@ -61,13 +61,18 @@ const magicNames = [
   "__ge__",
 
   "__len__",
+
   "__str__",
   "__repr__",
+
+  "__new__",
+  "__init__",
   "__getattribute__",
   "__dict__",
   "__call__",
-  "__new__",
-  "__init__",
+
+  "__getitem__",
+  "__setitem__",
 
   "__get__",
 
@@ -80,30 +85,30 @@ static:
   assert type(PyTypeObject.magicMethods).arity == magicNames.len
 
 # some generic behaviors that every type should obey
-proc le(o1, o2: PyObject): PyObject =
+proc le(o1, o2: PyObject): PyObject {. cdecl .} =
   let lt = o1.callMagic(lt, o2)
   let eq = o1.callMagic(eq, o2)
   lt.callMagic(Or, eq)
 
-proc ne(o1, o2: PyObject): PyObject =
+proc ne(o1, o2: PyObject): PyObject {. cdecl .} =
   let eq = o1.callMagic(eq, o2)
   eq.callMagic(Not)
 
-proc ge(o1, o2: PyObject): PyObject = 
+proc ge(o1, o2: PyObject): PyObject {. cdecl .} = 
   let gt = o1.callMagic(gt, o2)
   let eq = o1.callMagic(eq, o2)
   gt.callMagic(Or, eq)
 
-proc reprDefault(self: PyObject): PyObject = 
+proc reprDefault(self: PyObject): PyObject {. cdecl .} = 
   newPyString(fmt"<{self.pyType.name} at {self.idStr}>")
 
 
-proc strDefault(self: PyObject): PyObject = 
+proc strDefault(self: PyObject): PyObject {. cdecl .} = 
   self.reprDefault
 
 
 # generic getattr
-proc getAttr(self: PyObject, nameObj: PyObject): PyObject = 
+proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} = 
   if not nameObj.isPyStringType:
     let typeStr = nameObj.pyType.name
     return newTypeError(fmt"attribute name must be string, not {typeStr}")
@@ -113,7 +118,7 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject =
     unreachable("for type object d must not be nil")
   if typeDict.hasKey(name):
     let descr = typeDict[name]
-    let descrGet = descr.pyType.magicMethods.descrGet
+    let descrGet = descr.pyType.magicMethods.get
     if descrGet == nil:
       return descr
     else:
@@ -164,7 +169,7 @@ proc typeReady*(t: PyTypeObject) =
 pyTypeObjectType.typeReady()
 
 proc newInstance*(selfNoCast: PyObject, args: seq[PyObject]): 
-  PyObject {. castSelf: PyTypeObject .} = 
+  PyObject {. castSelf: PyTypeObject, cdecl .} = 
   let newFunc = self.magicMethods.new
   if newFunc == nil:
     return newTypeError(fmt"cannot create '{self.name}' instances because __new__ is not set")

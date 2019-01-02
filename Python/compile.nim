@@ -469,6 +469,18 @@ compileMethod Attribute:
   else:
     unreachable
 
+compileMethod Subscript:
+  if astNode.ctx of AstLoad:
+    c.compile(astNode.value)
+    c.compile(astNode.slice)
+    c.addOp(OpCode.BinarySubscr)
+  elif astNode.ctx of AstStore:
+    c.compile(astNode.value)
+    c.compile(astNode.slice)
+    c.addOp(OpCode.StoreSubscr)
+  else:
+    unreachable
+  
 
 compileMethod Constant:
   c.tcu.addLoadConst(astNode.value.value)
@@ -487,6 +499,9 @@ compileMethod List:
   for elt in astNode.elts:
     c.compile(elt)
   c.addOp(newArgInstr(OpCode.BuildList, astNode.elts.len))
+
+compileMethod Index:
+  c.compile(astNode.value)
 
 
 compileMethod Lt:

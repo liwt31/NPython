@@ -119,6 +119,8 @@ proc astAtomExpr(parseNode: ParseNode): AsdlExpr
 proc astAtom(parseNode: ParseNode): AsdlExpr
 proc astTestlistComp(parseNode: ParseNode): seq[AsdlExpr]
 proc astTrailer(parseNode: ParseNode, leftExpr: AsdlExpr): AsdlExpr
+proc astSubscriptlist(parseNode: ParseNode): AsdlSlice
+proc astSubscript(parseNode: ParseNode): AsdlSlice
 proc astExprList(parseNode: ParseNode): AsdlExpr
 proc astTestList(parseNode: ParseNode): AsdlExpr
 proc astClassDef(parseNode: ParseNode): AstClassDef
@@ -163,6 +165,7 @@ proc genFuncDef(tokenIdent: NimNode, funcDef: NimNode): NimNode {.compileTime.} 
   result = newStmtList(assertType, funcDef)
 
 # DSL to simplify function defination
+# should use a pragma instead?
 macro ast(tokenName, paramSeq, funcDef: untyped): untyped = 
   result = newProc(
     ident(fmt"ast_{tokenName}"), 
@@ -228,6 +231,9 @@ method setStore(astNode: AstName) =
 method setStore(astNode: AstAttribute) = 
   astnode.ctx = new AstStore
 
+
+method setStore(astNode: AstSubscript) = 
+  astnode.ctx = new AstStore
 
 # single_input: NEWLINE | simple_stmt | compound_stmt NEWLINE
 ast single_input, [AstInteractive]:
@@ -919,7 +925,11 @@ ast trailer, [AsdlExpr, leftExpr: AsdlExpr]:
     else:
       unreachable
   of Token.Lsqb:
-    raiseSyntaxError("subscript [] not implemented")
+    let sub = new AstSubscript
+    sub.value = leftExpr
+    sub.slice = astSubscriptlist(parseNode.children[1])
+    sub.ctx = new AstLoad
+    result = sub
   of Token.Dot:
     let attr = new AstAttribute
     attr.value = leftExpr
@@ -929,17 +939,23 @@ ast trailer, [AsdlExpr, leftExpr: AsdlExpr]:
   else:
     unreachable
   
-  #[]
-ast subscriptlist:
-  discard
+# subscriptlist: subscript (',' subscript)* [',']
+ast subscriptlist, [AsdlSlice]:
+  if not parseNode.children.len == 1:
+    raiseSyntaxError("subscript only support one index")
+  parseNode.children[0].astSubscript
   
-ast subscript:
-  discard
-  
-ast sliceop:
-  discard
-  
-  ]#
+# subscript: test | [test] ':' [test] [sliceop]
+# sliceop: ':' [test]
+ast subscript, [AsdlSlice]:
+  let child = parseNode.children[0]
+  if (not (child.tokenNode.token == Token.test)) or parseNode.children.len != 1:
+    raiseSyntaxError("no slicing supported")
+  let index = new AstIndex
+  index.value = astTest(child)
+  index
+
+
 
 # exprlist: (expr|star_expr) (',' (expr|star_expr))* [',']
 # currently only used in for stmt, so assume only one child

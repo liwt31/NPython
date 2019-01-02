@@ -9,7 +9,7 @@ type
 
 let pySeqIterObjectType* = newPyType("sequence-iterator")
 
-proc iterNextFunc(selfNoCast: PyObject): PyObject =
+proc iterNextFunc(selfNoCast: PyObject): PyObject {. cdecl .}=
   let self = PySeqIterObject(selfNoCast)
   if self.idx == self.items.len:
     return newStopIterError()

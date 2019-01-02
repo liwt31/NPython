@@ -10,68 +10,67 @@ type
   # function prototypes, magic methods tuple, PyObject and PyTypeObject
   # rely on each other, so they have to be declared in the same `type`
 
-  # these two function are used when number of arguments can be
+  # these three function are used when number of arguments can be
   # directly obtained from OpCode
-  UnaryFunc* = proc (self: PyObject): PyObject
-  BinaryFunc* = proc (self, other: PyObject): PyObject
+  UnaryMethod* = proc (self: PyObject): PyObject {. cdecl .}
+  BinaryMethod* = proc (self, other: PyObject): PyObject {. cdecl .}
+  TernaryMethod* = proc (self, arg1, arg2: PyObject): PyObject {. cdecl .}
 
 
   # for those that number of arguments unknown (and potentially kwarg?)
-  BltinFunc* = proc (args: seq[PyObject]): PyObject
-  BltinMethod* = proc (self: PyObject, args: seq[PyObject]): PyObject
+  BltinFunc* = proc (args: seq[PyObject]): PyObject {. cdecl .}
+  BltinMethod* = proc (self: PyObject, args: seq[PyObject]): PyObject {. cdecl .}
 
-
-  # type-specfic alias
-  DescrGet* = proc (descr, obj: PyObject): PyObject
-  GetIterFunc* = proc (self: PyObject): PyObject
-  IterNextFunc* = proc (self: PyObject): PyObject
 
   # modify their names in typeobject.nim when modify the magic methods
   MagicMethods = tuple
-    add: BinaryFunc
-    subtract: BinaryFunc
-    multiply: BinaryFunc
-    trueDivide: BinaryFunc
-    floorDivide: BinaryFunc
-    remainder: BinaryFunc
-    power: BinaryFunc
+    add: BinaryMethod
+    subtract: BinaryMethod
+    multiply: BinaryMethod
+    trueDivide: BinaryMethod
+    floorDivide: BinaryMethod
+    remainder: BinaryMethod
+    power: BinaryMethod
     
     # use uppercase to avoid conflict with nim keywords
-    Not: UnaryFunc
-    negative: UnaryFunc
-    positive: UnaryFunc
-    absolute: UnaryFunc
-    bool: UnaryFunc
+    Not: UnaryMethod
+    negative: UnaryMethod
+    positive: UnaryMethod
+    absolute: UnaryMethod
+    bool: UnaryMethod
 
-    # note: these are all bitwise operations, nothing to do with keywords `and` or `or`
-    And: BinaryFunc
-    Xor: BinaryFunc
-    Or: BinaryFunc
+    # note: these 3 are all bitwise operations, nothing to do with keywords `and` or `or`
+    And: BinaryMethod
+    Xor: BinaryMethod
+    Or: BinaryMethod
 
-    lt: BinaryFunc
-    le: BinaryFunc
-    eq: BinaryFunc
-    ne: BinaryFunc
-    gt: BinaryFunc
-    ge: BinaryFunc
+    lt: BinaryMethod
+    le: BinaryMethod
+    eq: BinaryMethod
+    ne: BinaryMethod
+    gt: BinaryMethod
+    ge: BinaryMethod
 
-    len: UnaryFunc
+    len: UnaryMethod
 
-    str: UnaryFunc
-    repr: UnaryFunc
+    str: UnaryMethod
+    repr: UnaryMethod
 
-    getattr: BinaryFunc
-    dict: UnaryFunc
-    call: BltinMethod 
     new: BltinMethod
     init: BltinMethod
+    getattr: BinaryMethod
+    dict: UnaryMethod
+    call: BltinMethod 
+
+    itemget: BinaryMethod
+    setitem: TernaryMethod
 
     # what to do when getting attribute of its intances
-    descrGet: DescrGet
+    get: BinaryMethod
     
     # what to do when iter, next is operating on its instances
-    iter: GetIterFunc
-    iternext: IterNextFunc
+    iter: UnaryMethod
+    iternext: UnaryMethod
 
 
   PyObject* = ref object of RootObj
@@ -138,7 +137,7 @@ proc newPyType*(name: string): PyTypeObject =
   result.dictOffset = -1
   bltinTypes.add(result)
 
-proc getDict*(obj: PyObject): PyObject = 
+proc getDict*(obj: PyObject): PyObject {. cdecl .} = 
   let tp = obj.pyType
   if tp.dictOffset < 0:
     unreachable("obj has no dict. Use hasDict before getDict")
