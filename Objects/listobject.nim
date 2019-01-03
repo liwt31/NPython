@@ -47,7 +47,7 @@ template checkIndex(argName) =
     return newTypeError(msg)
   # todo: if overflow, then thrown indexerror
   let idx {. inject .} = PyIntObject(argName).toInt
-  if (idx < 0) or (idx > self.items.len):
+  if (idx < 0) or (self.items.len <= idx):
     let l = $self.items.len
     let msg = fmt"list index out of range. idx: " & $idx & ", len: " & $l
     return newIndexError(msg)

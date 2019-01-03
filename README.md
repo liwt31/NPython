@@ -14,6 +14,7 @@ Capable of:
 * very basic function defination and call
 * builtin print, list, dir, range
 * basic import such as `import foo`, no alias, no `from`, etc
+* indexing with `[]` (only for list. No slicing).
 * interactive mode and file mode
 
 Check out `./tests` to see more examples.
@@ -30,11 +31,11 @@ nim c ./Python/python
 ### Todo
 * default args and kwargs
 * builtin dict
-* set, get method
 * assert statement(useful for testing)
 * complete object model and more introspections
 * user defined class
 * more exception handlings (with line and col number, stack info)
+* try...except
 * so much more
 
 ### Performance

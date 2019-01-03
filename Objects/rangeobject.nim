@@ -14,6 +14,10 @@ declarePyType Range():
   step: PyIntObject
   length: PyIntObject
 
+
+implRangeUnary len:
+  self.length
+
 implRangeUnary repr:
   # todo: make it the same as CPython
   newPyString(fmt"range({self.start.v}, {self.ending.v}, {self.step.v}, {self.length.v})")
@@ -84,6 +88,11 @@ implRangeUnary iter:
   iter.length = self.length
   iter.index = newPyInt(0)
   iter
+
+
+
+implRangeIterUnary iter:
+  self
 
 
 implRangeIterUnary iternext:

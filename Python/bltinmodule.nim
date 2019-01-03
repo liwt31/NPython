@@ -97,5 +97,14 @@ implBltinFunc type(obj: PyObject), []:
   obj.pyType
 
 
+implBltinFunc len(obj: PyObject), []:
+  obj.callMagic(len)
+
+
+implBltinFunc iter(obj: PyObject), []:
+  obj.callMagic(iter)
+
+
+
 bltinDict[newPyString("range")] = pyRangeObjectType
 bltinDict[newPyString("list")] = pyListObjectType

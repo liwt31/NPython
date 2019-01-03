@@ -41,6 +41,7 @@ def stress():
     sz = 10 ** 4
     for i in range(sz):
         ll.append(i)
+    print(len(ll) + 1)
     for j in range(sz):
         ll[j] = j * j
     return ll

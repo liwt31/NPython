@@ -64,7 +64,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
    
   # in future, should get rid of the abstraction of seq and use a dynamically
-  # create buffer directly
+  # create buffer directly. This can reduce time cost of the core neval function
+  # by 25%
   var valStack: seq[PyObject]
 
   # retain these templates for future optimization
