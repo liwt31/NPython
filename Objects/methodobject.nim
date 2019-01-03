@@ -68,3 +68,11 @@ newMethodTmpl(ternaryMethod, TernaryMethod)
 newMethodTmpl(bltinMethod, BltinMethod)
 
 
+#[ have to figure out how to define arg list as something like 
+#  call(args: seq[PyObject]) in macro
+# the same problem with the builtin print function
+implNimFuncMethod call, ():
+  discard
+]#
+
+

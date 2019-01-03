@@ -21,6 +21,7 @@ template getFun*(obj: PyObject, methodName: untyped):untyped =
   if obj.pyType == nil:
     unreachable("Py type not set")
   let fun = obj.pyType.magicMethods.methodName
+  var ret: PyObject
   if fun == nil:
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
@@ -38,6 +39,10 @@ template callMagic*(obj: PyObject, methodName: untyped, arg1: PyObject): PyObjec
   let fun = obj.getFun(methodName)
   fun(obj, arg1)
 
+
+template callMagic*(obj: PyObject, methodName: untyped, arg1, arg2: PyObject): PyObject = 
+  let fun = obj.getFun(methodName)
+  fun(obj, arg1, arg2)
 
 proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) = 
   if t.bltinMethods.hasKey(name):
@@ -121,6 +126,16 @@ proc implBinary*(methodName, objectType, code:NimNode,
                ]
   genImpl(methodName, objectType, code, params, pragmasBracket)
 
+
+proc implTernary*(methodName, objectType, code:NimNode,
+                 pragmasBracket:NimNode): NimNode = 
+  let params = [
+                 ident("PyObject"), 
+                 newIdentDefs(ident("selfNoCast"), ident("PyObject")),
+                 newIdentDefs(ident("arg1"), ident("PyObject")),
+                 newIdentDefs(ident("arg2"), ident("PyObject")),
+               ]
+  genImpl(methodName, objectType, code, params, pragmasBracket)
 
 proc objName2tpObjName(objName: string): string {. compileTime .} = 
   result = objName & "Type"
@@ -331,47 +346,54 @@ proc getMutableWritePragma*: NimNode =
     ident("write")
   )
 
-# generate macros useful for function defination
+# generate useful macros for function defination
 template methodMacroTmpl*(name: untyped, nameStr: string, 
                           mutable=false, reprLock=false) = 
   const objNameStr = "Py" & nameStr & "Object"
 
-  macro `impl name Unary`(methodName, pragmas, code:untyped): untyped {. used .} = 
-    # currently consider all magic methods as read-only methods
+  template addMutablePragma(origName, newName) = 
+    var `newName` {. inject .} = origName
     when mutable:
-      pragmas.add(getMutableReadPragma())
+      if origName.kind == nnkPrefix: # indication of a write method
+        pragmas.add(getMutableWritePragma())
+        newName = origName[1]
+      else:
+        pragmas.add(getMutableReadPragma())
+
+  macro `impl name Unary`(methodName, pragmas, code:untyped): untyped {. used .} = 
+    addMutablePragma(methodName, realMethodName)
+    expectKind(realMethodName, nnkIdent)
 
     when reprLock:
       pragmas.add(
         nnkExprColonExpr.newTree(
           ident("hasReprLock"),
-          methodName
+          realMethodName
         )
       )
-    implUnary(methodName, ident(objNameStr), code, pragmas)
+    implUnary(realMethodName, ident(objNameStr), code, pragmas)
 
   # default args won't work here, so use overload
   macro `impl name Unary`(methodName, code:untyped): untyped {. used .} = 
     getAst(`impl name Unary`(methodName, nnkBracket.newTree(), code))
 
   macro `impl name Binary`(methodName, pragmas, code:untyped): untyped {. used .} = 
-    when mutable:
-      pragmas.add(getMutableReadPragma())
-    implBinary(methodName, ident(objNameStr), code, pragmas)
+    addMutablePragma(methodName, realMethodName)
+    implBinary(realMethodName, ident(objNameStr), code, pragmas)
 
   macro `impl name Binary`(methodName, code:untyped): untyped {. used .}= 
     getAst(`impl name Binary`(methodName, nnkBracket.newTree(), code))
 
+  macro `impl name Ternary`(methodName, pragmas, code:untyped): untyped {. used .} = 
+    addMutablePragma(methodName, realMethodName)
+    implTernary(realMethodName, ident(objNameStr), code, pragmas)
+
+  macro `impl name Ternary`(methodName, code:untyped): untyped {. used .}= 
+    getAst(`impl name Ternary`(methodName, nnkBracket.newTree(), code))
+
   macro `impl name Method`(prototype, pragmas, code:untyped): untyped {. used .}= 
-    when mutable:
-      if prototype.kind == nnkPrefix: # indication of a write method
-        pragmas.add(getMutableWritePragma())
-        result = implMethod(prototype[1], ident(objNameStr), pragmas, code)
-      else:
-        pragmas.add(getMutableReadPragma())
-        result = implMethod(prototype, ident(objNameStr), pragmas, code)
-    else:
-      result = implMethod(prototype, ident(objNameStr), pragmas, code)
+    addMutablePragma(prototype, realPrototype)
+    implMethod(realPrototype, ident(objNameStr), pragmas, code)
 
   macro `impl name Method`(prototype, code:untyped): untyped {. used .}= 
     getAst(`impl name Method`(prototype, nnkBracket.newTree(), code))

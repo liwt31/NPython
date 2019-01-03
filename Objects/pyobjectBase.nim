@@ -62,7 +62,7 @@ type
     dict: UnaryMethod
     call: BltinMethod 
 
-    itemget: BinaryMethod
+    getitem: BinaryMethod
     setitem: TernaryMethod
 
     # what to do when getting attribute of its intances

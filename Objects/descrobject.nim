@@ -53,3 +53,10 @@ proc getMethod(selfNoCast: PyObject, owner: PyObject):
 
 
 pyMethodDescrObjectType.magicMethods.get = getMethod
+#
+#[ have to figure out how to define arg list as something like 
+#  call(owner: PyObject, args: seq[PyObject]) in macro
+# the same problem with the builtin print function
+implNimFuncMethod call, ():
+  discard
+]#

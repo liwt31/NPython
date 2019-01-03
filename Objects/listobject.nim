@@ -40,6 +40,30 @@ implListUnary str:
 implListUnary len:
   newPyInt(self.items.len)
 
+template checkIndex(argName) = 
+  if not (argName of PyIntObject):
+    let name = $argName.pyType.name
+    let msg = fmt"list indices must be integers or slices, not " & name
+    return newTypeError(msg)
+  # todo: if overflow, then thrown indexerror
+  let idx {. inject .} = PyIntObject(argName).toInt
+  if (idx < 0) or (idx > self.items.len):
+    let l = $self.items.len
+    let msg = fmt"list index out of range. idx: " & $idx & ", len: " & $l
+    return newIndexError(msg)
+
+
+
+implListBinary getitem:
+  checkIndex(other)
+  self.items[idx]
+
+
+implListTernary *setitem:
+  checkIndex(arg1)
+  self.items[idx] = arg2
+  pyNone
+
 
 proc append(self: PyListObject, item: PyObject) {. inline .} = 
   self.items.add(item)

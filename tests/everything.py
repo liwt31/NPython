@@ -38,8 +38,14 @@ print(function.foobar(1,2))
 
 def stress():
     ll = []
-    for i in range(10**6):
+    sz = 10 ** 4
+    for i in range(sz):
         ll.append(i)
-    for j in range(10**6):
-        ll.pop()
+    for j in range(sz):
+        ll[j] = j * j
+    return ll
+
+
+
+print(stress()[100])
 
