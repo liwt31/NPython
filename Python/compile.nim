@@ -442,6 +442,14 @@ compileMethod UnaryOp:
   let opCode = astNode.op.toOpCode
   c.addOp(newInstr(opCode))
 
+compileMethod Dict:
+  let n = astNode.values.len
+  for key in astNode.keys:
+    c.compile(key)
+  for value in astNode.values:
+    c.compile(value)
+  c.addOp(newArgInstr(OpCode.BuildMap, n))
+
 
 compileMethod Compare:
   assert astNode.ops.len == 1

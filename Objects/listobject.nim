@@ -19,6 +19,10 @@ declarePyType List(reprLock, mutable):
 proc newPyList*: PyListObject = 
   newPyListSimple()
 
+proc newPyList*(items: seq[PyObject]): PyListObject = 
+  result = newPyList()
+  result.items = items
+
 
 implListUnary iter: 
   newPySeqIter(self.items)

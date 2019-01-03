@@ -1,9 +1,11 @@
 import strformat
+import hashes
 import macros
 
 import pyobject
 import stringobject
 import boolobject
+import numobjects
 
 export boolobject
 
@@ -67,3 +69,5 @@ implBoolUnary repr:
   strPyBoolObject(self)
 
 
+implBoolUnary hash:
+  newPyInt(Hash(self.b))

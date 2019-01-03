@@ -12,9 +12,9 @@ Capable of:
 * `if else`
 * loop with `while` and `for`
 * very basic function defination and call
-* builtin print, list, dir, range
+* builtin print, list, dir, range, dict
 * basic import such as `import foo`, no alias, no `from`, etc
-* indexing with `[]` (only for list. No slicing).
+* indexing with `[]` (no slicing for list).
 * interactive mode and file mode
 
 Check out `./tests` to see more examples.
@@ -29,9 +29,9 @@ nim c ./Python/python
 ```
 
 ### Todo
-* default args and kwargs
-* builtin dict
+* import nim module
 * assert statement(useful for testing)
+* default args and kwargs
 * complete object model and more introspections
 * user defined class
 * more exception handlings (with line and col number, stack info)

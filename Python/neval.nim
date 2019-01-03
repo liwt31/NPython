@@ -220,13 +220,19 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         for i in 0..<opArg:
           args.add sPop()
         args = args.reversed
-        let newList = newPyList()
-        for item in args:
-          let retObj = newList.appendPyListObject(@[item])
-          if retObj.isThrownException:
-            result = retObj
-            break
+        let newList = newPyList(args)
         sPush newList 
+
+      of OpCode.BuildMap:
+        let d = newPyDict()
+        for i in 0..<opArg:
+          let key = sPop()
+          let value = sPop()
+          let retObj = d.setitemPyDictObject(key, value)
+          if retObj.isThrownException:
+            return retObj
+        sPush d
+
 
       of OpCode.LoadAttr:
         let name = names[opArg]

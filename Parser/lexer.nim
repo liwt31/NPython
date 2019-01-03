@@ -199,8 +199,10 @@ proc getNextToken(
       addSingleCharToken(Dot)
   of '%':
     addSingleOrDoubleCharToken(Percent, PercentEqual, '=')
-  of '{', '}':
-    raiseSyntaxError("\"{\"  \"}\" not implemented")
+  of '{':
+    addSingleCharToken(Lbrace)
+  of '}':
+    addSingleCharToken(Rbrace)
   of '!':
     if tailing('='):
       inc idx

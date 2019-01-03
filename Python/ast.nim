@@ -123,6 +123,7 @@ proc astSubscriptlist(parseNode: ParseNode): AsdlSlice
 proc astSubscript(parseNode: ParseNode): AsdlSlice
 proc astExprList(parseNode: ParseNode): AsdlExpr
 proc astTestList(parseNode: ParseNode): AsdlExpr
+proc astDictOrSetMaker(parseNode: ParseNode): AsdlExpr
 proc astClassDef(parseNode: ParseNode): AstClassDef
 proc astArglist(parseNode: ParseNode, callNode: AstCall): AstCall
 proc astArgument(parseNode: ParseNode): AsdlExpr
@@ -854,7 +855,13 @@ ast atom, [AsdlExpr]:
       unreachable
 
   of Token.Lbrace:
-    unreachable # {} blocked in lexer
+    case parseNode.children.len
+    of 2:
+      result = new AstDict
+    of 3:
+      result = astDictOrSetMaker(parseNode.children[1])
+    else:
+      unreachable # {} blocked in lexer
 
   of Token.NAME:
     result = newAstName(child1.tokenNode)
@@ -983,10 +990,29 @@ ast testlist, [AsdlExpr]:
   return node
   ]#
 
+#   dictorsetmaker: ( ((test ':' test | '**' expr)
+#                   (comp_for | (',' (test ':' test | '**' expr))* [','])) |
+#                  ((test | star_expr)
+#                   (comp_for | (',' (test | star_expr))* [','])) )
+ast dictorsetmaker, [AsdlExpr]:
+  let children = parseNode.children
+  let d = new AstDict
+  for idx in 0..<((children.len+1) div 4):
+    if children.len <= idx + 3:
+      raiseSyntaxError("dict defination too complex (no set, no comprehension)")
+    let i = idx * 4
+    let c1 = children[i]
+    if not (c1.tokenNode.token == Token.test):
+      raiseSyntaxError("dict defination too complex (no set, no comprehension)")
+    d.keys.add(astTest(c1))
+    if not (children[i+1].tokenNode.token == Token.Colon):
+      raiseSyntaxError("dict defination too complex (no set, no comprehension)")
+    let c3 = children[i+2]
+    if not (c3.tokenNode.token == Token.test):
+      raiseSyntaxError("dict defination too complex (no set, no comprehension)")
+    d.values.add(astTest(c3))
+  result = d
   
-#ast dictorsetmaker:
-#  discard
-#  
 ast classdef, [AstClassDef]:
   raiseSyntaxError("Class defination not implemented")
   
