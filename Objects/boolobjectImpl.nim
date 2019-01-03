@@ -5,6 +5,8 @@ import pyobject
 import stringobject
 import boolobject
 
+export boolobject
+
 method `$`*(obj: PyBoolObject): string = 
   $obj.b
 

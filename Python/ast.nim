@@ -8,7 +8,7 @@ import strformat
 
 import asdl
 import ../Parser/[token, parser]
-import ../Objects/[pyobject, numobjects, boolobject, stringobject]
+import ../Objects/[pyobject, numobjects, boolobjectImpl, stringobjectImpl]
 import ../Utils/utils
 
 

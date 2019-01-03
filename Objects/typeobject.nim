@@ -5,7 +5,7 @@ import tables
 import pyobject
 import dictobject
 import boolobjectImpl
-import stringobject
+import stringobjectImpl
 import methodobject
 import descrobject
 
@@ -68,6 +68,7 @@ const magicNames = [
   "__new__",
   "__init__",
   "__getattribute__",
+  "__hash__",
   "__dict__",
   "__call__",
 

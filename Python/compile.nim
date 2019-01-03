@@ -10,7 +10,7 @@ import asdl
 import symtable
 import opcode
 import ../Parser/parser
-import ../Objects/[pyobject, stringobject, codeobject]
+import ../Objects/[pyobject, stringobjectImpl, codeobject]
 import ../Utils/utils
 
 type

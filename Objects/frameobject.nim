@@ -17,3 +17,6 @@ declarePyType Frame():
   # builtins: PyDictObject
   fastLocals: seq[PyObject]
 
+
+proc newPyFrame*: PyFrameObject = 
+  newPyFrameSimple()

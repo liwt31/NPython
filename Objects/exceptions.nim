@@ -39,6 +39,8 @@ type
 
   PyUnboundLocalError* = ref object of PyExceptionObject
 
+  PyKeyError* = ref object of PyExceptionObject
+
 # need some fine grained control here, so generic is not so good
 # a little bit messy won't harm for now because 
 # 1) the file is expected to be drasticly refactored 
@@ -94,6 +96,9 @@ proc newImportError*(msg: string, thrown=true): PyImportError =
   implNew
 
 proc newUnboundLocalError*(msg: string, thrown=true): PyUnboundLocalError =  
+  implNew
+
+proc newKeyError*(msg: string, thrown=true): PyKeyError =  
   implNew
 
 method `$`*(e: PyExceptionObject): string = 

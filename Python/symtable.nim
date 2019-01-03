@@ -3,7 +3,7 @@ import macros
 
 import ast
 import asdl
-import ../Objects/stringobject
+import ../Objects/stringobjectImpl
 import ../Utils/utils
 
 type

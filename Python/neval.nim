@@ -9,8 +9,8 @@ import compile
 import opcode
 import coreconfig
 import bltinmodule
-import ../Objects/[pyobject, typeobject, frameobject, stringobject,
-  codeobject, dictobject, methodobject, boolobject, listobject,
+import ../Objects/[pyobject, typeobject, frameobject, stringobjectImpl,
+  codeobject, dictobject, methodobject, boolobjectImpl, listobject,
   funcobject, moduleobject, iterobject]
 import ../Utils/utils
 
@@ -64,7 +64,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
    
   # in future, should get rid of the abstraction of seq and use a dynamically
-  # create buffer directly. This can reduce time cost of the core neval function
+  # created buffer directly. This can reduce time cost of the core neval function
   # by 25%
   var valStack: seq[PyObject]
 
@@ -155,7 +155,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
       of OpCode.PrintExpr:
         let top = sPop()
-        if top != pyNone:
+        if top.id != pyNone.id:
           let retObj = builtinPrint(@[top])
           if retObj.isThrownException:
             result = retObj
@@ -380,7 +380,7 @@ proc newPyFrame*(fun: PyFunctionObject,
                  back: PyFrameObject): PyFrameObject = 
   let code = fun.code
   assert code != nil
-  result = new PyFrameObject
+  result = newPyFrame()
   result.back = back
   result.code = code
   result.globals = fun.globals

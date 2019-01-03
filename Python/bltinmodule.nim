@@ -1,6 +1,6 @@
 import macros
 
-import ../Objects/[pyobject, typeobject, dictobject, rangeobject,
+import ../Objects/[pyobject, typeobject, dictobject, rangeobject, numobjects,
                    stringobject, listobject, moduleobject, methodobject]
 import ../Utils/utils
 
@@ -96,6 +96,8 @@ implBltinFunc dir(obj: PyObject), []:
 implBltinFunc type(obj: PyObject), []:
   obj.pyType
 
+implBltinFunc id(obj: PyObject), []:
+  newPyInt(obj.id)
 
 implBltinFunc len(obj: PyObject), []:
   obj.callMagic(len)
@@ -108,3 +110,4 @@ implBltinFunc iter(obj: PyObject), []:
 
 bltinDict[newPyString("range")] = pyRangeObjectType
 bltinDict[newPyString("list")] = pyListObjectType
+bltinDict[newPyString("dict")] = pyDictObjectType

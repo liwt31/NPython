@@ -1,6 +1,5 @@
 import strformat
 import strutils
-import hashes
 import tables
 
 import ../Utils/utils
@@ -59,6 +58,7 @@ type
     new: BltinMethod
     init: BltinMethod
     getattr: BinaryMethod
+    hash: UnaryMethod
     dict: UnaryMethod
     call: BltinMethod 
 
@@ -112,19 +112,18 @@ method `$`*(obj: PyObject): string {.base, inline.} =
   "Python object"
 
 
-method hash*(obj: PyObject): Hash {.base, inline.} = 
-  hash(addr(obj[]))
 
 
-method `==`*(obj1, obj2: PyObject): bool {.base, inline.} =
-  obj1[].addr == obj2[].addr
-
-proc id*(obj: PyObject): int {. inline .} = 
+proc id*(obj: PyObject): int {. inline, cdecl .} = 
   cast[int](obj[].addr)
 
 
 proc idStr*(obj: PyObject): string {. inline .} = 
   fmt"{obj.id:#x}"
+
+
+
+
 
 
 var bltinTypes*: seq[PyTypeObject]

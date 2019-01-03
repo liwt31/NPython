@@ -1,4 +1,5 @@
 import tables
+import hashes
 import parseutils
 import macros
 import strformat
@@ -27,13 +28,39 @@ method `$`*(i: PyIntObject): string =
 method `$`*(f: PyFloatObject): string = 
   $f.v
 
-# the CPython abstract.c seems can be replaced by macors
+# let's see how long I can stand with these 2 stupid workarounds.
+proc toInt*(pyInt: PyIntObject): int = 
+  # XXX: take care of overflow error, usually this is used for indexing
+  # so builtin int which is the return type of seq.len should be enough
+  parseInt($pyInt)
 
-proc newPyInt*(n: BigInt): PyIntObject
-proc newPyInt*(str: string): PyIntObject
+proc toFloat*(pyInt: PyIntObject): float = 
+  parseFloat($pyInt)
 
-proc newPyFloat*(pyInt: PyIntObject): PyFloatObject
-proc newPyFloat*(v: float): PyFloatObject
+
+proc newPyInt*(n: BigInt): PyIntObject = 
+  result = newPyIntSimple()
+  result.v = n
+
+
+proc newPyInt*(str: string): PyIntObject = 
+  result = newPyIntSimple()
+  result.v = str.initBigInt
+
+
+proc newPyInt*(i: int): PyIntObject = 
+  result = newPyIntSimple()
+  result.v = i.initBigInt
+
+
+proc newPyFloat*(pyInt: PyIntObject): PyFloatObject = 
+  result = newPyFloatSimple()
+  result.v = pyInt.toFloat 
+
+
+proc newPyFloat*(v: float): PyFloatObject = 
+  result = newPyFloatSimple()
+  result.v = v
 
 
 template intBinaryTemplate(op, methodName: untyped, methodNameStr:string) = 
@@ -114,7 +141,6 @@ implIntBinary eq:
     result = newTypeError(fmt"== not supported by int and {other.pyType.name}")
 
 
-
 implIntUnary str:
   newPyString($self)
 
@@ -122,6 +148,9 @@ implIntUnary str:
 implIntUnary repr:
   newPyString($self)
 
+
+implIntUnary hash:
+  self
 
 template castOtherTypeTmpl(methodName) = 
   var casted {. inject .} : PyFloatObject
@@ -210,37 +239,6 @@ implFloatUnary str:
 implFloatUnary repr:
   newPyString($self)
 
-# let's see how long I can stand with these 2 stupid workarounds.
-proc toInt*(pyInt: PyIntObject): int = 
-  # XXX: take care of overflow error, usually this is used for indexing
-  # so builtin int which is the return type of seq.len should be enough
-  parseInt($pyInt)
-
-proc toFloat*(pyInt: PyIntObject): float = 
-  parseFloat($pyInt)
-
-
-proc newPyInt*(n: BigInt): PyIntObject = 
-  result = newPyIntSimple()
-  result.v = n
-
-
-proc newPyInt*(str: string): PyIntObject = 
-  result = newPyIntSimple()
-  result.v = str.initBigInt
-
-
-proc newPyInt*(i: int): PyIntObject = 
-  result = newPyIntSimple()
-  result.v = i.initBigInt
-
-
-proc newPyFloat(pyInt: PyIntObject): PyFloatObject = 
-  result = newPyFloatSimple()
-  result.v = pyInt.toFloat 
-
-
-proc newPyFloat(v: float): PyFloatObject = 
-  result = newPyFloatSimple()
-  result.v = v
+implFloatUnary hash:
+  newPyInt(hash(self.v))
 

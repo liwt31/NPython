@@ -4,6 +4,9 @@ type
 
   SyntaxError* = object of Exception 
 
+  # internal error for wrong type of dict function (`hash` and `eq`) return value
+  DictError* = object of Exception
+
 template raiseSyntaxError*(msg: string) = 
   raise newException(SyntaxError, msg)
 
