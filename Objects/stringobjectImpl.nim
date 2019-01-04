@@ -22,7 +22,7 @@ methodMacroTmpl(Str, "str")
 implStrBinary eq:
   if not other.ofPyStrObject:
     return pyFalseObj
-  if self.str == PyStrObject(other).str:
+  if self.str == cast[PyStrObject](other).str:
     return pyTrueObj
   else:
     return pyFalseObj

@@ -21,7 +21,7 @@ proc hash*(obj: PyObject): Hash {. inline, cdecl .} =
     let retObj = fun(obj)
     if not retObj.ofPyIntObject:
       raise newException(DictError, retObj.pyType.name)
-    return hash(PyIntObject(retObj).v)
+    return hash(cast[PyIntObject](retObj).v)
 
 
 proc `==`*(obj1, obj2: PyObject): bool {. inline, cdecl .} =
@@ -32,7 +32,7 @@ proc `==`*(obj1, obj2: PyObject): bool {. inline, cdecl .} =
     let retObj = fun(obj1, obj2)
     if not retObj.ofPyBoolObject:
       raise newException(DictError, retObj.pyType.name)
-    return PyBoolObject(retObj).b
+    return cast[PyBoolObject](retObj).b
 
 
 # currently not ordered

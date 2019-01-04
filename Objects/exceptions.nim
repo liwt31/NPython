@@ -21,7 +21,8 @@ type ExceptionToken {. pure .} = enum
   Lock,
   Import,
   UnboundLocal,
-  Key
+  Key,
+  ZeroDivision,
 
 
 declarePyType Exception(tpToken):
@@ -55,6 +56,9 @@ proc newStopIterError*(thrown=true): PyExceptionObject {. cdecl .} =
 proc newAttributeError*(tpName, attrName: string): PyExceptionObject {. cdecl .} = 
   let msg = fmt"{tpName} has no attribute {attrName}"
   result = newStopIterError(msg, true)
+
+proc newZeroDivisionError*: PyExceptionObject {. cdecl .} =
+  newZeroDivisionError("integer division or modulo by zero")
 
 proc isStopIter*(obj: PyObject): bool = 
   if not obj.ofPyExceptionObject:

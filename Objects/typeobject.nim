@@ -28,7 +28,7 @@ implTypeUnary str:
 
 
 proc getTypeDict*(obj: PyObject): PyDictObject = 
-  PyDictObject(obj.pyType.dict)
+  cast[PyDictObject](obj.pyType.dict)
 
 
 proc hasDict*(obj: PyObject): bool {. inline .} = 
@@ -114,7 +114,7 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
   if not nameObj.ofPyStrObject:
     let typeStr = nameObj.pyType.name
     return newTypeError(fmt"attribute name must be string, not {typeStr}")
-  let name = PyStrObject(nameObj)
+  let name = cast[PyStrObject](nameObj)
   let typeDict = self.getTypeDict
   if typeDict == nil:
     unreachable("for type object d must not be nil")
@@ -140,7 +140,7 @@ proc addGeneric(t: PyTypeObject) =
     t.magicMethods.le = le
   if m.eq != nil and m.ne == nil:
     t.magicMethods.ne = ne
-  if m.ge != nil and m.eq != nil and m.ge == nil:
+  if m.gt != nil and m.eq != nil and m.ge == nil:
     t.magicMethods.ge = ge
   t.magicMethods.getattr = getAttr
   if m.str == nil:

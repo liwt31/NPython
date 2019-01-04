@@ -68,19 +68,9 @@ proc builtinPrint*(args: seq[PyObject]): PyObject {. cdecl .} =
   for obj in args:
     let objStr = obj.callMagic(str)
     errorIfNotString(objStr, "__str__")
-    echo PyStrObject(objStr).str
+    echo cast[PyStrObject](objStr).str
   pyNone
 registerBltinFunction("print", builtinPrint)
-
-# this should be in the list constructor
-#[
-proc builtinList*(elms: seq[PyObject]): PyObject = 
-  result = newPyList()
-  for elm in elms:
-    let retObj = result.appendPyListObject(@[elm])
-    if retObj.isThrownException:
-      return retObj
-]#
 
 implBltinFunc dir(obj: PyObject), []:
   # why in CPython 0 argument becomes `locals()`? no idea
@@ -107,6 +97,7 @@ implBltinFunc iter(obj: PyObject), []:
 
 
 
+bltinDict[newPyString("int")] = pyIntObjectType
 bltinDict[newPyString("range")] = pyRangeObjectType
 bltinDict[newPyString("list")] = pyListObjectType
 bltinDict[newPyString("dict")] = pyDictObjectType

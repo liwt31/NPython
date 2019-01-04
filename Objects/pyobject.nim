@@ -22,7 +22,7 @@ template getFun*(obj: PyObject, methodName: untyped):untyped =
     unreachable("Py type not set")
   let fun = obj.pyType.magicMethods.methodName
   var ret: PyObject
-  if fun == nil:
+  if fun.isNil:
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
     return newTypeError("No " & methodStr & " method for " & objTypeStr & " defined")
@@ -494,6 +494,8 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       # use `result` here seems to be buggy
       let obj = new `Py name Object`
       obj.pyType = `py name ObjectType`
+      when hasDict:
+        obj.dict = newPyDict()
       obj
 
     # default for __new__ hook, could be overrided at any time

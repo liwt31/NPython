@@ -1,5 +1,5 @@
 import os
-import macros except name
+import dynlib
 import algorithm
 import strformat
 import tables
@@ -34,7 +34,6 @@ template doBinary(opName: untyped) =
     break
   sSetTop res
 
-# function call dispatcher
 
 proc evalFrame*(f: PyFrameObject): PyObject = 
   # instructions are fetched so frequently that we should build a local cache
@@ -165,10 +164,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
       of OpCode.StoreName:
         unreachable("locals() scope not implemented")
-        #[
-        let name = f.getname(opArg)
-        f.locals[name] = sPop()
-        ]#
 
       of OpCode.ForIter:
         let top = sTop()
@@ -195,25 +190,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
       of OpCode.LoadName:
         unreachable("locals() scope not implemented")
-        #[
-        # todo: hash only once when dict is improved
-        let name = f.getName(opArg)
-        var obj: PyObject
-        if f.locals.hasKey(name):
-          obj = f.locals[name]
-        elif f.globals.hasKey(name):
-          obj = f.globals[name]
-        elif f.builtins.hasKey(name):
-          obj = f.builtins[name]
-        else:
-          result = newNameError(name.str)
-          break
-          
-        sPush obj
-        ]#
 
       of OpCode.BuildList:
-        # this can be done more elegantly with setItem
         var args: seq[PyObject]
         for i in 0..<opArg:
           args.add sPop()
@@ -237,8 +215,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         let obj = sTop()
         let retObj = obj.callMagic(getattr, name)
         if retObj.isThrownException:
-          result = retObj
-          break
+          return retObj
         else:
           sSetTop retObj
 
@@ -318,10 +295,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         fastLocals[opArg] = sPop()
 
       of OpCode.CallFunction:
-        var args: seq[PyObject]
-        for i in 0..<opArg:
-          args.add sPop()
-        args = args.reversed
+        var args = newSeq[PyObject](opArg)
+        for i in 1..opArg:
+          args[^i] = sPop()
         let funcObj = sPop()
         var retObj: PyObject
         # runtime function, evaluate recursively
@@ -357,10 +333,27 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     # f.fastLocals = fastLocals could be necessary
 
 
-proc pyImport*(name: PyStrObject): PyObject =
-  let filepath = pyConfig.path.joinPath(name.str).addFileExt("py")
-  if not filepath.existsFile:
+proc nimImport*(filepath: string): PyObject = 
+  let soFilepath = filepath.addFileExt("npython.so")
+  let handle = loadLib(soFilepath)
+  if handle.isNil:
     return newImportError(fmt"File {filepath} not found")
+  let initModulePtr = handle.symaddr("initModule")
+  if initModulePtr.isNil:
+    return newImportError(fmt"File {filepath} has not initModule function")
+  let initModuleProc = cast[proc (): PyObject {. cdecl .}](initModulePtr)
+  let module = initModuleProc()
+  if module.isThrownException:
+    let msg = cast[PyExceptionObject](module).msg
+    return newImportError(fmt"Initialize file {filepath} failed: {msg}")
+  return module
+    
+
+proc pyImport*(name: PyStrObject): PyObject =
+  let filepath = pyConfig.path.joinPath(name.str)
+  let pyFilepath = filepath.addFileExt("py")
+  if not pyFilepath.existsFile:
+    return nimImport(filepath)
   let input = readFile(filepath)
   var co: PyCodeObject
   try:

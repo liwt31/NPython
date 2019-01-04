@@ -25,7 +25,7 @@ declarePyType NimFunc(tpToken):
 
 proc call*(obj: PyObject, args: seq[PyObject]): PyObject = 
   if obj.ofPyNimFuncObject:
-    let f = PyNimFuncObject(obj)
+    let f = cast[PyNimFuncObject](obj)
     case f.kind
     of NFunc.BltinFunc:
       return cast[BltinFunc](f.fun)(args)
@@ -75,5 +75,4 @@ newMethodTmpl(bltinMethod, BltinMethod)
 implNimFuncMethod call, ():
   discard
 ]#
-
 

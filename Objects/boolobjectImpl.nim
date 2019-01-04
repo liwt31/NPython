@@ -26,10 +26,11 @@ implBoolUnary bool:
   self
 
 
+# failed to use template because `and` etc. are keywords...
 implBoolBinary And:
   let otherBoolObj = other.callMagic(bool)
   errorIfNotBool(otherBoolObj, "__bool__")
-  if self.b and PyBoolObject(otherBoolObj).b:
+  if self.b and cast[PyBoolObject](otherBoolObj).b:
     return pyTrueObj
   else:
     return pyFalseObj
@@ -37,7 +38,7 @@ implBoolBinary And:
 implBoolBinary Xor:
   let otherBoolObj = other.callMagic(bool)
   errorIfNotBool(otherBoolObj, "__bool__")
-  if self.b xor PyBoolObject(otherBoolObj).b:
+  if self.b xor cast[PyBoolObject](otherBoolObj).b:
     return pyTrueObj
   else:
     return pyFalseObj
@@ -45,7 +46,7 @@ implBoolBinary Xor:
 implBoolBinary Or:
   let otherBoolObj = other.callMagic(bool)
   errorIfNotBool(otherBoolObj, "__bool__")
-  if self.b or PyBoolObject(otherBoolObj).b:
+  if self.b or cast[PyBoolObject](otherBoolObj).b:
     return pyTrueObj
   else:
     return pyFalseObj
@@ -53,7 +54,7 @@ implBoolBinary Or:
 implBoolBinary eq:
   let otherBoolObj = other.callMagic(bool)
   errorIfNotBool(otherBoolObj, "__bool__")
-  let otherBool = PyBoolObject(otherBoolObj).b
+  let otherBool = cast[PyBoolObject](otherBoolObj).b
   if self.b == otherBool:
     return pyTrueObj
   else:
