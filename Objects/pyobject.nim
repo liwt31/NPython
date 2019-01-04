@@ -15,7 +15,7 @@ import pyobjectBase
 export macros except name
 export pyobjectBase
 
-include exceptions
+#include exceptions
 
 template getFun*(obj: PyObject, methodName: untyped):untyped = 
   if obj.pyType == nil:
@@ -407,11 +407,13 @@ template setDictOffset*(name) =
 macro declarePyType*(prototype, fields: untyped): untyped = 
   prototype.expectKind(nnkCall)
   fields.expectKind(nnkStmtList)
-  var mutable, dict, reprLock: bool
+  var tpToken, mutable, dict, reprLock: bool
   for i in 1..<prototype.len:
     prototype[i].expectKind(nnkIdent)
     let property = prototype[i].strVal
-    if property == "mutable":
+    if property == "tpToken":
+      tpToken = true
+    elif property == "mutable":
       mutable = true
     elif property == "dict":
       dict = true
@@ -441,6 +443,8 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     recList.add(newField)
 
   for field in fields.children:
+    if field.kind == nnkDiscardStmt:
+      continue
     field.expectKind(nnkCall)
     reclist.addField(field[0], field[1][0])
 
@@ -472,7 +476,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   )
   result.add(decObjNode)
 
-  template initTypeTmpl(name, nameStr, hasDict) = 
+  template initTypeTmpl(name, nameStr, hasTpToken, hasDict) = 
     let `py name ObjectType`* {. inject .} = newPyType(nameStr)
     when hasDict:
       setDictOffset(name)
@@ -480,8 +484,13 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       # move it to typeReady
       `py name ObjectType`.magicMethods.dict = getDict
 
+    when hasTpToken:
+      `py name ObjectType`.tp = PyTypeToken.`name`
+      proc `ofPy name Object`*(obj: PyObject): bool {. cdecl, inline .}= 
+        obj.pyType.tp == PyTypeToken.`name`
+
     # base constructor that should be used for any custom constructors
-    proc `newPy name Simple`: `Py name Object` = 
+    proc `newPy name Simple`: `Py name Object` {. cdecl .}= 
       # use `result` here seems to be buggy
       let obj = new `Py name Object`
       obj.pyType = `py name ObjectType`
@@ -492,7 +501,10 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       `newPy name Simple`()
     `py name ObjectType`.magicMethods.new = `newPy name Default`
 
-  result.add(getAst(initTypeTmpl(nameIdent, nameIdent.strVal, newLit(dict))))
+  result.add(getAst(initTypeTmpl(nameIdent, 
+    nameIdent.strVal, 
+    newLit(tpToken), 
+    newLit(dict))))
 
 
   result.add(getAst(methodMacroTmpl(nameIdent, nameIdent.strVal, 

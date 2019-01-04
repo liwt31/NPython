@@ -6,9 +6,7 @@ import strutils
 import bigints
 
 import pyobject
-import boolobject
-import numobjects
-import stringobject
+import baseBundle
 import iterobject
 import ../Utils/utils
 
@@ -45,7 +43,7 @@ implListUnary len:
   newPyInt(self.items.len)
 
 template checkIndex(argName) = 
-  if not (argName of PyIntObject):
+  if not argName.ofPyIntObject:
     let name = $argName.pyType.name
     let msg = fmt"list indices must be integers or slices, not " & name
     return newTypeError(msg)
@@ -162,7 +160,7 @@ implListMethod *remove(target: PyObject):
   let retObj = indexPyListObject(selfNoCast, @[target])
   if retObj.isThrownException:
     return retObj
-  assert retObj of PyIntObject
+  assert retObj.ofPyIntObject
   let idx = PyIntObject(retObj).toInt
   self.items.delete(idx, idx+1)
 

@@ -3,6 +3,7 @@ import strformat
 import bigints
 
 import pyobject
+import exceptions
 import numobjects
 import boolobject
 import stringobject
@@ -28,7 +29,7 @@ implRangeUnary str:
 
 proc newRange(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} = 
   for arg in args:
-    if not (arg of PyIntObject):
+    if not arg.ofPyIntObject:
       # CPython uses duck typing here, anything behaves like an int
       # can be passed as argument. Too early for NPython to consider
       # this.

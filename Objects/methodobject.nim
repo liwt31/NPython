@@ -1,6 +1,7 @@
 import strformat
 
-import pyobject except name
+import pyobject
+import exceptions
 import stringobject
 
 type
@@ -15,7 +16,7 @@ type
     # mixing function and method is to some extent unnatural
     # however, this makes function and method call dispatch most efficient
 
-declarePyType NimFunc():
+declarePyType NimFunc(tpToken):
     name: PyStrObject
     self: PyObject  # not set for BltinFunc
     kind: NFunc
@@ -23,7 +24,7 @@ declarePyType NimFunc():
                   
 
 proc call*(obj: PyObject, args: seq[PyObject]): PyObject = 
-  if obj of PyNimFuncObject:
+  if obj.ofPyNimFuncObject:
     let f = PyNimFuncObject(obj)
     case f.kind
     of NFunc.BltinFunc:

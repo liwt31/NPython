@@ -9,17 +9,17 @@ import math
 import bigints
 
 import pyobject
+import exceptions
 import boolobject
 import stringobject
 import ../Utils/utils
 
 
-declarePyType Int():
+declarePyType Int(tpToken):
   v: BigInt
 
-declarePyType Float():
+declarePyType Float(tpToken):
   v: float
-
 
 method `$`*(i: PyIntObject): string = 
   $i.v
@@ -64,9 +64,9 @@ proc newPyFloat*(v: float): PyFloatObject =
 
 
 template intBinaryTemplate(op, methodName: untyped, methodNameStr:string) = 
-  if other of PyIntObject:
+  if other.ofPyIntObject:
     result = newPyInt(self.v.op PyIntObject(other).v)
-  elif other of PyFloatObject:
+  elif other.ofPyFloatObject:
     let newFloat = newPyFloat(self)
     result = newFloat.callMagic(methodName, other)
   else:
@@ -113,26 +113,26 @@ implIntUnary bool:
 
 
 implIntBinary lt:
-  if other of PyIntObject:
+  if other.ofPyIntObject:
     if self.v < PyIntObject(other).v:
       result = pyTrueObj
     else:
       result = pyFalseObj
-  elif other of PyFloatObject:
+  elif other.ofPyFloatObject:
     result = other.callMagic(ge, self)
   else:
     result = newTypeError(fmt"< not supported by int and {other.pyType.name}")
 
 
 implIntBinary eq:
-  if other of PyIntObject:
+  if other.ofPyIntObject:
     if self.v == PyIntObject(other).v:
       result = pyTrueObj
     else:
       result = pyFalseObj
-  elif other of PyFloatObject:
+  elif other.ofPyFloatObject:
     result = other.callMagic(eq, self)
-  elif other of PyBoolObject:
+  elif other.ofPyBoolObject:
     if self.v == 1:
       result = other
     else:
@@ -154,9 +154,9 @@ implIntUnary hash:
 
 template castOtherTypeTmpl(methodName) = 
   var casted {. inject .} : PyFloatObject
-  if other of PyFloatObject:
+  if other.ofPyFloatObject:
     casted = PyFloatObject(other)
-  elif other of PyIntObject:
+  elif other.ofPyIntObject:
     casted = newPyFloat(PyIntObject(other))
   else:
     let msg = methodName & fmt" not supported by float and {other.pyType.name}"

@@ -9,7 +9,7 @@ import compile
 import coreconfig
 import lifecycle
 import ../Parser/[lexer, parser]
-import ../Objects/[pyobject, stringobject, dictobject, frameobject, codeobject, funcobject]
+import ../Objects/bundle
 import ../Utils/utils
 
 
@@ -61,7 +61,7 @@ proc interactiveShell =
       globals = prevF.globals
     else:
       globals = newPyDict()
-    let fun = newPyFunction(newPyString("Bla"), co, globals)
+    let fun = newPyFunc(newPyString("Bla"), co, globals)
     let f = newPyFrame(fun, @[], prevF)
     var retObj = f.evalFrame
     if retObj.isThrownException:

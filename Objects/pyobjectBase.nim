@@ -4,6 +4,21 @@ import tables
 
 import ../Utils/utils
 
+type
+  PyTypeToken* {. pure .} = enum
+    NULL,
+    None,
+    Exception,
+    Int,
+    Float,
+    Bool,
+    Type,
+    Tuple,
+    Str,
+    Code,
+    NimFunc,
+    Func,
+
 
 type 
   # function prototypes, magic methods tuple, PyObject and PyTypeObject
@@ -95,6 +110,9 @@ type
 
   PyTypeObject* = ref object of PyObject
     name*: string
+    # corresponds to `tp_flag` in CPython. Why not use bit operations? I don't know.
+    # Both are okay I suppose
+    tp*: PyTypeToken
     magicMethods*: MagicMethods
     bltinMethods*: Table[string, BltinMethod]
 
@@ -110,9 +128,6 @@ type
 
 method `$`*(obj: PyObject): string {.base, inline.} = 
   "Python object"
-
-
-
 
 proc id*(obj: PyObject): int {. inline, cdecl .} = 
   cast[int](obj[].addr)
@@ -145,12 +160,3 @@ proc getDict*(obj: PyObject): PyObject {. cdecl .} =
 
 
 
-# todo: make it an object with type
-type 
-  PyNone = ref object of PyObject
-
-
-method `$`*(obj: PyNone): string =
-  "None"
-
-let pyNone* = new PyNone

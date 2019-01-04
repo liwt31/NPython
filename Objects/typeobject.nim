@@ -3,6 +3,7 @@ import strformat
 import tables
 
 import pyobject
+import exceptions
 import dictobject
 import boolobjectImpl
 import stringobjectImpl
@@ -110,7 +111,7 @@ proc strDefault(self: PyObject): PyObject {. cdecl .} =
 
 # generic getattr
 proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} = 
-  if not nameObj.isPyStringType:
+  if not nameObj.ofPyStrObject:
     let typeStr = nameObj.pyType.name
     return newTypeError(fmt"attribute name must be string, not {typeStr}")
   let name = PyStrObject(nameObj)

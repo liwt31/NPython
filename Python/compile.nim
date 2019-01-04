@@ -10,7 +10,7 @@ import asdl
 import symtable
 import opcode
 import ../Parser/parser
-import ../Objects/[pyobject, stringobjectImpl, codeobject]
+import ../Objects/[pyobject, stringobjectImpl, codeobject, noneobject]
 import ../Utils/utils
 
 type
@@ -155,7 +155,7 @@ proc assemble(cu: CompilerUnit): PyCodeObject =
     cu.addLoadConst(pyNone)
     cu.addOp(newInstr(OpCode.ReturnValue))
   # convert compiler unit to code object
-  result = new PyCodeObject
+  result = newPyCode()
   for cb in cu.blocks:
     for instr in cb.instrSeq:
       result.code.add(instr.toTuple())

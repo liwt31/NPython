@@ -6,15 +6,16 @@ import stringobject
 import ../Python/opcode
 
 
-type
-  PyCodeObject* = ref object of PyObject
-    code*: seq[(OpCode, int)]
-    constants*: seq[PyObject]
-    names*: seq[PyStrObject]
-    localVars*: seq[PyStrObject]
+declarePyType Code(tpToken):
+    code: seq[(OpCode, int)]
+    constants: seq[PyObject]
+    names: seq[PyStrObject]
+    localVars: seq[PyStrObject]
 
 
 # code objects are initialized in compile.nim
+proc newPyCode*: PyCodeObject =
+  newPyCodeSimple()
 
 proc len*(code: PyCodeObject): int {. inline .} = 
   code.code.len
@@ -38,7 +39,7 @@ method `$`*(code: PyCodeObject): string =
         line &= fmt" ({code.names[opArg]})"
       of OpCode.LoadConst:
         let constObj = code.constants[opArg]
-        if constObj of PyCodeObject:
+        if constObj.ofPyCodeObject:
           otherCodes.add(PyCodeObject(constObj))
           line &= " (<Code>)"
         else:

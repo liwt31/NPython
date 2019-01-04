@@ -1,13 +1,10 @@
 import pyobject
+import exceptions
 
 
-type
-  PySeqIterObject* = ref object of PyObject
+declarePyType SeqIter():
     items: seq[PyObject]
     idx: int
-
-
-let pySeqIterObjectType* = newPyType("sequence-iterator")
 
 proc iterNextFunc(selfNoCast: PyObject): PyObject {. cdecl .}=
   let self = PySeqIterObject(selfNoCast)

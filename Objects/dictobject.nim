@@ -6,9 +6,7 @@ import macros
 
 import pyobject 
 import listobject
-import boolobject
-import numobjects
-import stringobjectImpl
+import baseBundle
 import ../Utils/utils
 
 
@@ -21,7 +19,7 @@ proc hash*(obj: PyObject): Hash {. inline, cdecl .} =
     return hash(addr(obj[]))
   else:
     let retObj = fun(obj)
-    if not (retObj of PyIntObject):
+    if not retObj.ofPyIntObject:
       raise newException(DictError, retObj.pyType.name)
     return hash(PyIntObject(retObj).v)
 
@@ -32,7 +30,7 @@ proc `==`*(obj1, obj2: PyObject): bool {. inline, cdecl .} =
     return obj1.id == obj2.id
   else:
     let retObj = fun(obj1, obj2)
-    if not (retObj of PyBoolObject):
+    if not retObj.ofPyBoolObject:
       raise newException(DictError, retObj.pyType.name)
     return PyBoolObject(retObj).b
 
@@ -103,7 +101,7 @@ implDictBinary getitem:
   let repr = other.pyType.magicMethods.repr(other)
   if repr.isThrownException:
     msg = "exception occured when generating key error msg calling repr"
-  elif not repr.isPyStringType:
+  elif not repr.ofPyStrObject:
     msg = "repr returned non-string when generating key error msg"
   else:
     msg = PyStrObject(repr).str

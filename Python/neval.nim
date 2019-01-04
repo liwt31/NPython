@@ -9,13 +9,11 @@ import compile
 import opcode
 import coreconfig
 import bltinmodule
-import ../Objects/[pyobject, typeobject, frameobject, stringobjectImpl,
-  codeobject, dictobject, methodobject, boolobjectImpl, listobject,
-  funcobject, moduleobject, iterobject]
+import ../Objects/bundle
 import ../Utils/utils
 
 proc pyImport*(name: PyStrObject): PyObject
-proc newPyFrame*(fun: PyFunctionObject, 
+proc newPyFrame*(fun: PyFuncObject, 
                  args: seq[PyObject], 
                  back: PyFrameObject): PyFrameObject
 
@@ -303,7 +301,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         elif bltinDict.hasKey(name):
           obj = bltinDict[name]
         else:
-          result = newNameError(name.str)
+          result = newNameError(fmt"name '{name.str}' is not defined")
           break
         sPush obj
 
@@ -327,8 +325,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         let funcObj = sPop()
         var retObj: PyObject
         # runtime function, evaluate recursively
-        if funcObj of PyFunctionObject:
-          let newF = newPyFrame(PyFunctionObject(funcObj), args, f)
+        if funcObj.ofPyFuncObject:
+          let newF = newPyFrame(PyFuncObject(funcObj), args, f)
           retObj = newF.evalFrame
         # else use dispatcher defined in methodobject.nim
         # todo: should first dispatch Nim level function (same as CPython). 
@@ -344,10 +342,10 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       of OpCode.MakeFunction:
         assert opArg == 0
         let name = sPop()
-        assert name of PyStrObject
+        assert name.ofPyStrObject
         let code = sPop()
-        assert code of PyCodeObject
-        sPush newPyFunction(PyStrObject(name), PyCodeObject(code), f.globals)
+        assert code.ofPyCodeObject
+        sPush newPyFunc(PyStrObject(name), PyCodeObject(code), f.globals)
 
       else:
         let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
@@ -372,7 +370,7 @@ proc pyImport*(name: PyStrObject): PyObject =
     return newImportError(fmt"Syntax Error: {msg}")
   when defined(debug):
     echo co
-  let fun = newPyFunction(name, co, newPyDict())
+  let fun = newPyFunc(name, co, newPyDict())
   let f = newPyFrame(fun, @[], nil)
   let retObj = f.evalFrame
   if retObj.isThrownException:
@@ -381,7 +379,7 @@ proc pyImport*(name: PyStrObject): PyObject =
   module.dict = f.globals
   module
 
-proc newPyFrame*(fun: PyFunctionObject, 
+proc newPyFrame*(fun: PyFuncObject, 
                  args: seq[PyObject], 
                  back: PyFrameObject): PyFrameObject = 
   let code = fun.code
@@ -399,7 +397,7 @@ proc newPyFrame*(fun: PyFunctionObject,
 proc runCode*(co: PyCodeObject): PyObject = 
   when defined(debug):
     echo co
-  let fun = newPyFunction(newPyString("main"), co, newPyDict())
+  let fun = newPyFunc(newPyString("main"), co, newPyDict())
   let f = newPyFrame(fun, @[], nil)
   f.evalFrame
 

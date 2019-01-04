@@ -3,16 +3,16 @@ import codeobject
 import stringobject
 import dictobject
 
-declarePyType Function():
+declarePyType Func(tpToken):
   name: PyStrObject
   code: PyCodeObject
   globals: PyDictObject
 
 
-proc newPyFunction*(name: PyStrObject, 
-                    code: PyCodeObject, 
-                    globals: PyDictObject): PyFunctionObject = 
-  result = newPyFunctionSimple()
+proc newPyFunc*(name: PyStrObject, 
+                code: PyCodeObject, 
+                globals: PyDictObject): PyFuncObject = 
+  result = newPyFuncSimple()
   result.name = name
   result.code = code
   result.globals = globals

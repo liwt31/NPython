@@ -3,6 +3,7 @@ import hashes
 import macros
 
 import pyobject
+import exceptions
 import stringobject
 import boolobject
 import numobjects

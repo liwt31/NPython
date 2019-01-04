@@ -1,7 +1,6 @@
 import macros
 
-import ../Objects/[pyobject, typeobject, dictobject, rangeobject, numobjects,
-                   stringobject, listobject, moduleobject, methodobject]
+import ../Objects/bundle
 import ../Utils/utils
 
 let bltinDict* = newPyDict()

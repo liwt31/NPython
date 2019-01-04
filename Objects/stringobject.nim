@@ -3,23 +3,15 @@ import macros
 import pyobject
 
 
-declarePyType Str():
+declarePyType Str(tpToken):
   str: string
 
 method `$`*(strObj: PyStrObject): string =
   "\"" & $strObj.str & "\""
 
-
 proc newPyString*(str: string): PyStrObject =
   result = newPyStrSimple()
   result.str = str
-
-
-proc isPyStringType*(obj: PyObject): bool = 
-  # currently just check exact string
-  # include inherit in the future
-  obj of PyStrObject
-
 
 when isMainModule:
   import dictobject

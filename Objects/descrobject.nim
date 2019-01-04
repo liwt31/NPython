@@ -1,6 +1,7 @@
 import strformat
 
 import pyobject
+import exceptions
 import stringobject
 import methodobject
 import ../Utils/utils
