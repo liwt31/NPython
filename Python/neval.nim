@@ -216,12 +216,19 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       of OpCode.LoadName:
         unreachable("locals() scope not implemented")
 
+
+      of OpCode.BuildTuple:
+        var args = newSeq[PyObject](opArg)
+        for i in 1..opArg:
+          args[^i] = sPop()
+        let newTuple = newPyTuple(args)
+        sPush newTuple
+
       of OpCode.BuildList:
         # this can be done more elegantly with setItem
-        var args: seq[PyObject]
-        for i in 0..<opArg:
-          args.add sPop()
-        args = args.reversed
+        var args = newSeq[PyObject](opArg)
+        for i in 1..opArg:
+          args[^i] = sPop()
         let newList = newPyList(args)
         sPush newList 
 

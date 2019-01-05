@@ -108,6 +108,14 @@ template newAttributeError*(tpName, attrName: string): PyExceptionObject =
   let msg = tpName & " has no attribute " & attrName
   newAttributeError(msg)
 
+
+
+template newIndexTypeError*(typeName:string, obj:PyObject): PyExceptionObject = 
+  let name = $obj.pyType.name
+  let msg = typeName & " indices must be integers or slices, not " & name
+  newTypeError(msg)
+
+
 proc isStopIter*(obj: PyObject): bool = 
   if not obj.ofPyExceptionObject:
     return false
@@ -162,4 +170,5 @@ template checkArgNum*(expected: int, name="") =
     else:
       msg = "expected " & $expected & fmt" argument ({args.len} given)"
     return newTypeError(msg)
+
 

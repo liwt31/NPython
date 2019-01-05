@@ -18,7 +18,7 @@ proc interactiveShell =
   var rootCst: ParseNode
   var lexer: Lexer
   var prevF: PyFrameObject
-  echo "NPython 0.0.1"
+  echo "NPython 0.1.0"
   while true:
     var input: TaintedString
     var prompt: string

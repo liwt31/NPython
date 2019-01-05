@@ -60,6 +60,9 @@ proc newList(elts: seq[AsdlExpr]): AstList =
   new result
   result.elts = elts
 
+proc newTuple(elts: seq[AsdlExpr]): AstTuple = 
+  new result
+  result.elts = elts
 
 proc astDecorated(parseNode: ParseNode): AsdlStmt
 proc astFuncdef(parseNode: ParseNode): AstFunctionDef
@@ -836,7 +839,7 @@ ast atom, [AsdlExpr]:
   of Token.Lpar:
     case parseNode.children.len
     of 2:
-      raiseSyntaxError("() for tuple not implemented")
+      return newTuple(@[])
     of 3:
       let child = parseNode.children[1]
       case child.tokenNode.token
@@ -845,9 +848,9 @@ ast atom, [AsdlExpr]:
       of Token.testlist_comp:
         let testListComp = astTestlistComp(child)
         # no tuple, just things like (1 + 2) * 3
-        if not (testListComp.len == 1):
-          raiseSyntaxError("Tuple not implemented")
-        result = testListComp[0]
+        if testListComp.len == 1:
+          return testListComp[0]
+        return newTuple(testListComp)
       else:
         unreachable   
     else:

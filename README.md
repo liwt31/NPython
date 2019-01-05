@@ -11,10 +11,10 @@ Capable of:
 * basic arithmetic calculations (+ - * / // ** % int float)
 * flow control with `if else`, `while` and `for`
 * very basic function defination and call
-* builtin print, list, dir, len, range, dict
+* builtin print, dir, len, range, tuple, list, dict
 * basic import such as `import foo`, no alias, no `from`, etc
 * indexing with `[]` with slice (can not store to slice yet).
-* assert statement(useful for testing)
+* assert statement
 * interactive mode and file mode
 
 Check out `./tests` to see more examples.

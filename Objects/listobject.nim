@@ -52,79 +52,30 @@ implListUnary str:
 implListUnary len:
   newPyInt(self.items.len)
 
-
-template indexErrorTmpl(obj) = 
-  let name = $obj.pyType.name
-  let msg = fmt"list indices must be integers or slices, not " & name
-  return newTypeError(msg)
-
-template getIndex(obj: PyIntObject): int = 
-  # todo: if overflow, then thrown indexerror
-  var idx = obj.toInt
-  if idx < 0:
-    idx = self.items.len + idx
-  if (idx < 0) or (self.items.len <= idx):
-    let l = $self.items.len
-    let msg = fmt"list index out of range. idx: " & $idx & ", len: " & $l
-    return newIndexError(msg)
-  idx
-
-
 implListBinary getitem:
   if other.ofPyIntObject:
-    let idx = getIndex(PyIntObject(other))
+    let idx = getIndex(PyIntObject(other), self.items.len)
     return self.items[idx]
   if other.ofPySliceObject:
-    var start, stop, step: int
     let slice = PySliceObject(other)
-    let stepObj = slice.step
-    if stepObj.ofPyIntObject:
-      # todo: overflow
-      step = PyIntObject(stepObj).toInt
-      if step == 0:
-        return newValueError("slice step cannot be zero")
+    let newList = newPyList()
+    let retObj = slice.getSliceItems(self.items.addr, newList.items.addr)
+    if retObj.isThrownException:
+      return retObj
     else:
-      assert stepObj.ofPyNoneObject
-      step = 1
-    template setIndex(name: untyped, defaultValue: int) = 
-      let `name Obj` = slice.`name`
-      if `name Obj`.ofPyIntObject:
-        name = getIndex(PyIntObject(`name Obj`))
-      else:
-        assert `name Obj`.ofPyNoneObject
-        name = defaultValue
-    var startDefault, stopDefault: int
-    if 0 < step:
-      startDefault = 0
-      stopDefault = self.items.len
-    else:
-      startDefault = self.items.len - 1
-      stopDefault = -1
-    setIndex(start, startDefault)
-    setIndex(stop, stopDefault)
-
-    var newList: seq[PyObject]
-    if 0 < step:
-      while start < stop:
-        newList.add(self.items[start])
-        start += step
-    else:
-      while stop < start:
-        newList.add(self.items[start])
-        start += step
-    return newPyList(newList)
+      return newList
     
-  indexErrorTmpl(other)
+  return newIndexTypeError("list", other)
 
 
 implListTernary *setitem:
   if arg1.ofPyIntObject:
-    let idx = getIndex(PyIntObject(arg1))
+    let idx = getIndex(PyIntObject(arg1), self.items.len)
     self.items[idx] = arg2
     return pyNone
   if arg1.ofPySliceObject:
     return newTypeError("store to slice not implemented")
-  indexErrorTmpl(arg1)
+  return newIndexTypeError("list", arg1)
 
 
 proc append(self: PyListObject, item: PyObject) {. inline .} = 

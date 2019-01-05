@@ -529,6 +529,10 @@ compileMethod List:
     c.compile(elt)
   c.addOp(newArgInstr(OpCode.BuildList, astNode.elts.len))
 
+compileMethod Tuple:
+  for elt in astNode.elts:
+    c.compile(elt)
+  c.addOp(newArgInstr(OpCode.BuildTuple, astNode.elts.len))
 
 compileMethod Slice:
   var n = 2

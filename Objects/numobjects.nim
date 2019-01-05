@@ -245,3 +245,16 @@ implFloatUnary repr:
 implFloatUnary hash:
   newPyInt(hash(self.v))
 
+
+
+# used in list and tuple
+template getIndex*(obj: PyIntObject, size: int): int = 
+  # todo: if overflow, then thrown indexerror
+  var idx = obj.toInt
+  if idx < 0:
+    idx = size + idx
+  if (idx < 0) or (size <= idx):
+    let msg = "index out of range. idx: " & $idx & ", len: " & $size
+    return newIndexError(msg)
+  idx
+
