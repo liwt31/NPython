@@ -131,11 +131,14 @@ proc addOp(c: Compiler, opCode: OpCode) =
 proc addBlock(c: Compiler, cb: BasicBlock) =
   c.tcu.blocks.add(cb)
 
-
 proc addLoadConst(cu: CompilerUnit, pyObject: PyObject) =
   let arg = cu.constantId(pyObject)
   let instr = newArgInstr(OpCode.LoadConst, arg)
   cu.addOp(instr)
+
+
+proc addLoadConst(c: Compiler, pyObject: PyObject) = 
+  c.tcu.addLoadConst(pyObject)
 
 
 proc assemble(cu: CompilerUnit): PyCodeObject =
@@ -525,6 +528,26 @@ compileMethod List:
   for elt in astNode.elts:
     c.compile(elt)
   c.addOp(newArgInstr(OpCode.BuildList, astNode.elts.len))
+
+
+compileMethod Slice:
+  var n = 2
+
+  if astNode.lower.isNil:
+    c.addLoadConst(pyNone)
+  else:
+    c.compile(astNode.lower)
+
+  if astNode.upper.isNil:
+    c.addLoadConst(pyNone)
+  else:
+    c.compile(astNode.upper)
+
+  if not astNode.step.isNil:
+    c.compile(astNode.step)
+    inc n
+
+  c.addOp(newArgInstr(OpCode.BuildSlice, n))
 
 compileMethod Index:
   c.compile(astNode.value)

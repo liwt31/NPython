@@ -49,6 +49,7 @@ const magicNames = [
   "__negative__",
   "__positive__",
   "__abs__",
+  "__index__",
   "__bool__",
 
   "__and__",
@@ -86,7 +87,10 @@ const magicNames = [
 
 
 static:
-  assert type(PyTypeObject.magicMethods).arity == magicNames.len
+  if (not (PyTypeObject.magicMethods.arity == magicNames.len)):
+    echo PyTypeObject.magicMethods.arity
+    echo magicNames.len
+    error("field not sync")
 
 # some generic behaviors that every type should obey
 proc le(o1, o2: PyObject): PyObject {. cdecl .} =

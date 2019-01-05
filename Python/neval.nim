@@ -235,7 +235,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             return retObj
         sPush d
 
-
       of OpCode.LoadAttr:
         let name = names[opArg]
         let obj = sTop()
@@ -378,12 +377,27 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         sPush retObj
 
       of OpCode.MakeFunction:
+        # other kinds not implemented
         assert opArg == 0
         let name = sPop()
         assert name.ofPyStrObject
         let code = sPop()
         assert code.ofPyCodeObject
         sPush newPyFunc(PyStrObject(name), PyCodeObject(code), f.globals)
+
+      of OpCode.BuildSlice:
+        var lower, upper, step: PyObject
+        if opArg == 3:
+          step = sPop()
+        else:
+          assert opArg == 2
+          step = pyNone
+        upper = sPop()
+        lower = sTop()
+        let slice = newPySlice(lower, upper, step)
+        if slice.isThrownException:
+          return slice
+        sSetTop slice
 
       else:
         let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"

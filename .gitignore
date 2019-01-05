@@ -6,3 +6,5 @@ trash/
 *.backup
 
 ./Objects/test.nim
+
+__pycache__/

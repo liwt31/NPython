@@ -9,12 +9,11 @@ Just for fun and practice. Learn both Python and Nim.
 ### Status
 Capable of:
 * basic arithmetic calculations (+ - * / // ** % int float)
-* `if else`
-* loop with `while` and `for`
+* flow control with `if else`, `while` and `for`
 * very basic function defination and call
-* builtin print, list, dir, range, dict
+* builtin print, list, dir, len, range, dict
 * basic import such as `import foo`, no alias, no `from`, etc
-* indexing with `[]` (no slicing for list).
+* indexing with `[]` with slice (can not store to slice yet).
 * assert statement(useful for testing)
 * interactive mode and file mode
 
@@ -30,8 +29,9 @@ nim c ./Python/python
 ```
 
 ### Todo
+* list comprehension
 * user defined class
-* try...except
+* raise. try...except
 
 ### Performance
 Nim is claimed to be as fast as C, and indeed it is. According to some really primitive benchmarks (`spin.py` and `f_spin.py`), although NPython is currently 5x-10x slower than CPython 3.7, it is at least in some cases faster than CPython < 2.4. This is already a huge achievement considering the numerous optimizations out there in the CPython codebase and NPython is focused on quick prototyping and left many rooms for optimization.
@@ -40,10 +40,12 @@ unless we do GC on our own just like CPython.
 
 
 ### Drawbacks
-NPython currently rely on GC of Nim. Frankly speaking it's not satisfactory. 
+NPython currently relies on GC of Nim. Frankly speaking it's not satisfactory. 
 * The GC uses thread-local heap, makes threading impossible (for Python).
-* The GC does not play well with manually managed memory, making certain optimization difficult or impossible.
+* The GC does not play well with manually managed memory, making certain optimizations difficult or impossible.
 * The GC can not be shared between different dynamic libs, which means NPython can not import Nim extension.
+
+If we manage memory manually, hopefully these drawbacks can be overcomed. Of course that's a huge sacrifice.
 
 
 ### License

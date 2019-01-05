@@ -963,13 +963,37 @@ ast subscriptlist, [AsdlSlice]:
 # subscript: test | [test] ':' [test] [sliceop]
 # sliceop: ':' [test]
 ast subscript, [AsdlSlice]:
-  let child = parseNode.children[0]
-  if (not (child.tokenNode.token == Token.test)) or parseNode.children.len != 1:
-    raiseSyntaxError("no slicing supported")
-  let index = new AstIndex
-  index.value = astTest(child)
-  index
-
+  let child1 = parseNode.children[0]
+  if (child1.tokenNode.token == Token.test) and parseNode.children.len == 1:
+    let index = new AstIndex
+    index.value = astTest(child1)
+    return index
+  # slice
+  let slice= new AstSlice
+  # lower
+  var idx = 0
+  var child = parseNode.children[idx]
+  if child.tokenNode.token == Token.test:
+    slice.lower = astTest(child)
+    idx += 2
+  else:
+    assert child.tokenNode.token == Token.Colon
+    inc idx
+  if idx == parseNode.children.len:
+    return slice
+  # upper
+  child = parseNode.children[idx]
+  if child.tokenNode.token == Token.test:
+    slice.upper = astTest(child)
+    inc idx
+  if idx == parseNode.children.len:
+    return slice
+  child = parseNode.children[idx]
+  # step
+  assert child.tokenNode.token == Token.sliceop
+  if child.children.len == 2:
+    slice.step = astTest(child.children[1])
+  slice
 
 
 # exprlist: (expr|star_expr) (',' (expr|star_expr))* [',']

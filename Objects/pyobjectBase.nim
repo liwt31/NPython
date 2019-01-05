@@ -19,6 +19,7 @@ type
     Code,
     NimFunc,
     Func,
+    Slice,
 
 
 type 
@@ -52,6 +53,7 @@ type
     negative: UnaryMethod
     positive: UnaryMethod
     absolute: UnaryMethod
+    index: UnaryMethod
     bool: UnaryMethod
 
     # note: these 3 are all bitwise operations, nothing to do with keywords `and` or `or`
