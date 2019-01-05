@@ -9,4 +9,7 @@ for i in range(1, len(array)):
         j = j - 1
     array[j] = var
 
-print(array)
+for i in range(1, len(array)):
+    assert array[i-1] < array[i]
+
+print("ok")

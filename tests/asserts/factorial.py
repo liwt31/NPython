@@ -4,4 +4,5 @@ def factorial(x):
     return x * factorial(x-1)
 
 
-print(factorial(10))
+assert factorial(10) == 3628800
+print("ok")
