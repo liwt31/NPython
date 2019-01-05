@@ -15,6 +15,7 @@ Capable of:
 * builtin print, list, dir, range, dict
 * basic import such as `import foo`, no alias, no `from`, etc
 * indexing with `[]` (no slicing for list).
+* assert statement(useful for testing)
 * interactive mode and file mode
 
 Check out `./tests` to see more examples.
@@ -29,7 +30,6 @@ nim c ./Python/python
 ```
 
 ### Todo
-* assert statement(useful for testing)
 * user defined class
 * try...except
 

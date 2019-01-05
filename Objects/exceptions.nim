@@ -78,7 +78,7 @@ declareErrors
 
 template newProcTmpl(name) = 
   # use template for lazy evaluation to use PyString
-  # theses two template are used internally to indicate errors
+  # theses two templates are used internally to generate errors
   template `new name Error`*: PyBaseErrorObject = 
     let excp = newPyBaseErrorSimple()
     excp.tk = ExceptionToken.`name`

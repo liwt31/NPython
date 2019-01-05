@@ -61,6 +61,7 @@ const magicNames = [
   "__ne__",
   "__gt__",
   "__ge__",
+  "__contains__",
 
   "__len__",
 

@@ -22,6 +22,16 @@ proc newPyList*(items: seq[PyObject]): PyListObject =
   result.items = items
 
 
+implListBinary contains:
+  for idx, item in self.items:
+    let retObj =  item.callMagic(eq, other)
+    if retObj.isThrownException:
+      return retObj
+    if retObj == pyTrueObj:
+      return pyTrueObj
+  return pyFalseObj
+
+
 implListUnary iter: 
   newPySeqIter(self.items)
 
@@ -128,6 +138,7 @@ when not defined(release):
 
 # implListMethod extend:
 # require iterators
+#
 
 implListMethod index(target: PyObject):
   for idx, item in self.items:
@@ -138,6 +149,7 @@ implListMethod index(target: PyObject):
       return newPyInt(idx)
   let msg = fmt"{target} is not in list"
   newValueError(msg)
+
 
 
 implListMethod *insert(idx: PyIntObject, item: PyObject):

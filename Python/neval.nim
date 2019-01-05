@@ -21,8 +21,7 @@ template doUnary(opName: untyped) =
   let top = sTop()
   let res = top.callMagic(opName)
   if res.isThrownException:
-    result = res
-    break
+    return res
   sSetTop res
 
 template doBinary(opName: untyped) =
@@ -30,9 +29,30 @@ template doBinary(opName: untyped) =
   let op1 = sTop()
   let res = op1.callMagic(opName, op2)
   if res.isThrownException:
-    result = res
-    break
+    return res
   sSetTop res
+
+# the same as doBinary, but need to rotate!
+template doBinaryContain: PyObject = 
+  let op1 = sPop()
+  let op2 = sTop()
+  let res = op1.callMagic(contains, op2)
+  if res.isThrownException:
+    return res
+  res
+
+template getBoolFast(obj: PyObject): bool = 
+  var ret: bool
+  if obj.ofPyBoolObject:
+    ret = PyBoolObject(obj).b
+  # if user defined class tried to return non bool, 
+  # the magic method will return an exception
+  let boolObj = top.callMagic(bool)
+  if boolObj.isThrownException:
+    return boolObj
+  else:
+    ret = PyBoolObject(boolObj).b
+  ret
 
 # function call dispatcher
 
@@ -241,6 +261,19 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           doBinary(gt)
         of CmpOp.Ge:
           doBinary(ge)
+        of CmpOp.In:
+          sPush doBinaryContain
+        of CmpOp.NotIn:
+          let obj = doBinaryContain
+          if obj.ofPyBoolObject:
+            sPush obj.callMagic(Not)
+          else:
+            let boolObj = obj.callMagic(bool)
+            if boolObj.isThrownException:
+              return boolObj
+            if not boolObj.ofPyBoolObject:
+              unreachable
+            sPush boolObj.callMagic(Not)
         else:
           unreachable  # should be blocked by ast, compiler
 
@@ -254,14 +287,14 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
       of OpCode.JumpIfFalseOrPop:
         let top = sTop()
-        if top.callMagic(bool) == pyFalseObj:
+        if getBoolFast(top) == false:
           jumpTo(opArg)
         else:
           discard sPop()
 
       of OpCode.JumpIfTrueOrPop:
         let top = sTop()
-        if top.callMagic(bool) == pyTrueObj:
+        if getBoolFast(top) == true:
           jumpTo(opArg)
         else:
           discard sPop()
@@ -271,18 +304,12 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
       of OpCode.PopJumpIfFalse:
         let top = sPop()
-        let boolTop = top.callMagic(bool)
-        if boolTop == pyTrueObj:
-          discard
-        else:
+        if getBoolFast(top) == false:
           jumpTo(opArg)
 
       of OpCode.PopJumpIfTrue:
         let top = sPop()
-        let boolTop = top.callMagic(bool)
-        if boolTop == pyFalseObj:
-          discard
-        else:
+        if getBoolFast(top) == true:
           jumpTo(opArg)
 
       of OpCode.LoadGlobal:

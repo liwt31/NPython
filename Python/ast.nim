@@ -721,6 +721,10 @@ ast comp_op, [AsdlCmpop]:
     result = new AstLtE
   of Token.NotEqual:
     result = new AstNotEq
+  of Token.in:
+    result = new AstIn
+  of Token.not:
+    result = new AstNotIn
   else:
     raiseSyntaxError(fmt"Complex comparison operation {token} not implemented")
 #  
@@ -1002,9 +1006,9 @@ ast dictorsetmaker, [AsdlExpr]:
   let children = parseNode.children
   let d = new AstDict
   for idx in 0..<((children.len+1) div 4):
-    if children.len <= idx + 3:
-      raiseSyntaxError("dict defination too complex (no set, no comprehension)")
     let i = idx * 4
+    if children.len < i + 3:
+      raiseSyntaxError("dict defination too complex (no set, no comprehension)")
     let c1 = children[i]
     if not (c1.tokenNode.token == Token.test):
       raiseSyntaxError("dict defination too complex (no set, no comprehension)")

@@ -65,6 +65,7 @@ type
     ne: BinaryMethod
     gt: BinaryMethod
     ge: BinaryMethod
+    contains: BinaryMethod
 
     len: UnaryMethod
 

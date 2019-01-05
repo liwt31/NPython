@@ -463,10 +463,9 @@ compileMethod UnaryOp:
 
 compileMethod Dict:
   let n = astNode.values.len
-  for key in astNode.keys:
-    c.compile(key)
-  for value in astNode.values:
-    c.compile(value)
+  for i in 0..<astNode.keys.len:
+    c.compile(astNode.values[i])
+    c.compile(astNode.keys[i])
   c.addOp(newArgInstr(OpCode.BuildMap, n))
 
 
@@ -548,6 +547,12 @@ compileMethod Eq:
 
 compileMethod NotEq:
   c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.Ne)))
+
+compileMethod In:
+  c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.In)))
+
+compileMethod NotIn:
+  c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.NotIn)))
 
 compileMethod Arguments:
   unreachable()

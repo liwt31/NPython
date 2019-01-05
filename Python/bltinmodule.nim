@@ -96,7 +96,7 @@ implBltinFunc iter(obj: PyObject), []:
   obj.callMagic(iter)
 
 
-
+bltinDict[newPyString("None")] = pyNone
 bltinDict[newPyString("range")] = pyRangeObjectType
 bltinDict[newPyString("list")] = pyListObjectType
 bltinDict[newPyString("dict")] = pyDictObjectType

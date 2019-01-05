@@ -57,6 +57,26 @@ proc `[]=`*(dict: PyDictObject, key, value: PyObject) =
   dict.table[key] = value
 
 
+template checkHashableTmpl(obj) = 
+  let hashFunc = obj.pyType.magicMethods.hash
+  if hashFunc.isNil:
+    let tpName = obj.pyType.name
+    let msg = "unhashable type: " & tpName
+    return newTypeError(msg)
+
+
+implDictBinary contains:
+  checkHashableTmpl(other)
+  try:
+    result = self.table.getOrDefault(other, nil)
+  except DictError:
+    let msg = "__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
+    return newTypeError(msg)
+  if result.isNil:
+    return pyFalseObj
+  else:
+    return pyTrueObj
+
 implDictUnary repr:
   var ss: seq[string]
   for k, v in self.table.pairs:
@@ -81,14 +101,6 @@ proc newPyDictObject(self: PyObject, args: seq[PyObject]): PyObject {. cdecl .} 
 pyDictObjectType.magicMethods.new = newPyDictObject
   
 
-template checkHashableTmpl(obj) = 
-  let hashFunc = obj.pyType.magicMethods.hash
-  if hashFunc.isNil:
-    let tpName = obj.pyType.name
-    let msg = "unhashable type: " & tpName
-    return newTypeError(msg)
-
-
 implDictBinary getitem:
   checkHashableTmpl(other)
   try:
@@ -103,11 +115,10 @@ implDictBinary getitem:
   let repr = other.pyType.magicMethods.repr(other)
   if repr.isThrownException:
     msg = "exception occured when generating key error msg calling repr"
-  elif not repr.ofPyStrObject:
-    msg = "repr returned non-string when generating key error msg"
   else:
     msg = PyStrObject(repr).str
   return newKeyError(msg)
+
 
 implDictTernary setitem:
   checkHashableTmpl(arg1)
@@ -117,6 +128,7 @@ implDictTernary setitem:
     let msg = "__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
     return newTypeError(msg)
   pyNone
+
 
 # in real python this would return a iterator
 # this function is used internally
