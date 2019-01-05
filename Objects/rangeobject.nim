@@ -3,10 +3,7 @@ import strformat
 import bigints
 
 import pyobject
-import exceptions
-import numobjects
-import boolobject
-import stringobject
+import baseBundle
 
 
 declarePyType Range():
@@ -33,7 +30,8 @@ proc newRange(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} =
       # CPython uses duck typing here, anything behaves like an int
       # can be passed as argument. Too early for NPython to consider
       # this.
-      return newTypeError("range() only support int arguments")
+      let msg = "range() only support int arguments"
+      return newTypeError(msg)
   var start, ending, step: PyIntObject
   case args.len
   of 1:
@@ -49,9 +47,11 @@ proc newRange(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} =
     ending = PyIntObject(args[1])
     step = PyIntObject(args[2])
     if step.v == 0:
-      return newValueError("range() step must not be 0")
+      let msg = "range() step must not be 0"
+      return newValueError(msg)
   else:
-    return newTypeError("range() expected 1-3 arguments")
+    let msg = "range() expected 1-3 arguments"
+    return newTypeError(msg)
   var length: BigInt
   # might need to refine this if duck typing is used
   # range(0, 2, 3): l = 1

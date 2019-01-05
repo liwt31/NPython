@@ -8,8 +8,9 @@
 import strformat
 
 import pyobject
+import noneobject
 
-type ExceptionToken {. pure .} = enum
+type ExceptionToken* {. pure .} = enum
   Base,
   Name,
   NotImplemented,
@@ -21,21 +22,76 @@ type ExceptionToken {. pure .} = enum
   Lock,
   Import,
   UnboundLocal,
-  Key
+  Key,
+  Assertion
 
 
-declarePyType Exception(tpToken):
+declarePyType BaseError(tpToken):
   tk: ExceptionToken
   thrown: bool
-  msg: string
+  msg: PyObject # could be nil
+
+
+type
+  PyExceptionObject* = PyBaseErrorObject
+
+
+proc ofPyExceptionObject*(obj: PyObject): bool = 
+  obj.ofPyBaseErrorObject
+
+
+macro declareErrors: untyped = 
+  result = newStmtList()
+  var tokenStr: string
+  for i in 1..int(ExceptionToken.high):
+    let tokenStr = $ExceptionToken(i)
+
+    let typeNode = nnkStmtList.newTree(
+      nnkCommand.newTree(
+        newIdentNode("declarePyType"),
+        nnkCall.newTree(
+          newIdentNode(tokenStr & "Error"),
+          nnkCall.newTree(
+            newIdentNode("base"),
+            newIdentNode("BaseError")
+          )
+        ),
+        nnkStmtList.newTree(
+          nnkDiscardStmt.newTree(
+            newEmptyNode()
+          )
+        )
+      )
+    )
+
+    result.add(typeNode)
+
+    template addTpTmpl(name) = 
+      `py name ErrorObjectType`.tp = PyTypeToken.BaseError
+
+    result.add(getAst(addTpTmpl(ident(tokenStr))))
+
+
+
+declareErrors
 
 
 template newProcTmpl(name) = 
-  proc `new name Error`*(msg:string, thrown=true): PyExceptionObject {. cdecl .} = 
-    result = newPyExceptionSimple()
-    result.tk = ExceptionToken.`name`
-    result.thrown = thrown
-    result.msg = msg
+  # use template for lazy evaluation to use PyString
+  # theses two template are used internally to indicate errors
+  template `new name Error`*: PyBaseErrorObject = 
+    let excp = newPyBaseErrorSimple()
+    excp.tk = ExceptionToken.`name`
+    excp.thrown = true
+    excp
+
+  template `new name Error`*(msgStr:string): PyBaseErrorObject = 
+    let excp = newPyBaseErrorSimple()
+    excp.tk = ExceptionToken.`name`
+    excp.thrown = true
+    excp.msg = newPyString(msgStr)
+    excp
+
 
 macro genNewProcs: untyped = 
   result = newStmtList()
@@ -48,13 +104,9 @@ macro genNewProcs: untyped =
 genNewProcs
 
 
-proc newStopIterError*(thrown=true): PyExceptionObject {. cdecl .} = 
-  result = newStopIterError("", thrown)
-
-
-proc newAttributeError*(tpName, attrName: string): PyExceptionObject {. cdecl .} = 
-  let msg = fmt"{tpName} has no attribute {attrName}"
-  result = newStopIterError(msg, true)
+template newAttributeError*(tpName, attrName: string): PyExceptionObject = 
+  let msg = tpName & " has no attribute " & attrName
+  newAttributeError(msg)
 
 proc isStopIter*(obj: PyObject): bool = 
   if not obj.ofPyExceptionObject:
@@ -64,12 +116,15 @@ proc isStopIter*(obj: PyObject): bool =
 
 
 method `$`*(e: PyExceptionObject): string = 
-  $e.msg
+  result = "Error: " & $e.tk & " "
+  if not e.msg.isNil:
+    result &= $e.msg
+
 
 
 template isThrownException*(pyObj: PyObject): bool = 
   if pyObj.ofPyExceptionObject:
-    PyExceptionObject(pyObj).thrown
+    cast[PyExceptionObject](pyObj).thrown
   else:
     false
 
@@ -87,15 +142,16 @@ template errorIfNotBool*(pyObj: untyped, methodName: string) =
       return newTypeError(msg)
 
 
-proc checkIterable*(obj: PyObject): PyObject = 
+template checkIterable*(obj: PyObject): PyObject = 
   let iterFunc = obj.pyType.magicMethods.iter
   if iterFunc == nil:
-    return newTypeError(fmt"{obj.pyType.name} object is not iterable")
+    let msg = obj.pyType.name & " object is not iterable"
+    return newTypeError(msg)
   let iterObj = iterFunc(obj)
   if iterObj.pyType.magicMethods.iternext == nil:
-    let msg = fmt"iter() returned non-iterator of type {iterObj.pyType.name}"
+    let msg = fmt"iter() returned non-iterator of type " & iterObj.pyType.name
     return newTypeError(msg)
-  return iterobj
+  iterobj
 
 
 template checkArgNum*(expected: int, name="") = 
@@ -106,3 +162,4 @@ template checkArgNum*(expected: int, name="") =
     else:
       msg = "expected " & $expected & fmt" argument ({args.len} given)"
     return newTypeError(msg)
+

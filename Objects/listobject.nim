@@ -134,7 +134,8 @@ implListMethod index(target: PyObject):
       return retObj
     if retObj == pyTrueObj:
       return newPyInt(idx)
-  newValueError(fmt"{target} is not in list")
+  let msg = fmt"{target} is not in list"
+  newValueError(msg)
 
 
 implListMethod *insert(idx: PyIntObject, item: PyObject):
@@ -153,7 +154,8 @@ implListMethod *insert(idx: PyIntObject, item: PyObject):
 
 implListMethod *pop():
   if self.items.len == 0:
-    return newIndexError("pop from empty list")
+    let msg = "pop from empty list"
+    return newIndexError(msg)
   self.items.pop
 
 implListMethod *remove(target: PyObject):
@@ -184,9 +186,9 @@ proc newList(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} =
         return nextObj
       newList.append(nextObj)
     result = newList
-
   else:
-    return newTypeError(fmt"list expected at most 1 args, got {args.len}")
+    let msg = fmt"list expected at most 1 args, got {args.len}"
+    return newTypeError(msg)
   
 
 pyListObjectType.magicMethods.new = newList

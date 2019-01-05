@@ -44,7 +44,8 @@ proc call*(obj: PyObject, args: seq[PyObject]): PyObject =
   let callFunc = obj.pyType.magicMethods.call
   if callFunc != nil:
     return callFunc(obj, args)
-  newTypeError(fmt"{obj.pyType.name} is not callable")
+  let msg = fmt"{obj.pyType.name} is not callable"
+  newTypeError(msg)
 
 
 proc newPyNimFunc*(fun: BltinFunc, name: PyStrObject): PyNimFuncObject =

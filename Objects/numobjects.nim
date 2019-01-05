@@ -70,7 +70,8 @@ template intBinaryTemplate(op, methodName: untyped, methodNameStr:string) =
     let newFloat = newPyFloat(self)
     result = newFloat.callMagic(methodName, other)
   else:
-    result = newTypeError(methodnameStr & fmt" not supported by int and {other.pyType.name}")
+    let msg = methodnameStr & fmt" not supported by int and {other.pyType.name}"
+    result = newTypeError(msg)
 
 
 implIntBinary add:
@@ -121,7 +122,8 @@ implIntBinary lt:
   elif other.ofPyFloatObject:
     result = other.callMagic(ge, self)
   else:
-    result = newTypeError(fmt"< not supported by int and {other.pyType.name}")
+    let msg = fmt"< not supported by int and {other.pyType.name}"
+    result = newTypeError(msg)
 
 
 implIntBinary eq:
@@ -138,7 +140,8 @@ implIntBinary eq:
     else:
       result = other.callMagic(Not)
   else:
-    result = newTypeError(fmt"== not supported by int and {other.pyType.name}")
+    let msg = fmt"== not supported by int and {other.pyType.name}"
+    result = newTypeError(msg)
 
 
 implIntUnary str:

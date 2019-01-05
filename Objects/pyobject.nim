@@ -25,7 +25,8 @@ template getFun*(obj: PyObject, methodName: untyped):untyped =
   if fun == nil:
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
-    return newTypeError("No " & methodStr & " method for " & objTypeStr & " defined")
+    let msg = "No " & methodStr & " method for " & objTypeStr & " defined"
+    return newTypeError(msg)
   fun
 
 
@@ -310,14 +311,16 @@ macro mutable*(kind, code: untyped): untyped =
   if kind.strVal == "write":
     enterNode = quote do:
       if 0 < self.readNum or self.writeLock:
-        return newLockError("Write failed because object is been read or written.")
+        let msg = "Write failed because object is been read or written."
+        return newLockError(msg)
       self.writeLock = true
     leaveNode = quote do:
         self.writeLock = false
   else:
     enterNode = quote do:
       if self.writeLock:
-        return newLockError("Read failed because object is been written.")
+        let msg = "Read failed because object is been written."
+        return newLockError(msg)
       inc self.readNum
     leaveNode = quote do:
       dec self.readNum
@@ -408,9 +411,15 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   prototype.expectKind(nnkCall)
   fields.expectKind(nnkStmtList)
   var tpToken, mutable, dict, reprLock: bool
+  var baseTypeStr = "PyObject"
   for i in 1..<prototype.len:
-    prototype[i].expectKind(nnkIdent)
-    let property = prototype[i].strVal
+    let option = prototype[i]
+    if option.kind == nnkCall:
+      assert option[0].strVal == "base"
+      baseTypeStr = "Py" & option[1].strVal & "Object"
+      continue
+    option.expectKind(nnkIdent)
+    let property = option.strVal
     if property == "tpToken":
       tpToken = true
     elif property == "mutable":
@@ -467,7 +476,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
         nnkObjectTy.newTree(
           newEmptyNode(),
           nnkOfInherit.newTree(
-            ident("PyObject")
+            ident(baseTypeStr)
           ),
           recList
         )
@@ -476,8 +485,9 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   )
   result.add(decObjNode)
 
-  template initTypeTmpl(name, nameStr, hasTpToken, hasDict) = 
+  template initTypeTmpl(name, nameStr, hasTpToken, hasDict, baseType) = 
     let `py name ObjectType`* {. inject .} = newPyType(nameStr)
+    `py name ObjectType`.base = `py baseType ObjectType`
     when hasDict:
       setDictOffset(name)
       # this isn't quite right... should be a descriptor
@@ -490,7 +500,8 @@ macro declarePyType*(prototype, fields: untyped): untyped =
         obj.pyType.tp == PyTypeToken.`name`
 
     # base constructor that should be used for any custom constructors
-    proc `newPy name Simple`: `Py name Object` {. cdecl .}= 
+    # make it public so that impl file can also use
+    proc `newPy name Simple`*: `Py name Object` {. cdecl .}= 
       # use `result` here seems to be buggy
       let obj = new `Py name Object`
       obj.pyType = `py name ObjectType`
@@ -501,10 +512,12 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       `newPy name Simple`()
     `py name ObjectType`.magicMethods.new = `newPy name Default`
 
+
   result.add(getAst(initTypeTmpl(nameIdent, 
     nameIdent.strVal, 
     newLit(tpToken), 
-    newLit(dict))))
+    newLit(dict),
+    ident(baseTypeStr[2..^7]))))
 
 
   result.add(getAst(methodMacroTmpl(nameIdent, nameIdent.strVal, 

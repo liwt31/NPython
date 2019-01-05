@@ -85,7 +85,8 @@ template checkHashableTmpl(obj) =
   let hashFunc = obj.pyType.magicMethods.hash
   if hashFunc.isNil:
     let tpName = obj.pyType.name
-    return newTypeError(fmt"unhashable type: " & tpName)
+    let msg = "unhashable type: " & tpName
+    return newTypeError(msg)
 
 
 implDictBinary getitem:
@@ -93,7 +94,8 @@ implDictBinary getitem:
   try:
     result = self.table.getOrDefault(other, nil)
   except DictError:
-    return newTypeError("__hash__ method doesn't return an integer or __eq__ method doesn't return a bool")
+    let msg = "__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
+    return newTypeError(msg)
   if not (result.isNil):
     return result
 
@@ -112,7 +114,8 @@ implDictTernary setitem:
   try:
     self.table[arg1] = arg2
   except DictError:
-    return newTypeError("__hash__ method doesn't return an integer or __eq__ method doesn't return a bool")
+    let msg = "__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
+    return newTypeError(msg)
   pyNone
 
 # in real python this would return a iterator

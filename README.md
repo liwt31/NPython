@@ -29,19 +29,21 @@ nim c ./Python/python
 ```
 
 ### Todo
-* import nim module
 * assert statement(useful for testing)
-* default args and kwargs
-* complete object model and more introspections
 * user defined class
-* more exception handlings (with line and col number, stack info)
 * try...except
-* so much more
 
 ### Performance
 Nim is claimed to be as fast as C, and indeed it is. According to some really primitive benchmarks (`spin.py` and `f_spin.py`), although NPython is currently 5x-10x slower than CPython 3.7, it is at least in some cases faster than CPython < 2.4. This is already a huge achievement considering the numerous optimizations out there in the CPython codebase and NPython is focused on quick prototyping and left many rooms for optimization.
 The majority of time spent is on object allocation along with the slow big int library. The object allocation issue is basically impossible to solve
 unless we do GC on our own just like CPython. 
+
+
+### Drawbacks
+NPython currently rely on GC of Nim. Frankly speaking it's not satisfactory. 
+* The GC uses thread-local heap, makes threading impossible (for Python).
+* The GC does not play well with manually managed memory, making certain optimization difficult or impossible.
+* The GC can not be shared between different dynamic libs, which means NPython can not import Nim extension.
 
 
 ### License

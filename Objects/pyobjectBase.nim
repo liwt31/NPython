@@ -7,8 +7,9 @@ import ../Utils/utils
 type
   PyTypeToken* {. pure .} = enum
     NULL,
+    Object,
     None,
-    Exception,
+    BaseError, # exception
     Int,
     Float,
     Bool,
@@ -110,6 +111,7 @@ type
 
   PyTypeObject* = ref object of PyObject
     name*: string
+    base*: PyTypeObject
     # corresponds to `tp_flag` in CPython. Why not use bit operations? I don't know.
     # Both are okay I suppose
     tp*: PyTypeToken
@@ -138,18 +140,23 @@ proc idStr*(obj: PyObject): string {. inline .} =
 
 
 
-
-
-
 var bltinTypes*: seq[PyTypeObject]
 
 
-proc newPyType*(name: string): PyTypeObject =
+proc newPyTypePrivate(name: string):PyTypeObject = 
   new result
   result.name = name.toLowerAscii
   result.bltinMethods = initTable[string, BltinMethod]()
   result.dictOffset = -1
   bltinTypes.add(result)
+
+
+let pyObjectType* = newPyTypePrivate("object")
+
+
+proc newPyType*(name: string): PyTypeObject =
+  result = newPyTypePrivate(name)
+  result.base = pyObjectType
 
 proc getDict*(obj: PyObject): PyObject {. cdecl .} = 
   let tp = obj.pyType
@@ -157,6 +164,3 @@ proc getDict*(obj: PyObject): PyObject {. cdecl .} =
     unreachable("obj has no dict. Use hasDict before getDict")
   let dictPtr = cast[ptr PyObject](cast[int](obj[].addr) + tp.dictOffset)
   dictPtr[]
-
-
-

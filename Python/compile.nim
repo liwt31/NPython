@@ -245,9 +245,7 @@ template compileSeq(c: Compiler, s: untyped) =
   for astNode in s:
     c.compile(astNode)
 
-
-proc addLoadOp(c: Compiler, name: AsdlIdentifier) =
-  let nameStr = name.value
+proc addLoadOp(c: Compiler, nameStr: PyStrObject) = 
   let isLocal = c.tste.hasLocal(nameStr)
 
   var
@@ -269,8 +267,12 @@ proc addLoadOp(c: Compiler, name: AsdlIdentifier) =
   c.addOp(instr)
 
 
-proc addStoreOp(c: Compiler, name: AsdlIdentifier) =
+proc addLoadOp(c: Compiler, name: AsdlIdentifier) =
   let nameStr = name.value
+  addLoadOp(c, nameStr)
+
+
+proc addStoreOp(c: Compiler, nameStr: PyStrObject) = 
   let isLocal = c.tste.hasLocal(nameStr)
 
   var
@@ -289,6 +291,11 @@ proc addStoreOp(c: Compiler, name: AsdlIdentifier) =
 
   let instr = newArgInstr(opCode, opArg)
   c.addOp(instr)
+
+
+proc addStoreOp(c: Compiler, name: AsdlIdentifier) =
+  let nameStr = name.value
+  addStoreOp(c, nameStr)
 
 
 # todo: too many dispachers here! used astNode token to dispatch (if have spare time...)
@@ -388,6 +395,18 @@ compileMethod If:
     c.addOp(newJumpInstr(OpCode.JumpForward, ending))
     c.addBlock(next)
     c.compileSeq(astNode.orelse)
+  c.addBlock(ending)
+
+
+compileMethod Assert:
+  var ending = newBasicBlock()
+  c.compile(astNode.test)
+  c.addOp(newJumpInstr(OpCode.PopJumpIfTrue, ending))
+  c.addLoadOp(newPyString("AssertionError"))
+  if not astNode.msg.isNil:
+    c.compile(astNode.msg)
+    c.addOp(newArgInstr(OpCode.CallFunction, 1))
+  c.addOp(newArgInstr(OpCode.RaiseVarargs, 1))
   c.addBlock(ending)
 
 

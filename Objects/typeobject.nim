@@ -3,7 +3,7 @@ import strformat
 import tables
 
 import pyobject
-import exceptions
+import exceptionsImpl
 import dictobject
 import boolobjectImpl
 import stringobjectImpl
@@ -18,6 +18,7 @@ methodMacroTmpl(Type, "Type")
 
 let pyTypeObjectType = newPyType("type")
 setDictOffset(Type)
+pyTypeObjectType.tp = PyTypeToken.Type
 
 
 implTypeUnary repr:
@@ -113,7 +114,8 @@ proc strDefault(self: PyObject): PyObject {. cdecl .} =
 proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} = 
   if not nameObj.ofPyStrObject:
     let typeStr = nameObj.pyType.name
-    return newTypeError(fmt"attribute name must be string, not {typeStr}")
+    let msg = fmt"attribute name must be string, not {typeStr}"
+    return newTypeError(msg)
   let name = PyStrObject(nameObj)
   let typeDict = self.getTypeDict
   if typeDict == nil:
@@ -174,7 +176,8 @@ proc newInstance*(selfNoCast: PyObject, args: seq[PyObject]):
   PyObject {. castSelf: PyTypeObject, cdecl .} = 
   let newFunc = self.magicMethods.new
   if newFunc == nil:
-    return newTypeError(fmt"cannot create '{self.name}' instances because __new__ is not set")
+    let msg = fmt"cannot create '{self.name}' instances because __new__ is not set"
+    return newTypeError(msg)
   let newObj = self.newFunc(args)
   if newObj.isThrownException:
     return newObj
@@ -186,3 +189,7 @@ proc newInstance*(selfNoCast: PyObject, args: seq[PyObject]):
   return newObj
 
 pyTypeObjectType.magicMethods.call = newInstance
+
+
+proc isClass*(obj: PyObject): bool {. cdecl .} = 
+  obj.pyType.tp == PyTypeToken.Type

@@ -72,16 +72,6 @@ proc builtinPrint*(args: seq[PyObject]): PyObject {. cdecl .} =
   pyNone
 registerBltinFunction("print", builtinPrint)
 
-# this should be in the list constructor
-#[
-proc builtinList*(elms: seq[PyObject]): PyObject = 
-  result = newPyList()
-  for elm in elms:
-    let retObj = result.appendPyListObject(@[elm])
-    if retObj.isThrownException:
-      return retObj
-]#
-
 implBltinFunc dir(obj: PyObject), []:
   # why in CPython 0 argument becomes `locals()`? no idea
   # get mapping proxy first then talk about how do deal with __dict__ of type
@@ -110,3 +100,4 @@ implBltinFunc iter(obj: PyObject), []:
 bltinDict[newPyString("range")] = pyRangeObjectType
 bltinDict[newPyString("list")] = pyListObjectType
 bltinDict[newPyString("dict")] = pyDictObjectType
+bltinDict[newPyString("AssertionError")] = pyAssertionErrorObjectType

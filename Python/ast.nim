@@ -89,7 +89,7 @@ proc astDottedAsNames(parseNode: ParseNode): seq[AstAlias]
 proc astDottedName(parseNode: ParseNode): AstAlias
 proc astGlobalStmt(parseNode: ParseNode): AsdlStmt
 proc astNonlocalStmt(parseNode: ParseNode): AsdlStmt
-proc astAssertStmt(parseNode: ParseNode): AsdlStmt
+proc astAssertStmt(parseNode: ParseNode): AstAssert
 
 proc astCompoundStmt(parseNode: ParseNode): AsdlStmt
 proc astAsyncStmt(parseNode: ParseNode): AsdlStmt
@@ -536,8 +536,12 @@ proc astGlobalStmt(parseNode: ParseNode): AsdlStmt =
 proc astNonlocalStmt(parseNode: ParseNode): AsdlStmt = 
   raiseSyntaxError("nonlocal stmt not implemented")
   
-proc astAssertStmt(parseNode: ParseNode): AsdlStmt = 
-  raiseSyntaxError("assert stmt not implemented")
+# assert_stmt  'assert' test [',' test]
+ast assert_stmt, [AstAssert]:
+  new result
+  result.test = astTest(parseNode.children[1])
+  if parseNode.children.len == 4:
+    result.msg = astTest(parseNode.children[3])
   
 # compound_stmt  if_stmt | while_stmt | for_stmt | try_stmt | with_stmt | funcdef | classdef | decorated | async_stmt
 ast compound_stmt, [AsdlStmt]:

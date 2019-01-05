@@ -195,22 +195,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
       of OpCode.LoadName:
         unreachable("locals() scope not implemented")
-        #[
-        # todo: hash only once when dict is improved
-        let name = f.getName(opArg)
-        var obj: PyObject
-        if f.locals.hasKey(name):
-          obj = f.locals[name]
-        elif f.globals.hasKey(name):
-          obj = f.globals[name]
-        elif f.builtins.hasKey(name):
-          obj = f.builtins[name]
-        else:
-          result = newNameError(name.str)
-          break
-          
-        sPush obj
-        ]#
 
       of OpCode.BuildList:
         # this can be done more elegantly with setItem
@@ -293,6 +277,14 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         else:
           jumpTo(opArg)
 
+      of OpCode.PopJumpIfTrue:
+        let top = sPop()
+        let boolTop = top.callMagic(bool)
+        if boolTop == pyFalseObj:
+          discard
+        else:
+          jumpTo(opArg)
+
       of OpCode.LoadGlobal:
         let name = names[opArg]
         var obj: PyObject
@@ -301,7 +293,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         elif bltinDict.hasKey(name):
           obj = bltinDict[name]
         else:
-          result = newNameError(fmt"name '{name.str}' is not defined")
+          let msg = fmt"name '{name.str}' is not defined" 
+          result = newNameError(msg)
           break
         sPush obj
 
@@ -316,6 +309,24 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
       of OpCode.StoreFast:
         fastLocals[opArg] = sPop()
+
+      of OpCode.RaiseVarargs:
+        if opArg != 1:
+          unreachable("should be blocked by compiler")
+        let obj = sTop()
+        var excp: PyObject
+        if obj.isClass:
+          let newFunc = PyTypeObject(obj).magicMethods.new
+          if newFunc.isNil:
+            unreachable("__new__ of exceptions should be initialized")
+          excp = newFunc(obj, @[])
+        else:
+          excp = obj
+        if not excp.ofPyExceptionObject:
+          unreachable
+        PyExceptionObject(excp).thrown = true
+        return excp
+
 
       of OpCode.CallFunction:
         var args: seq[PyObject]
@@ -360,14 +371,16 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 proc pyImport*(name: PyStrObject): PyObject =
   let filepath = pyConfig.path.joinPath(name.str).addFileExt("py")
   if not filepath.existsFile:
-    return newImportError(fmt"File {filepath} not found")
+    let msg = fmt"File {filepath} not found"
+    return newImportError(msg)
   let input = readFile(filepath)
   var co: PyCodeObject
   try:
     co = compile(input)
   except SyntaxError:
-    let msg = getCurrentExceptionMsg()
-    return newImportError(fmt"Syntax Error: {msg}")
+    let msg1 = getCurrentExceptionMsg()
+    let msg2 = "Syntax Error: " & msg1
+    return newImportError(msg2)
   when defined(debug):
     echo co
   let fun = newPyFunc(name, co, newPyDict())
