@@ -63,7 +63,9 @@ proc localVarsToSeq*(ste: SymTableEntry): seq[PyStrObject] =
 # traverse the ast to collect local vars
 # local vars can be defined in Name List Tuple For Import
 # currently we only have Name, For, Import, so it's pretty simple. 
-# lot's of discard out there
+# lot's of discard out there, because we want to quit early if something
+# goes wrong. In future when the symtable is basically done these codes
+# can probably be deleted
 
 macro visitMethod(astNodeName, funcDef: untyped): untyped =
   result = nnkMethodDef.newTree(
@@ -125,6 +127,10 @@ visitMethod If:
   ste.visitSeq(astNode.body)
   ste.visitSeq(astNode.orelse)
 
+
+visitMethod Assert:
+  discard
+
 visitMethod Import:
   assert astNode.names.len == 1
   ste.addLocalVar(AstAlias(astNode.names[0]).name)
@@ -133,6 +139,12 @@ visitMethod Expr:
   discard
 
 visitMethod Pass:
+  discard
+
+visitMethod Break:
+  discard
+
+visitMethod Continue:
   discard
 
 visitMethod Name:

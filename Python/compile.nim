@@ -1,4 +1,5 @@
 import os
+import algorithm
 import sequtils
 import strutils
 import macros
@@ -24,9 +25,17 @@ type
   JumpInstr = ref object of ArgInstr
     target: BasicBlock
 
+
+  BlockType {. pure .} = enum
+    Misc,
+    While,
+    For
+
+
   # node in CFG, an abstraction layer for convenient byte code offset computation
   BasicBlock = ref object
     instrSeq: seq[Instr]
+    tp: BlockType
     next: BasicBlock
     seenReturn: bool
     offset: int
@@ -43,6 +52,8 @@ type
     units: seq[CompilerUnit]
     interactive: bool
 
+proc `$`*(i: Instr): string = 
+  $i.opCode
 
 # lineNo not implementated
 proc newInstr(opCode: OpCode): Instr =
@@ -63,9 +74,10 @@ proc newJumpInstr(opCode: OpCode, target: BasicBlock): JumpInstr =
   result.opArg = -1           # dummy, set during assemble
   result.target = target
 
-proc newBasicBlock: BasicBlock =
+proc newBasicBlock(tp=BlockType.Misc): BasicBlock =
   result = new BasicBlock
   result.seenReturn = false
+  result.tp = tp
 
 proc newCompilerUnit: CompilerUnit =
   result = new CompilerUnit
@@ -352,8 +364,10 @@ compileMethod AugAssign:
 
 compileMethod For:
   assert astNode.orelse.len == 0
-  let start = newBasicBlock()
+  let start = newBasicBlock(BlockType.For)
   let ending = newBasicBlock()
+  # used in break stmt
+  start.next = ending
   c.compile(astNode.iter)
   c.addOp(OpCode.GetIter)
   c.addBlock(start)
@@ -367,8 +381,10 @@ compileMethod For:
 
 compileMethod While:
   assert astNode.orelse.len == 0
-  let loop = newBasicBlock()
+  let loop = newBasicBlock(BlockType.While)
   let ending = newBasicBlock()
+  # used in break stmt
+  loop.next = ending
   c.addBlock(loop)
   c.compile(astNode.test)
   c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, ending))
@@ -431,6 +447,26 @@ compileMethod Expr:
 
 compileMethod Pass:
   c.addOp(OpCode.NOP)
+
+template findNearestLoop(blockName) = 
+  for basicBlock in c.tcu.blocks.reversed:
+    if basicBlock.tp in {BlockType.For, BlockType.While}:
+      blockName = basicBlock
+      break
+  if blockName.isNil:
+    raiseSyntaxError("'break' outside loop")
+
+
+compileMethod Break:
+  var loopBlock: BasicBlock
+  findNearestLoop(loopBlock)
+  c.addOp(newJumpInstr(OpCode.JumpAbsolute, loopBlock.next))
+
+
+compileMethod Continue:
+  var loopBlock: BasicBlock
+  findNearestLoop(loopBlock)
+  c.addOp(newJumpInstr(OpCode.JumpAbsolute, loopBlock))
 
 
 compileMethod BoolOp:

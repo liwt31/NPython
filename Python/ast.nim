@@ -217,16 +217,7 @@ macro childAst(child, astNode: untyped, tokens: varargs[Token]): untyped =
     
 method setStore(astNode: AstNodeBase) {.base.} = 
   echo astNode
-  unreachable("can't set store")
-
-
-method setStore(astNode: AstConstant) = 
-  raiseSyntaxError("Can't assign to a constant")
-
-
-method setStore(astNode: AstCall) = 
-  raiseSyntaxError("Can't assign to a function")
-
+  raiseSyntaxError("can't assign")
 
 method setStore(astNode: AstName) = 
   astnode.ctx = new AstStore
@@ -463,10 +454,10 @@ ast flow_stmt, [AsdlStmt]:
 
 
 ast break_stmt, [AsdlStmt]:
-  raiseSyntaxError("Break not implemented")
+  new AstBreak
   
 ast continue_stmt, [AsdlStmt]:
-  raiseSyntaxError("Continue not implemented")
+  new AstContinue
 
 # return_stmt: 'return' [testlist]
 ast return_stmt, [AsdlStmt]:
@@ -474,7 +465,7 @@ ast return_stmt, [AsdlStmt]:
   if parseNode.children.len == 0:
     return node
   node.value = astTestList(parseNode.children[1])
-  result = node
+  node
   
 ast yield_stmt, [AsdlStmt]:
   raiseSyntaxError("Yield not implemented")
@@ -1052,14 +1043,13 @@ ast classdef, [AstClassDef]:
   raiseSyntaxError("Class defination not implemented")
   
 # arglist  argument (',' argument)*  [',']
-#proc astArglist(parseNode: ParseNode, callNode: AstCall): AstCall = 
 ast arglist, [AstCall, callNode: AstCall]:
   # currently assume `argument` only has simplest `test`, e.g.
   # print(1,3,4), so we can do this
   for child in parseNode.children: 
     if child.tokenNode.token == Token.argument:
       callNode.args.add(astArgument(child))
-  result = callNode
+  callNode
   
 # argument  ( test [comp_for] | test '=' test | '**' test | '*' test  )
 ast argument, [AsdlExpr]:
@@ -1070,14 +1060,18 @@ ast argument, [AsdlExpr]:
   assert result != nil
   
 
+
 #[
-ast comp_iter:
+#ast comp_iter:
+#  discard
+  
+
+# sync_comp_for: 'for' exprlist 'in' or_test [comp_iter]
+ast sync_comp_for, [AsdlExpr]:
   discard
   
-ast sync_comp_for:
-  discard
-  
-ast comp_for:
+# comp_for: ['async'] sync_comp_for
+ast comp_for, [AsdlExpr]:
   discard
   
 ast comp_if:

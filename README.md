@@ -29,13 +29,13 @@ nim c ./Python/python
 ```
 
 ### Todo
-* list comprehension
-* user defined class
 * raise. try...except
+* list comprehension (complicated, should be able to define function in a function body first)
+* user defined class
 
 ### Performance
-Nim is claimed to be as fast as C, and indeed it is. According to some really primitive benchmarks (`spin.py` and `f_spin.py`), although NPython is currently 5x-10x slower than CPython 3.7, it is at least in some cases faster than CPython < 2.4. This is already a huge achievement considering the numerous optimizations out there in the CPython codebase and NPython is focused on quick prototyping and left many rooms for optimization.
-The majority of time spent is on object allocation along with the slow big int library. The object allocation issue is basically impossible to solve
+Nim is claimed to be as fast as C, and indeed it is. According to some really primitive benchmarks (`spin.py` and `f_spin.py`), although NPython is currently 5x-10x slower than CPython 3.7, it is at least in some cases faster than CPython < 2.4. This is already a huge achievement considering the numerous optimizations out there in the CPython codebase and NPython is focused on quick prototyping and lefts many rooms for optimization.
+Currently, the majority of time spent is on object allocation along with the slow big int library. The object allocation issue is basically impossible to solve
 unless we do GC on our own just like CPython. 
 
 
