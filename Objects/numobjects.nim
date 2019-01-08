@@ -92,7 +92,16 @@ implIntBinary trueDivide:
 
 
 implIntBinary floorDivide:
-  intBinaryTemplate(`div`, floorDivide, "//")
+ if other.ofPyIntObject:
+   let intOther = PyIntObject(other)
+   if intOther.v == 0:
+     return newZeroDivisionError()
+   result = newPyInt(self.v.div PyIntObject(other).v)
+ elif other.ofPyFloatObject:
+   let newFloat = newPyFloat(self)
+   result = newFloat.callMagic(floorDivide, other)
+ else:
+   result = newTypeError(fmt"floor divide not supported by int and {other.pyType.name}")
 
 
 implIntBinary power:
@@ -154,6 +163,34 @@ implIntUnary repr:
 
 implIntUnary hash:
   self
+
+
+proc newPyInt(tp: PyObject, args:seq[PyObject]): PyObject {. cdecl .} = 
+  checkArgNum(1)
+  let arg = args[0]
+  case arg.pyType.tp
+  of PyTypeToken.Int:
+    return arg
+  of PyTypeToken.Float:
+    let iStr = $cast[PyFloatObject](arg).v
+    return newPyInt(iStr.split(".")[0])
+  of PyTypeToken.Str:
+    let str = cast[PyStrObject](arg).str
+    try:
+      return newPyInt(str)
+    except ValueError:
+      let msg = fmt"invalid literal for int() with base 10: '{str}'"
+      return newValueError(msg)
+  of PyTypeToken.Bool:
+    if cast[PyBoolObject](arg).b:
+      return newPyInt(1)
+    else:
+      return newPyInt(0)
+  else:
+    return newTypeError(fmt"Int argument can't be '{arg.pyType.name}'")
+
+pyIntObjectType.magicMethods.new = newPyInt
+  
 
 template castOtherTypeTmpl(methodName) = 
   var casted {. inject .} : PyFloatObject

@@ -23,7 +23,8 @@ type ExceptionToken* {. pure .} = enum
   Import,
   UnboundLocal,
   Key,
-  Assertion
+  Assertion,
+  ZeroDivision
 
 
 declarePyType BaseError(tpToken):
