@@ -127,6 +127,12 @@ visitMethod If:
   ste.visitSeq(astNode.body)
   ste.visitSeq(astNode.orelse)
 
+visitMethod Try:
+  ste.visitSeq(astNode.body)
+  for handler in astNode.handlers:
+    ste.visit(handler)
+  ste.visitSeq(astNode.orelse)
+  ste.visitSeq(astNode.finalbody)
 
 visitMethod Assert:
   discard
@@ -150,6 +156,11 @@ visitMethod Continue:
 visitMethod Name:
   if astNode.ctx of AstStore:
     ste.addLocalVar(astNode.id)
+
+visitMethod ExceptHandler:
+  assert astNode.type.isNil
+  assert astNode.name.isNil
+  ste.visitSeq(astNode.body)
 
 
 proc collectLocalVar*(ste: SymTableEntry, f: AstFunctionDef) = 

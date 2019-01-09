@@ -99,7 +99,8 @@ proc astAsyncStmt(parseNode: ParseNode): AsdlStmt
 proc astIfStmt(parseNode: ParseNode): AstIf
 proc astWhileStmt(parseNode: ParseNode): AstWhile
 proc astForStmt(parseNode: ParseNode): AsdlStmt
-proc astTryStmt(parseNode: ParseNode): AsdlStmt
+proc astTryStmt(parseNode: ParseNode): AstTry
+proc astExceptClause(parseNode: ParseNode): AstExceptHandler
 proc astWithStmt(parseNode: ParseNode): AsdlStmt
 proc astSuite(parseNode: ParseNode): seq[AsdlStmt]
 
@@ -585,9 +586,25 @@ ast for_stmt, [AsdlStmt]:
   forNode.iter = astTestlist(parseNode.children[3])
   forNode.body = astSuite(parseNode.children[5])
   result = forNode
-  
-ast try_stmt, [AsdlStmt]:
-  raiseSyntaxError("try not implemented")
+
+#  try_stmt: ('try' ':' suite
+#           ((except_clause ':' suite)+
+#            ['else' ':' suite]
+#            ['finally' ':' suite] |
+#           'finally' ':' suite))
+ast try_stmt, [AstTry]:
+  new result
+  result.body = astSuite(parseNode.children[2])
+  for i in 1..((parseNode.children.len-1) div 3):
+    if i == 2:
+      raiseSyntaxError("multiple exception clause not implemented")
+    let child1 = parseNode.children[i*3]
+    if not (child1.tokenNode.token == Token.except_clause):
+      raiseSyntaxError("else/finally in try not implemented")
+    let handler = astExceptClause(child1)
+    let child3 = parseNode.children[i*3+2]
+    handler.body = astSuite(child3)
+    result.handlers.add(handler)
   
 
 ast with_stmt, [AsdlStmt]:
@@ -596,11 +613,15 @@ ast with_stmt, [AsdlStmt]:
   #[
 ast with_item:
   discard
-  
-ast except_clause:
-  discard
-  
   ]#
+
+# except_clause: 'except' [test ['as' NAME]]
+ast except_clause, [AstExceptHandler]:
+  new result
+  if not parseNode.children.len == 1:
+    raiseSyntaxError("'except' with conditions not implemented")
+
+  
 
 # suite  simple_stmt | NEWLINE INDENT stmt+ DEDENT
 ast suite, [seq[AsdlStmt]]:

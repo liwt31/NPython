@@ -417,6 +417,31 @@ compileMethod If:
   c.addBlock(ending)
 
 
+compileMethod Try:
+  assert astNode.orelse.len == 0
+  assert astNode.finalbody.len == 0
+  assert astNode.handlers.len == 1
+  # the body here may not be necessary, I'm not sure. Add just in case.
+  let body = newBasicBlock()
+  let excp = newBasicBlock()
+  let ending = newBasicBlock()
+
+  c.addBlock(body)
+  c.addOp(newJumpInstr(OpCode.SetupFinally, excp))
+  c.compileSeq(astNode.body)
+  c.addOp(OpCode.PopBlock)
+  c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending))
+
+  c.addBlock(excp)
+  let handler = AstExcepthandler(astNode.handlers[0])
+  assert handler.type.isNil
+  assert handler.name.isNil
+  c.compileSeq(handler.body)
+  c.addOp(OpCode.PopBlock)
+
+  c.addBlock(ending)
+
+
 compileMethod Assert:
   var ending = newBasicBlock()
   c.compile(astNode.test)

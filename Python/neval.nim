@@ -12,6 +12,7 @@ import bltinmodule
 import ../Objects/bundle
 import ../Utils/utils
 
+
 proc pyImport*(name: PyStrObject): PyObject
 proc newPyFrame*(fun: PyFuncObject, 
                  args: seq[PyObject], 
@@ -108,6 +109,15 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   let names = f.code.names
   var fastLocals = f.fastLocals
 
+
+  # exception handler
+  template handelException(excp: PyObject) = 
+    assert excp.ofPyExceptionObject
+    if not f.hasTryBlock:
+      return excp
+    jumpTo(f.getTryHandler)
+
+
   # the main interpreter loop
   try:
     while true:
@@ -145,8 +155,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         let value = sPop()
         let retObj = obj.callMagic(setitem, idx, value)
         if retObj.isThrownException:
-          result = retObj
-          break
+          handelException(retObj)
 
       of OpCode.BinaryAdd:
         doBinary(add)
@@ -167,8 +176,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         let top = sTop()
         let iterObj = checkIterable(top)
         if iterObj.isThrownException:
-          result = iterObj
-          break
+          handelException(iterObj)
         sSetTop(iterObj)
 
       of OpCode.PrintExpr:
@@ -176,19 +184,17 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         if top.id != pyNone.id:
           let retObj = builtinPrint(@[top])
           if retObj.isThrownException:
-            result = retObj
-            break
+            handelException(retObj)
         
       of OpCode.ReturnValue:
-        result = sPop()
-        break
+        return sPop()
+
+      of OpCode.PopBlock:
+        valStack.setlen f.popTryBlock
+
 
       of OpCode.StoreName:
         unreachable("locals() scope not implemented")
-        #[
-        let name = f.getname(opArg)
-        f.locals[name] = sPop()
-        ]#
 
       of OpCode.ForIter:
         let top = sTop()
@@ -201,8 +207,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           discard sPop()
           jumpTo(opArg)
         elif retObj.isThrownException:
-          result = retObj
-          break
+          handelException(retObj)
         else:
           sPush retObj
 
@@ -239,7 +244,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           let value = sPop()
           let retObj = d.setitemPyDictObject(key, value)
           if retObj.isThrownException:
-            return retObj
+            handelException(retObj)
         sPush d
 
       of OpCode.LoadAttr:
@@ -247,8 +252,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         let obj = sTop()
         let retObj = obj.callMagic(getattr, name)
         if retObj.isThrownException:
-          result = retObj
-          break
+          handelException(retObj)
         else:
           sSetTop retObj
 
@@ -276,7 +280,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           else:
             let boolObj = obj.callMagic(bool)
             if boolObj.isThrownException:
-              return boolObj
+              handelException(boolObj)
             if not boolObj.ofPyBoolObject:
               unreachable
             sPush boolObj.callMagic(Not)
@@ -287,8 +291,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         let name = names[opArg]
         let retObj = pyImport(name)
         if retObj.isThrownException:
-          result = retObj
-          break
+          handelException(retObj)
         sPush retObj
 
       of OpCode.JumpIfFalseOrPop:
@@ -327,17 +330,19 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           obj = bltinDict[name]
         else:
           let msg = fmt"name '{name.str}' is not defined" 
-          result = newNameError(msg)
-          break
+          handelException(newNameError(msg))
         sPush obj
+
+      of OpCode.SetupFinally:
+        f.addTryBlock(opCode, opArg, valStack.len)
 
       of OpCode.LoadFast:
         let obj = fastLocals[opArg]
         if obj.isNil:
           let name = f.code.localVars[opArg]
           let msg = fmt"local variable {name} referenced before assignment"
-          result = newUnboundLocalError(msg)
-          break
+          let excp = newUnboundLocalError(msg)
+          handelException(excp)
         sPush obj
 
       of OpCode.StoreFast:
@@ -358,7 +363,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         if not excp.ofPyExceptionObject:
           unreachable
         PyExceptionObject(excp).thrown = true
-        return excp
+        handelException(excp)
 
 
       of OpCode.CallFunction:
@@ -378,9 +383,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         else:
           retObj = funcObj.call(args)
         if retObj.isThrownException:
-          # should handle here, currently simply throw it again
-          result = retObj
-          break
+          handelException(retObj)
         sPush retObj
 
       of OpCode.MakeFunction:
@@ -403,13 +406,12 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         lower = sTop()
         let slice = newPySlice(lower, upper, step)
         if slice.isThrownException:
-          return slice
+          handelException(slice)
         sSetTop slice
 
       else:
         let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
-        result = newNotImplementedError(msg)
-        break
+        return newNotImplementedError(msg) # no need to handle
   finally:
     cleanUp()
     # currently no cleaning should be done, but in future 
