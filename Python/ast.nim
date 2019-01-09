@@ -8,7 +8,7 @@ import strformat
 
 import asdl
 import ../Parser/[token, parser]
-import ../Objects/[pyobject, numobjects, boolobjectImpl, stringobjectImpl]
+import ../Objects/[pyobject, noneobject, numobjects, boolobjectImpl, stringobjectImpl]
 import ../Utils/utils
 
 
@@ -913,8 +913,11 @@ ast atom, [AsdlExpr]:
   of Token.False:
     result = newAstConstant(pyFalseObj)
 
+  of Token.None:
+    result = newAstConstant(pyNone)
+
   else:
-    raiseSyntaxError("None and ... not implemented")
+    raiseSyntaxError("ellipsis not implemented")
   assert result != nil
   
 

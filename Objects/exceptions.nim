@@ -30,7 +30,8 @@ type ExceptionToken* {. pure .} = enum
 declarePyType BaseError(tpToken):
   tk: ExceptionToken
   thrown: bool
-  msg: PyObject # could be nil
+  msg: PyObject  # could be nil
+  context: PyBaseErrorObject  # if the exception happens during handling another exception
 
 
 type

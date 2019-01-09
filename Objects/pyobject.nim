@@ -15,34 +15,36 @@ import pyobjectBase
 export macros except name
 export pyobjectBase
 
-#include exceptions
 
-template getFun*(obj: PyObject, methodName: untyped):untyped = 
+template getFun*(obj: PyObject, methodName: untyped, handleExcp=false):untyped = 
   if obj.pyType == nil:
     unreachable("Py type not set")
   let fun = obj.pyType.magicMethods.methodName
-  var ret: PyObject
   if fun == nil:
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
     let msg = "No " & methodStr & " method for " & objTypeStr & " defined"
-    return newTypeError(msg)
+    let excp = newTypeError(msg)
+    when handleExcp:
+      handleException(excp)
+    else:
+      return excp
   fun
 
 
 #XXX: `obj` is used twice so it better be a simple identity
 # if it's a function then the function is called twice!
-template callMagic*(obj: PyObject, methodName: untyped): PyObject = 
-  let fun = obj.getFun(methodName)
+template callMagic*(obj: PyObject, methodName: untyped, handleExcp=false): PyObject = 
+  let fun = obj.getFun(methodName, handleExcp)
   fun(obj)
   
-template callMagic*(obj: PyObject, methodName: untyped, arg1: PyObject): PyObject = 
-  let fun = obj.getFun(methodName)
+template callMagic*(obj: PyObject, methodName: untyped, arg1: PyObject, handleExcp=false): PyObject = 
+  let fun = obj.getFun(methodName, handleExcp)
   fun(obj, arg1)
 
 
-template callMagic*(obj: PyObject, methodName: untyped, arg1, arg2: PyObject): PyObject = 
-  let fun = obj.getFun(methodName)
+template callMagic*(obj: PyObject, methodName: untyped, arg1, arg2: PyObject, handleExcp=false): PyObject = 
+  let fun = obj.getFun(methodName, handleExcp)
   fun(obj, arg1, arg2)
 
 proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) = 
@@ -74,7 +76,7 @@ macro castSelf*(ObjectType: untyped, code: untyped): untyped =
 proc genImpl*(methodName, ObjectType, body:NimNode, 
               params: openarray[NimNode],
               pragmas: NimNode): NimNode= 
-  methodName.expectKind(nnkIdent)
+  methodName.expectKind({nnkIdent, nnkSym})
   ObjectType.expectKind(nnkIdent)
   body.expectKind(nnkStmtList)
   pragmas.expectKind(nnkBracket)
@@ -365,7 +367,7 @@ template methodMacroTmpl*(name: untyped, nameStr: string,
 
   macro `impl name Unary`(methodName, pragmas, code:untyped): untyped {. used .} = 
     addMutablePragma(methodName, realMethodName)
-    expectKind(realMethodName, nnkIdent)
+    expectKind(realMethodName, {nnkIdent, nnkSym})
 
     when reprLock:
       pragmas.add(

@@ -437,9 +437,9 @@ compileMethod Try:
   assert handler.type.isNil
   assert handler.name.isNil
   c.compileSeq(handler.body)
-  c.addOp(OpCode.PopBlock)
 
   c.addBlock(ending)
+  c.addOp(OpCode.PopBlock)
 
 
 compileMethod Assert:

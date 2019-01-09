@@ -65,8 +65,7 @@ proc interactiveShell =
     let f = newPyFrame(fun, @[], prevF)
     var retObj = f.evalFrame
     if retObj.isThrownException:
-      let strObj = retObj.pyType.magicMethods.str(retObj)
-      echo PyStrObject(strObj).str
+      echo PyExceptionObject(retObj).excpStrWithContext
     else:
       prevF = f
     rootCst = nil
@@ -84,8 +83,7 @@ proc nPython(args: seq[string]) =
   let input = readFile(pyConfig.filepath)
   var retObj = input.runString
   if retObj.isThrownException:
-    let strObj = retObj.pyType.magicMethods.str(retObj)
-    echo PyStrObject(strObj).str
+    echo PyExceptionObject(retObj).excpStrWithContext
 
 
 when isMainModule:

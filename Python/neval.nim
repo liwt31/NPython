@@ -13,6 +13,20 @@ import ../Objects/bundle
 import ../Utils/utils
 
 
+type
+  TryStatus {. pure .} = enum
+    Try,
+    Except,
+    Else,
+    Finally
+
+  TryBlock = ref object
+    status: TryStatus
+    handler: int
+    sPtr: int
+    context: PyExceptionObject
+    
+
 proc pyImport*(name: PyStrObject): PyObject
 proc newPyFrame*(fun: PyFuncObject, 
                  args: seq[PyObject], 
@@ -20,26 +34,26 @@ proc newPyFrame*(fun: PyFuncObject,
 
 template doUnary(opName: untyped) = 
   let top = sTop()
-  let res = top.callMagic(opName)
+  let res = top.callMagic(opName, handleExcp=true)
   if res.isThrownException:
-    return res
+    handleException(res)
   sSetTop res
 
 template doBinary(opName: untyped) =
   let op2 = sPop()
   let op1 = sTop()
-  let res = op1.callMagic(opName, op2)
+  let res = op1.callMagic(opName, op2, handleExcp=true)
   if res.isThrownException:
-    return res
+    handleException(res)
   sSetTop res
 
 # the same as doBinary, but need to rotate!
 template doBinaryContain: PyObject = 
   let op1 = sPop()
   let op2 = sTop()
-  let res = op1.callMagic(contains, op2)
+  let res = op1.callMagic(contains, op2, handleExcp=true)
   if res.isThrownException:
-    return res
+    handleException(res)
   res
 
 template getBoolFast(obj: PyObject): bool = 
@@ -50,7 +64,7 @@ template getBoolFast(obj: PyObject): bool =
   # the magic method will return an exception
   let boolObj = top.callMagic(bool)
   if boolObj.isThrownException:
-    return boolObj
+    handleException(boolObj)
   else:
     ret = PyBoolObject(boolObj).b
   ret
@@ -73,10 +87,11 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   # instruction helpers
   var opCode: OpCode
   var opArg: int
-  template fetchInstr = 
+  template fetchInstr: (OpCode, int) = 
     inc lastI
     opCode = cast[ptr OpCode](opCodes + lastI * sizeof(OpCode))[]
     opArg = cast[ptr int](opArgs + lastI * sizeof(int))[]
+    (opCode, opArg)
 
   template jumpTo(i: int) = 
     lastI = i - 1
@@ -109,309 +124,369 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   let names = f.code.names
   var fastLocals = f.fastLocals
 
+  # in CPython this is a finite (20, CO_MAXBLOCKS) sized array as a member of 
+  # frameobject. Safety is ensured by the compiler
+  var blockStack: seq[TryBlock]
 
-  # exception handler
-  template handelException(excp: PyObject) = 
-    assert excp.ofPyExceptionObject
-    if not f.hasTryBlock:
-      return excp
-    jumpTo(f.getTryHandler)
+  template hasTryBlock: bool = 
+    0 < blockStack.len
+
+  template getTryHandler: int = 
+    blockStack[^1].handler
+    
+
+  template addTryBlock(opArg, stackPtr: int, cxt:PyExceptionObject=nil) = 
+    blockStack.add(TryBlock(handler:opArg, sPtr:stackPtr, context:cxt))
+
+  template getTopBlock: TryBlock = 
+    blockStack[^1]
+
+  template popTryBlock: int = 
+    let ret = blockStack[^1].sPtr
+    discard blockStack.pop
+    ret
+
+  # todo: make it something goto-like after the mainloop
+  #       better document. Because it's different from CPython
+  template handleException(excp: PyObject) = 
+    excpObj = excp
+    break
+
 
 
   # the main interpreter loop
   try:
+    # exception handler loop
     while true:
-      fetchInstr
-      when defined(debug):
-        echo fmt"{opCode}, {opArg}, {valStack.len}"
-      case opCode
-      of OpCode.PopTop:
-        discard sPop
+      var excpObj: PyObject
+      # normal execution loop
+      while true:
+        {. computedGoto .}
+        excpObj = nil
+        let (opCode, opArg) = fetchInstr
+        when defined(debug):
+          echo fmt"{opCode}, {opArg}, {valStack.len}"
+        case opCode
+        of OpCode.PopTop:
+          discard sPop
 
-      of OpCode.NOP:
-        continue
+        of OpCode.NOP:
+          continue
 
-      of OpCode.UnaryPositive:
-        doUnary(positive)
+        of OpCode.UnaryPositive:
+          doUnary(positive)
 
-      of OpCode.UnaryNegative:
-        doUnary(negative)
+        of OpCode.UnaryNegative:
+          doUnary(negative)
 
-      of OpCode.UnaryNot:
-        doUnary(Not)
+        of OpCode.UnaryNot:
+          doUnary(Not)
 
-      of OpCode.BinaryPower:
-        doBinary(power)
+        of OpCode.BinaryPower:
+          doBinary(power)
 
-      of OpCode.BinaryMultiply:
-        doBinary(multiply)
+        of OpCode.BinaryMultiply:
+          doBinary(multiply)
 
-      of OpCode.BinaryModulo:
-        doBinary(remainder)
+        of OpCode.BinaryModulo:
+          doBinary(remainder)
 
-      of OpCode.StoreSubscr:
-        let idx = sPop()
-        let obj = sPop()
-        let value = sPop()
-        let retObj = obj.callMagic(setitem, idx, value)
-        if retObj.isThrownException:
-          handelException(retObj)
-
-      of OpCode.BinaryAdd:
-        doBinary(add)
-
-      of OpCode.BinarySubtract:
-        doBinary(subtract)
-
-      of OpCode.BinarySubscr:
-        doBinary(getitem)
-
-      of OpCode.BinaryFloorDivide:
-        doBinary(floorDivide)
-
-      of OpCode.BinaryTrueDivide:
-        doBinary(trueDivide)
-
-      of OpCode.GetIter:
-        let top = sTop()
-        let iterObj = checkIterable(top)
-        if iterObj.isThrownException:
-          handelException(iterObj)
-        sSetTop(iterObj)
-
-      of OpCode.PrintExpr:
-        let top = sPop()
-        if top.id != pyNone.id:
-          let retObj = builtinPrint(@[top])
+        of OpCode.StoreSubscr:
+          let idx = sPop()
+          let obj = sPop()
+          let value = sPop()
+          let retObj = obj.callMagic(setitem, idx, value)
           if retObj.isThrownException:
-            handelException(retObj)
-        
-      of OpCode.ReturnValue:
-        return sPop()
+            handleException(retObj)
 
-      of OpCode.PopBlock:
-        valStack.setlen f.popTryBlock
+        of OpCode.BinaryAdd:
+          doBinary(add)
+
+        of OpCode.BinarySubtract:
+          doBinary(subtract)
+
+        of OpCode.BinarySubscr:
+          doBinary(getitem)
+
+        of OpCode.BinaryFloorDivide:
+          doBinary(floorDivide)
+
+        of OpCode.BinaryTrueDivide:
+          doBinary(trueDivide)
+
+        of OpCode.GetIter:
+          let top = sTop()
+          let iterObj = checkIterable(top)
+          if iterObj.isThrownException:
+            handleException(iterObj)
+          sSetTop(iterObj)
+
+        of OpCode.PrintExpr:
+          let top = sPop()
+          if top.id != pyNone.id:
+            # all object should have a repr method is properly initialized in typeobject
+            let reprObj = top.pyType.magicMethods.repr(top)
+            if reprObj.isThrownException:
+              handleException(reprObj)
+
+            let retObj = builtinPrint(@[reprObj])
+            if retObj.isThrownException:
+              handleException(retObj)
+          
+        of OpCode.ReturnValue:
+          return sPop()
+
+        of OpCode.PopBlock:
+          valStack.setlen popTryBlock
 
 
-      of OpCode.StoreName:
-        unreachable("locals() scope not implemented")
+        of OpCode.StoreName:
+          unreachable("locals() scope not implemented")
 
-      of OpCode.ForIter:
-        let top = sTop()
-        let nextFunc = top.pyType.magicMethods.iternext
-        if nextFunc.isNil:
-          echo top.pyType.name
-          unreachable
-        let retObj = nextFunc(top)
-        if retObj.isStopIter:
-          discard sPop()
-          jumpTo(opArg)
-        elif retObj.isThrownException:
-          handelException(retObj)
-        else:
+        of OpCode.ForIter:
+          let top = sTop()
+          let nextFunc = top.pyType.magicMethods.iternext
+          if nextFunc.isNil:
+            echo top.pyType.name
+            unreachable
+          let retObj = nextFunc(top)
+          if retObj.isStopIter:
+            discard sPop()
+            jumpTo(opArg)
+          elif retObj.isThrownException:
+            handleException(retObj)
+          else:
+            sPush retObj
+
+        of OpCode.StoreGlobal:
+          let name = names[opArg]
+          f.globals[name] = sPop()
+
+        of OpCode.LoadConst:
+          sPush(constants[opArg])
+
+        of OpCode.LoadName:
+          unreachable("locals() scope not implemented")
+
+
+        of OpCode.BuildTuple:
+          var args = newSeq[PyObject](opArg)
+          for i in 1..opArg:
+            args[^i] = sPop()
+          let newTuple = newPyTuple(args)
+          sPush newTuple
+
+        of OpCode.BuildList:
+          # this can be done more elegantly with setItem
+          var args = newSeq[PyObject](opArg)
+          for i in 1..opArg:
+            args[^i] = sPop()
+          let newList = newPyList(args)
+          sPush newList 
+
+        of OpCode.BuildMap:
+          let d = newPyDict()
+          for i in 0..<opArg:
+            let key = sPop()
+            let value = sPop()
+            let retObj = d.setitemPyDictObject(key, value)
+            if retObj.isThrownException:
+              handleException(retObj)
+          sPush d
+
+        of OpCode.LoadAttr:
+          let name = names[opArg]
+          let obj = sTop()
+          let retObj = obj.callMagic(getattr, name)
+          if retObj.isThrownException:
+            handleException(retObj)
+          else:
+            sSetTop retObj
+
+        of OpCode.CompareOp:
+          let cmpOp = CmpOp(opArg)
+          case cmpOp
+          of CmpOp.Lt:
+            doBinary(lt)
+          of CmpOp.Le:
+            doBinary(le)
+          of CmpOp.Eq:
+            doBinary(eq)
+          of CmpOp.Ne:
+            doBinary(ne)
+          of CmpOp.Gt:
+            doBinary(gt)
+          of CmpOp.Ge:
+            doBinary(ge)
+          of CmpOp.In:
+            sPush doBinaryContain
+          of CmpOp.NotIn:
+            let obj = doBinaryContain
+            if obj.ofPyBoolObject:
+              sPush obj.callMagic(Not)
+            else:
+              let boolObj = obj.callMagic(bool)
+              if boolObj.isThrownException:
+                handleException(boolObj)
+              if not boolObj.ofPyBoolObject:
+                unreachable
+              sPush boolObj.callMagic(Not)
+          else:
+            unreachable  # should be blocked by ast, compiler
+
+        of OpCode.ImportName:
+          let name = names[opArg]
+          let retObj = pyImport(name)
+          if retObj.isThrownException:
+            handleException(retObj)
           sPush retObj
 
-      of OpCode.StoreGlobal:
-        let name = names[opArg]
-        f.globals[name] = sPop()
-
-      of OpCode.LoadConst:
-        sPush(constants[opArg])
-
-      of OpCode.LoadName:
-        unreachable("locals() scope not implemented")
-
-
-      of OpCode.BuildTuple:
-        var args = newSeq[PyObject](opArg)
-        for i in 1..opArg:
-          args[^i] = sPop()
-        let newTuple = newPyTuple(args)
-        sPush newTuple
-
-      of OpCode.BuildList:
-        # this can be done more elegantly with setItem
-        var args = newSeq[PyObject](opArg)
-        for i in 1..opArg:
-          args[^i] = sPop()
-        let newList = newPyList(args)
-        sPush newList 
-
-      of OpCode.BuildMap:
-        let d = newPyDict()
-        for i in 0..<opArg:
-          let key = sPop()
-          let value = sPop()
-          let retObj = d.setitemPyDictObject(key, value)
-          if retObj.isThrownException:
-            handelException(retObj)
-        sPush d
-
-      of OpCode.LoadAttr:
-        let name = names[opArg]
-        let obj = sTop()
-        let retObj = obj.callMagic(getattr, name)
-        if retObj.isThrownException:
-          handelException(retObj)
-        else:
-          sSetTop retObj
-
-      of OpCode.CompareOp:
-        let cmpOp = CmpOp(opArg)
-        case cmpOp
-        of CmpOp.Lt:
-          doBinary(lt)
-        of CmpOp.Le:
-          doBinary(le)
-        of CmpOp.Eq:
-          doBinary(eq)
-        of CmpOp.Ne:
-          doBinary(ne)
-        of CmpOp.Gt:
-          doBinary(gt)
-        of CmpOp.Ge:
-          doBinary(ge)
-        of CmpOp.In:
-          sPush doBinaryContain
-        of CmpOp.NotIn:
-          let obj = doBinaryContain
-          if obj.ofPyBoolObject:
-            sPush obj.callMagic(Not)
+        of OpCode.JumpIfFalseOrPop:
+          let top = sTop()
+          if getBoolFast(top) == false:
+            jumpTo(opArg)
           else:
-            let boolObj = obj.callMagic(bool)
-            if boolObj.isThrownException:
-              handelException(boolObj)
-            if not boolObj.ofPyBoolObject:
-              unreachable
-            sPush boolObj.callMagic(Not)
-        else:
-          unreachable  # should be blocked by ast, compiler
+            discard sPop()
 
-      of OpCode.ImportName:
-        let name = names[opArg]
-        let retObj = pyImport(name)
-        if retObj.isThrownException:
-          handelException(retObj)
-        sPush retObj
+        of OpCode.JumpIfTrueOrPop:
+          let top = sTop()
+          if getBoolFast(top) == true:
+            jumpTo(opArg)
+          else:
+            discard sPop()
 
-      of OpCode.JumpIfFalseOrPop:
-        let top = sTop()
-        if getBoolFast(top) == false:
-          jumpTo(opArg)
-        else:
-          discard sPop()
-
-      of OpCode.JumpIfTrueOrPop:
-        let top = sTop()
-        if getBoolFast(top) == true:
-          jumpTo(opArg)
-        else:
-          discard sPop()
-
-      of OpCode.JumpForward, OpCode.JumpAbsolute:
-        jumpTo(opArg)
-
-      of OpCode.PopJumpIfFalse:
-        let top = sPop()
-        if getBoolFast(top) == false:
+        of OpCode.JumpForward, OpCode.JumpAbsolute:
           jumpTo(opArg)
 
-      of OpCode.PopJumpIfTrue:
-        let top = sPop()
-        if getBoolFast(top) == true:
-          jumpTo(opArg)
+        of OpCode.PopJumpIfFalse:
+          let top = sPop()
+          if getBoolFast(top) == false:
+            jumpTo(opArg)
 
-      of OpCode.LoadGlobal:
-        let name = names[opArg]
-        var obj: PyObject
-        if f.globals.hasKey(name):
-          obj = f.globals[name]
-        elif bltinDict.hasKey(name):
-          obj = bltinDict[name]
+        of OpCode.PopJumpIfTrue:
+          let top = sPop()
+          if getBoolFast(top) == true:
+            jumpTo(opArg)
+
+        of OpCode.LoadGlobal:
+          let name = names[opArg]
+          var obj: PyObject
+          if f.globals.hasKey(name):
+            obj = f.globals[name]
+          elif bltinDict.hasKey(name):
+            obj = bltinDict[name]
+          else:
+            let msg = fmt"name '{name.str}' is not defined" 
+            handleException(newNameError(msg))
+          sPush obj
+
+        of OpCode.SetupFinally:
+          if hasTryBlock():
+            addTryBlock(opArg, valStack.len, getTopBlock().context)
+          else:
+            addTryBlock(opArg, valStack.len, nil)
+
+
+        of OpCode.LoadFast:
+          let obj = fastLocals[opArg]
+          if obj.isNil:
+            let name = f.code.localVars[opArg]
+            let msg = fmt"local variable {name} referenced before assignment"
+            let excp = newUnboundLocalError(msg)
+            handleException(excp)
+          sPush obj
+
+        of OpCode.StoreFast:
+          fastLocals[opArg] = sPop()
+
+        of OpCode.RaiseVarargs:
+          if opArg != 1:
+            unreachable("should be blocked by compiler")
+          let obj = sTop()
+          var excp: PyObject
+          if obj.isClass:
+            let newFunc = PyTypeObject(obj).magicMethods.new
+            if newFunc.isNil:
+              unreachable("__new__ of exceptions should be initialized")
+            excp = newFunc(obj, @[])
+          else:
+            excp = obj
+          if not excp.ofPyExceptionObject:
+            unreachable
+          PyExceptionObject(excp).thrown = true
+          handleException(excp)
+
+
+        of OpCode.CallFunction:
+          var args: seq[PyObject]
+          for i in 0..<opArg:
+            args.add sPop()
+          args = args.reversed
+          let funcObj = sPop()
+          var retObj: PyObject
+          # runtime function, evaluate recursively
+          if funcObj.ofPyFuncObject:
+            let newF = newPyFrame(PyFuncObject(funcObj), args, f)
+            retObj = newF.evalFrame
+          # else use dispatcher defined in methodobject.nim
+          # todo: should first dispatch Nim level function (same as CPython). 
+          # this is of low priority because profit is unknown
+          else:
+            retObj = funcObj.call(args)
+          if retObj.isThrownException:
+            handleException(retObj)
+          sPush retObj
+
+        of OpCode.MakeFunction:
+          # other kinds not implemented
+          assert opArg == 0
+          let name = sPop()
+          assert name.ofPyStrObject
+          let code = sPop()
+          assert code.ofPyCodeObject
+          sPush newPyFunc(PyStrObject(name), PyCodeObject(code), f.globals)
+
+        of OpCode.BuildSlice:
+          var lower, upper, step: PyObject
+          if opArg == 3:
+            step = sPop()
+          else:
+            assert opArg == 2
+            step = pyNone
+          upper = sPop()
+          lower = sTop()
+          let slice = newPySlice(lower, upper, step)
+          if slice.isThrownException:
+            handleException(slice)
+          sSetTop slice
+
         else:
-          let msg = fmt"name '{name.str}' is not defined" 
-          handelException(newNameError(msg))
-        sPush obj
+          let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
+          return newNotImplementedError(msg) # no need to handle
 
-      of OpCode.SetupFinally:
-        f.addTryBlock(opCode, opArg, valStack.len)
-
-      of OpCode.LoadFast:
-        let obj = fastLocals[opArg]
-        if obj.isNil:
-          let name = f.code.localVars[opArg]
-          let msg = fmt"local variable {name} referenced before assignment"
-          let excp = newUnboundLocalError(msg)
-          handelException(excp)
-        sPush obj
-
-      of OpCode.StoreFast:
-        fastLocals[opArg] = sPop()
-
-      of OpCode.RaiseVarargs:
-        if opArg != 1:
-          unreachable("should be blocked by compiler")
-        let obj = sTop()
-        var excp: PyObject
-        if obj.isClass:
-          let newFunc = PyTypeObject(obj).magicMethods.new
-          if newFunc.isNil:
-            unreachable("__new__ of exceptions should be initialized")
-          excp = newFunc(obj, @[])
-        else:
-          excp = obj
-        if not excp.ofPyExceptionObject:
-          unreachable
-        PyExceptionObject(excp).thrown = true
-        handelException(excp)
-
-
-      of OpCode.CallFunction:
-        var args: seq[PyObject]
-        for i in 0..<opArg:
-          args.add sPop()
-        args = args.reversed
-        let funcObj = sPop()
-        var retObj: PyObject
-        # runtime function, evaluate recursively
-        if funcObj.ofPyFuncObject:
-          let newF = newPyFrame(PyFuncObject(funcObj), args, f)
-          retObj = newF.evalFrame
-        # else use dispatcher defined in methodobject.nim
-        # todo: should first dispatch Nim level function (same as CPython). 
-        # this is of low priority because profit is unknown
-        else:
-          retObj = funcObj.call(args)
-        if retObj.isThrownException:
-          handelException(retObj)
-        sPush retObj
-
-      of OpCode.MakeFunction:
-        # other kinds not implemented
-        assert opArg == 0
-        let name = sPop()
-        assert name.ofPyStrObject
-        let code = sPop()
-        assert code.ofPyCodeObject
-        sPush newPyFunc(PyStrObject(name), PyCodeObject(code), f.globals)
-
-      of OpCode.BuildSlice:
-        var lower, upper, step: PyObject
-        if opArg == 3:
-          step = sPop()
-        else:
-          assert opArg == 2
-          step = pyNone
-        upper = sPop()
-        lower = sTop()
-        let slice = newPySlice(lower, upper, step)
-        if slice.isThrownException:
-          handelException(slice)
-        sSetTop slice
-
-      else:
-        let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
-        return newNotImplementedError(msg) # no need to handle
+      # exception handler
+      block exceptionHandler:
+        assert (not excpObj.isNil)
+        assert excpObj.ofPyExceptionObject
+        let excp = PyExceptionObject(excpObj)
+        while hasTryBlock():
+          let topBlock = getTopBlock()
+          case topBlock.status
+          of TryStatus.Try: # error occured in `try` suite
+            excp.context = topBlock.context
+            topBlock.context = excp
+            jumpTo(topBlock.handler)
+            topBlock.status = TryStatus.Except
+            valStack.setlen topBlock.sPtr
+            break exceptionHandler # continue normal execution
+          of TryStatus.Except: # error occured in `except` suite
+            if excp.context.isNil: # raised without nesting try/except
+              excp.context = topBlock.context 
+            # else with nesting try/except, the context has already been set properly
+            valStack.setlen popTryBlock() # try to find a handler along the stack
+          else:
+            unreachable
+        return excp
   finally:
     cleanUp()
     # currently no cleaning should be done, but in future 

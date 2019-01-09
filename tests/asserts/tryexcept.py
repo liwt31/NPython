@@ -5,7 +5,20 @@ def main():
         pass
 
 
+def nested():
+    try:
+        a
+    except:
+        try:
+            b
+        except:
+            c
+
+
 main()
+
+
+nested()
 
 
 print("ok")

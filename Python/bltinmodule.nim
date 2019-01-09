@@ -8,7 +8,14 @@ let bltinDict* = newPyDict()
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
   let nameStr = newPyString(name)
+  assert (not bltinDict.hasKey(nameStr))
   bltinDict[nameStr] = newPyNimFunc(fun, nameStr)
+
+
+proc registerBltinObject(name: string, obj: PyObject) = 
+  let nameStr = newPyString(name)
+  assert (not bltinDict.hasKey(nameStr))
+  bltinDict[nameStr] = obj
 
 
 macro implBltinFunc(prototype, pragmas, body: untyped): untyped = 
@@ -96,9 +103,9 @@ implBltinFunc iter(obj: PyObject), []:
   obj.callMagic(iter)
 
 
-bltinDict[newPyString("None")] = pyNone
-bltinDict[newPyString("range")] = pyRangeObjectType
-bltinDict[newPyString("list")] = pyListObjectType
-bltinDict[newPyString("dict")] = pyDictObjectType
-bltinDict[newPyString("int")] = pyIntObjectType
-bltinDict[newPyString("AssertionError")] = pyAssertionErrorObjectType
+registerBltinObject("None", pyNone)
+registerBltinObject("range", pyRangeObjectType)
+registerBltinObject("list", pyListObjectType)
+registerBltinObject("dict", pyDictObjectType)
+registerBltinObject("int", pyIntObjectType)
+registerBltinObject("AssertionError", pyAssertionErrorObjectType)

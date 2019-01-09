@@ -1,3 +1,6 @@
+import strutils
+import algorithm
+
 import pyobject
 import baseBundle
 import tupleobject
@@ -18,7 +21,8 @@ genMethodMacros
 
 template newMagicTmpl(excpName: untyped, excpNameStr: string) = 
 
-  `impl excpName ErrorUnary` str:
+  `impl excpName ErrorUnary` repr:
+    # must return pyStringObject, used when formatting traceback
     var msg: string
     if self.msg.isNil:
       msg = "" # could be improved
@@ -53,6 +57,16 @@ macro genNewMagic: untyped =
 
 genNewMagic()
 
+
+proc excpStrWithContext*(excp: PyExceptionObject):string = 
+  var cur = excp
+  var excpStrs: seq[string]
+  while not cur.isNil:
+    excpStrs.add PyStrObject(reprPyBaseErrorObject(cur)).str
+    cur = cur.context
+  let joinMsg = "\nDuring handling of the above exception, another exception occured\n"
+  excpStrs.reversed.join(joinMsg)
+  
 
 when isMainModule:
   let excp = pyNameErrorObjectType.magicMethods.new(pyNameErrorObjectType, @[])
