@@ -420,30 +420,40 @@ compileMethod If:
 compileMethod Try:
   assert astNode.orelse.len == 0
   assert astNode.finalbody.len == 0
-  assert astNode.handlers.len == 1
+  assert 0 < astNode.handlers.len
   # the body here may not be necessary, I'm not sure. Add just in case.
   let body = newBasicBlock()
-  let excp = newBasicBlock()
+  var excpBlocks: seq[BasicBlock]
+  for i in 0..<astNode.handlers.len:
+    excpBlocks.add newBasicBlock()
   let ending = newBasicBlock()
 
   c.addBlock(body)
-  c.addOp(newJumpInstr(OpCode.SetupFinally, excp))
+  c.addOp(newJumpInstr(OpCode.SetupFinally, excpBlocks[0]))
   c.compileSeq(astNode.body)
   c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending))
 
-  c.addBlock(excp)
-  let handler = AstExcepthandler(astNode.handlers[0])
-  if not handler.type.isNil:
-    # In CPython duptop is required, here we don't need that, because in each
-    # exception match comparison we don't pop the exception, allowing further comparison
-    # c.addop(OpCode.DupTop) 
-    c.compile(handler.type)
-    c.addop(newArgInstr(OpCode.CompareOp, int(CmpOp.ExcpMatch)))
-    c.addop(newJumpInstr(OpCode.PopJumpIfFalse, ending))
-  # now we are handling the exception, no need for future comparison
-  c.addop(OpCode.PopTop)
-  assert handler.name.isNil
-  c.compileSeq(handler.body)
+  for idx, handlerObj in astNode.handlers:
+    let isLast = idx == astNode.handlers.len-1
+
+    let handler = AstExcepthandler(handlerObj)
+    assert handler.name.isNil
+    c.addBlock(excpBlocks[idx])
+    if not handler.type.isNil:
+      # In CPython duptop is required, here we don't need that, because in each
+      # exception match comparison we don't pop the exception, allowing further comparison
+      # c.addop(OpCode.DupTop) 
+      c.compile(handler.type)
+      c.addop(newArgInstr(OpCode.CompareOp, int(CmpOp.ExcpMatch)))
+      if isLast:
+        c.addop(newJumpInstr(OpCode.PopJumpIfFalse, ending))
+      else:
+        c.addop(newJumpInstr(OpCode.PopJumpIfFalse, excpBlocks[idx+1]))
+    # now we are handling the exception, no need for future comparison
+    c.addop(OpCode.PopTop)
+    c.compileSeq(handler.body)
+    if not isLast:
+      c.addop(newJumpInstr(OpCode.JumpAbsolute, ending))
 
   c.addBlock(ending)
   c.addOp(OpCode.PopBlock)

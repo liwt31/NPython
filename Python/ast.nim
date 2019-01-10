@@ -596,8 +596,6 @@ ast try_stmt, [AstTry]:
   new result
   result.body = astSuite(parseNode.children[2])
   for i in 1..((parseNode.children.len-1) div 3):
-    if i == 2:
-      raiseSyntaxError("multiple exception clause not implemented")
     let child1 = parseNode.children[i*3]
     if not (child1.tokenNode.token == Token.except_clause):
       raiseSyntaxError("else/finally in try not implemented")
