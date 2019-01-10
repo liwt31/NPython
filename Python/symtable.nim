@@ -158,9 +158,10 @@ visitMethod Name:
     ste.addLocalVar(astNode.id)
 
 visitMethod ExceptHandler:
-  assert astNode.type.isNil
   assert astNode.name.isNil
   ste.visitSeq(astNode.body)
+  if not astNode.type.isNil:
+    ste.visit(astNode.type)
 
 
 proc collectLocalVar*(ste: SymTableEntry, f: AstFunctionDef) = 

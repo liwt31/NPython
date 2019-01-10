@@ -68,6 +68,21 @@ proc excpStrWithContext*(excp: PyExceptionObject):string =
   excpStrs.reversed.join(joinMsg)
   
 
+proc matchExcp*(target: PyTypeObject, current: PyExceptionObject): PyBoolObject = 
+  var tp = current.pyType
+  while tp != nil:
+    if tp == target:
+      return pyTrueObj
+    tp = tp.base
+  pyFalseObj
+
+
+proc isExceptionType*(obj: PyObject): bool = 
+  if not (obj.pyType.tp == PyTypeToken.Type):
+    return false
+  let objType = PyTypeObject(obj)
+  objType.tp == PyTypeToken.BaseError
+
 when isMainModule:
   let excp = pyNameErrorObjectType.magicMethods.new(pyNameErrorObjectType, @[])
   echo PyNameErrorObject(excp).tk

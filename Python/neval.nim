@@ -14,6 +14,9 @@ import ../Utils/utils
 
 
 type
+  # the exception model is different from CPython. todo: Need more documentation
+  # when the model is finished
+  # States of the tryblock
   TryStatus {. pure .} = enum
     Try,
     Except,
@@ -115,6 +118,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   template sPush(obj: PyObject) = 
     valStack.add obj
 
+  template sEmpty: bool = 
+    valStack.len == 0
+
   template cleanUp = 
     dealloc(cast[ptr OpCode](opCodes))
     dealloc(cast[ptr int](opArgs))
@@ -146,13 +152,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     discard blockStack.pop
     ret
 
-  # todo: make it something goto-like after the mainloop
-  #       better document. Because it's different from CPython
   template handleException(excp: PyObject) = 
     excpObj = excp
     break
-
-
 
   # the main interpreter loop
   try:
@@ -169,6 +171,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         case opCode
         of OpCode.PopTop:
           discard sPop
+
+        of OpCode.DupTop:
+          sPush sTop()
 
         of OpCode.NOP:
           continue
@@ -237,7 +242,15 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           return sPop()
 
         of OpCode.PopBlock:
-          valStack.setlen popTryBlock
+          if sEmpty:
+            # no need to reset stack because it's already empty
+            discard popTryBlock
+          else:
+            let top = sTop()
+            valStack.setlen popTryBlock
+            # previous `except` clause failed to handle the exception
+            if top.isThrownException:
+              handleException(top)
 
 
         of OpCode.StoreName:
@@ -331,6 +344,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               if not boolObj.ofPyBoolObject:
                 unreachable
               sPush boolObj.callMagic(Not)
+          of CmpOp.ExcpMatch:
+            let targetExcp = sPop()
+            if not targetExcp.isExceptionType:
+              let msg = "TypeError: catching classes that do not inherit from BaseException is not allowed"
+              handleException(newTypeError(msg))
+            let currentExcp = PyExceptionObject(sTop())
+            sPush matchExcp(PyTypeObject(targetExcp), currentExcp)
           else:
             unreachable  # should be blocked by ast, compiler
 
@@ -402,7 +422,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         of OpCode.RaiseVarargs:
           if opArg != 1:
             unreachable("should be blocked by compiler")
-          let obj = sTop()
+          let obj = sPop()
           var excp: PyObject
           if obj.isClass:
             let newFunc = PyTypeObject(obj).magicMethods.new
@@ -464,7 +484,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
           return newNotImplementedError(msg) # no need to handle
 
-      # exception handler
+      # exception handler, return exception or re-enter the loop with new instruction index
       block exceptionHandler:
         assert (not excpObj.isNil)
         assert excpObj.ofPyExceptionObject
@@ -475,9 +495,12 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           of TryStatus.Try: # error occured in `try` suite
             excp.context = topBlock.context
             topBlock.context = excp
-            jumpTo(topBlock.handler)
             topBlock.status = TryStatus.Except
             valStack.setlen topBlock.sPtr
+            sPush excp # for comparison in `except` clause
+            jumpTo(topBlock.handler)
+            when defined(debug):
+              echo fmt"handling exception, jump to {topBlock.handler}"
             break exceptionHandler # continue normal execution
           of TryStatus.Except: # error occured in `except` suite
             if excp.context.isNil: # raised without nesting try/except

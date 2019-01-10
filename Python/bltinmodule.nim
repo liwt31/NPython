@@ -1,4 +1,5 @@
 import macros
+import strformat
 
 import ../Objects/bundle
 import ../Utils/utils
@@ -108,4 +109,15 @@ registerBltinObject("range", pyRangeObjectType)
 registerBltinObject("list", pyListObjectType)
 registerBltinObject("dict", pyDictObjectType)
 registerBltinObject("int", pyIntObjectType)
-registerBltinObject("AssertionError", pyAssertionErrorObjectType)
+
+macro registerErrors: untyped = 
+  result = newStmtList()
+  template registerTmpl(name:string, tp:PyTypeObject) = 
+    registerBltinObject(name, tp)
+  for i in 1..int(ExceptionToken.high):
+    let tokenStr = $ExceptionToken(i)
+    let excpName = tokenStr & "Error"
+    let typeName = fmt"py{tokenStr}ErrorObjectType"
+    result.add getAst(registerTmpl(excpName, ident(typeName)))
+
+registerErrors

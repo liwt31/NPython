@@ -28,10 +28,10 @@ macro genOpCode(code: untyped): untyped =
     newConstStmt(
       nnkPostFix.newTree(
         ident("*"),
-        ident("OpCodeIndex")
-    ),
-      constBrackets
-  )
+        ident("OpCodeIndex"),
+      ),
+      constBrackets,
+    )
   )
 
 
@@ -163,7 +163,7 @@ genOpCode:
   )
 
 type CmpOp* {.pure.} = enum
-  Lt, Le, Eq, Ne, Gt, Ge, In, NotIn, Is, IsNot
+  Lt, Le, Eq, Ne, Gt, Ge, In, NotIn, Is, IsNot, ExcpMatch
 
 proc hasArg*(opCode: OpCode): bool =
   OpCode.HaveArgument < opCode

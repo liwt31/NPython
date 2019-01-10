@@ -88,7 +88,7 @@ template newProcTmpl(name) =
     excp
 
   template `new name Error`*(msgStr:string): PyBaseErrorObject = 
-    let excp = newPyBaseErrorSimple()
+    let excp = `newPy name ErrorSimple`()
     excp.tk = ExceptionToken.`name`
     excp.thrown = true
     excp.msg = newPyString(msgStr)

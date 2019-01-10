@@ -429,12 +429,19 @@ compileMethod Try:
   c.addBlock(body)
   c.addOp(newJumpInstr(OpCode.SetupFinally, excp))
   c.compileSeq(astNode.body)
-  c.addOp(OpCode.PopBlock)
   c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending))
 
   c.addBlock(excp)
   let handler = AstExcepthandler(astNode.handlers[0])
-  assert handler.type.isNil
+  if not handler.type.isNil:
+    # In CPython duptop is required, here we don't need that, because in each
+    # exception match comparison we don't pop the exception, allowing further comparison
+    # c.addop(OpCode.DupTop) 
+    c.compile(handler.type)
+    c.addop(newArgInstr(OpCode.CompareOp, int(CmpOp.ExcpMatch)))
+    c.addop(newJumpInstr(OpCode.PopJumpIfFalse, ending))
+  # now we are handling the exception, no need for future comparison
+  c.addop(OpCode.PopTop)
   assert handler.name.isNil
   c.compileSeq(handler.body)
 

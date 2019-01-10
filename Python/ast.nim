@@ -618,8 +618,14 @@ ast with_item:
 # except_clause: 'except' [test ['as' NAME]]
 ast except_clause, [AstExceptHandler]:
   new result
-  if not parseNode.children.len == 1:
-    raiseSyntaxError("'except' with conditions not implemented")
+  case parseNode.children.len
+  of 1:
+    return
+  of 2:
+    result.type = astTest(parseNode.children[1])
+  else:
+    raiseSyntaxError("'except' with name not implemented")
+  
 
   
 
