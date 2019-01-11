@@ -24,7 +24,8 @@ type ExceptionToken* {. pure .} = enum
   UnboundLocal,
   Key,
   Assertion,
-  ZeroDivision
+  ZeroDivision,
+  Runtime
 
 
 declarePyType BaseError(tpToken):
@@ -78,18 +79,19 @@ macro declareErrors: untyped =
 declareErrors
 
 
-template newProcTmpl(name) = 
+template newProcTmpl(excpName) = 
   # use template for lazy evaluation to use PyString
-  # theses two templates are used internally to generate errors
-  template `new name Error`*: PyBaseErrorObject = 
-    let excp = newPyBaseErrorSimple()
-    excp.tk = ExceptionToken.`name`
+  # theses two templates are used internally to generate errors (default thrown)
+  template `new excpName Error`*: PyBaseErrorObject = 
+    let excp = `newPy excpName ErrorSimple`()
+    excp.tk = ExceptionToken.`excpName`
     excp.thrown = true
     excp
 
-  template `new name Error`*(msgStr:string): PyBaseErrorObject = 
-    let excp = `newPy name ErrorSimple`()
-    excp.tk = ExceptionToken.`name`
+
+  template `new excpName Error`*(msgStr:string): PyBaseErrorObject = 
+    let excp = `newPy excpName ErrorSimple`()
+    excp.tk = ExceptionToken.`excpName`
     excp.thrown = true
     excp.msg = newPyString(msgStr)
     excp

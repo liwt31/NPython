@@ -84,7 +84,7 @@ proc astBreakStmt(parseNode: ParseNode): AsdlStmt
 proc astContinueStmt(parseNode: ParseNode): AsdlStmt
 proc astReturnStmt(parseNode: ParseNode): AsdlStmt
 proc astYieldStmt(parseNode: ParseNode): AsdlStmt
-proc astRaiseStmt(parseNode: ParseNode): AsdlStmt
+proc astRaiseStmt(parseNode: ParseNode): AstRaise
 
 proc astImportStmt(parseNode: ParseNode): AsdlStmt
 proc astImportName(parseNode: ParseNode): AsdlStmt
@@ -471,9 +471,18 @@ ast return_stmt, [AsdlStmt]:
 ast yield_stmt, [AsdlStmt]:
   raiseSyntaxError("Yield not implemented")
   
-ast raise_stmt, [AsdlStmt]:
-  raiseSyntaxError("Raise not implemented")
+# raise_stmt: 'raise' [test ['from' test]]
+ast raise_stmt, [AstRaise]:
+  new result
+  case parseNode.children.len
+  of 1:
+    discard
+  of 2:
+    result.exc = astTest(parseNode.children[1])
+  else:
+    raiseSyntaxError("Fancy raise not implemented")
   
+
 
 # import_stmt  import_name | import_from
 ast import_stmt, [AsdlStmt]:

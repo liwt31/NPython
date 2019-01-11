@@ -14,7 +14,7 @@ Capable of:
 * builtin print, dir, len, range, tuple, list, dict
 * basic import such as `import foo`, no alias, no `from`, etc
 * indexing with `[]` with slice (can not store to slice yet).
-* assert statement. Basic `try`...`except XXXError`...
+* assert statement. Raise exceptions. Basic `try`...`except XXXError`...
 * interactive mode and file mode
 
 Check out `./tests` to see more examples.
@@ -29,13 +29,12 @@ nim c ./Python/python
 ```
 
 ### Todo
-* raise exception
 * list comprehension (complicated, should be able to define function in a function body first)
 * user defined class
 
 ### Performance
 Nim is claimed to be as fast as C, and indeed it is. According to some really primitive benchmarks (`spin.py` and `f_spin.py`), although NPython is currently 5x-10x slower than CPython 3.7, it is at least in some cases faster than CPython < 2.4. This is already a huge achievement considering the numerous optimizations out there in the CPython codebase and NPython is focused on quick prototyping and lefts many rooms for optimization.
-Currently, the majority of time spent is on object allocation along with the slow big int library. The object allocation issue is basically impossible to solve unless we do GC on our own just like CPython. 
+Currently, the majority of time spent is on object allocation, seq accessing (compared with CPython direct memory accessing), along with the slow big int library. The object allocation and seq accessing issue are basically impossible to solve unless we do GC on our own just like CPython. 
 
 
 ### Drawbacks

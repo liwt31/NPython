@@ -420,22 +420,29 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           fastLocals[opArg] = sPop()
 
         of OpCode.RaiseVarargs:
-          if opArg != 1:
-            unreachable("should be blocked by compiler")
-          let obj = sPop()
-          var excp: PyObject
-          if obj.isClass:
-            let newFunc = PyTypeObject(obj).magicMethods.new
-            if newFunc.isNil:
-              unreachable("__new__ of exceptions should be initialized")
-            excp = newFunc(obj, @[])
+          case opArg
+          of 0:
+            if (not hasTryBlock) or getTopBlock.context.isNil:
+              let excp = newRunTimeError("No active exception to reraise")
+              handleException(excp)
+            else:
+              handleException(getTopBlock.context)
+          of 1:
+            let obj = sPop()
+            var excp: PyObject
+            if obj.isClass:
+              let newFunc = PyTypeObject(obj).magicMethods.new
+              if newFunc.isNil:
+                unreachable("__new__ of exceptions should be initialized")
+              excp = newFunc(obj, @[])
+            else:
+              excp = obj
+            if not excp.ofPyExceptionObject:
+              unreachable
+            PyExceptionObject(excp).thrown = true
+            handleException(excp)
           else:
-            excp = obj
-          if not excp.ofPyExceptionObject:
-            unreachable
-          PyExceptionObject(excp).thrown = true
-          handleException(excp)
-
+            unreachable(fmt"RaiseVarargs has opArg {opArg}")
 
         of OpCode.CallFunction:
           var args: seq[PyObject]

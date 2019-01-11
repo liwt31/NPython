@@ -127,6 +127,12 @@ visitMethod If:
   ste.visitSeq(astNode.body)
   ste.visitSeq(astNode.orelse)
 
+visitMethod Raise:
+  if not astNode.exc.isNil:
+    ste.visit(astNode.exc)
+  if not astNode.cause.isNil:
+    ste.visit(astNode.cause)
+
 visitMethod Try:
   ste.visitSeq(astNode.body)
   for handler in astNode.handlers:

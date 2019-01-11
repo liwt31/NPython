@@ -417,6 +417,14 @@ compileMethod If:
   c.addBlock(ending)
 
 
+compileMethod Raise:
+  assert astNode.cause.isNil # should be blocked by ast
+  if astNode.exc.isNil:
+    c.addOp(newArgInstr(OpCode.RaiseVarargs, 0))
+  else:
+    c.compile(astNode.exc)
+    c.addOp(newArgInstr(OpCode.RaiseVarargs, 1))
+
 compileMethod Try:
   assert astNode.orelse.len == 0
   assert astNode.finalbody.len == 0
