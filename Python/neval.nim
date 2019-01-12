@@ -1,11 +1,10 @@
 import os
-import macros except name
 import algorithm
 import strformat
 import tables
 
 import compile
-
+import symtable
 import opcode
 import coreconfig
 import bltinmodule
@@ -16,7 +15,8 @@ import ../Utils/utils
 type
   # the exception model is different from CPython. todo: Need more documentation
   # when the model is finished
-  # States of the tryblock
+  #
+  # States of the tryblock, currently only Try(default) and Except is used
   TryStatus {. pure .} = enum
     Try,
     Except,
@@ -59,6 +59,7 @@ template doBinaryContain: PyObject =
     handleException(res)
   res
 
+# "fast" because check of it's a bool object first and save the callMagic(bool)
 template getBoolFast(obj: PyObject): bool = 
   var ret: bool
   if obj.ofPyBoolObject:
@@ -71,8 +72,6 @@ template getBoolFast(obj: PyObject): bool =
   else:
     ret = PyBoolObject(boolObj).b
   ret
-
-# function call dispatcher
 
 proc evalFrame*(f: PyFrameObject): PyObject = 
   # instructions are fetched so frequently that we should build a local cache
@@ -129,6 +128,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   let constants = f.code.constants
   let names = f.code.names
   var fastLocals = f.fastLocals
+  var cellVars = f.cellVars
 
   # in CPython this is a finite (20, CO_MAXBLOCKS) sized array as a member of 
   # frameobject. Safety is ensured by the compiler
@@ -164,7 +164,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       # normal execution loop
       while true:
         {. computedGoto .}
-        excpObj = nil
         let (opCode, opArg) = fetchInstr
         when defined(debug):
           echo fmt"{opCode}, {opArg}, {valStack.len}"
@@ -290,10 +289,10 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           sPush newTuple
 
         of OpCode.BuildList:
-          # this can be done more elegantly with setItem
           var args = newSeq[PyObject](opArg)
           for i in 1..opArg:
             args[^i] = sPop()
+          # an optimization can save the copy
           let newList = newPyList(args)
           sPush newList 
 
@@ -347,7 +346,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           of CmpOp.ExcpMatch:
             let targetExcp = sPop()
             if not targetExcp.isExceptionType:
-              let msg = "TypeError: catching classes that do not inherit from BaseException is not allowed"
+              let msg = "catching classes that do not inherit from BaseException is not allowed"
               handleException(newTypeError(msg))
             let currentExcp = PyExceptionObject(sTop())
             sPush matchExcp(PyTypeObject(targetExcp), currentExcp)
@@ -445,10 +444,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             unreachable(fmt"RaiseVarargs has opArg {opArg}")
 
         of OpCode.CallFunction:
-          var args: seq[PyObject]
-          for i in 0..<opArg:
-            args.add sPop()
-          args = args.reversed
+          var args = newseq[PyObject](opArg)
+          for i in 1..opArg:
+            args[^i] = sPop()
           let funcObj = sPop()
           var retObj: PyObject
           # runtime function, evaluate recursively
@@ -466,12 +464,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
         of OpCode.MakeFunction:
           # other kinds not implemented
-          assert opArg == 0
+          assert opArg == 0 or opArg == 8
           let name = sPop()
-          assert name.ofPyStrObject
           let code = sPop()
-          assert code.ofPyCodeObject
-          sPush newPyFunc(PyStrObject(name), PyCodeObject(code), f.globals)
+          var closure: PyObject
+          if (opArg and 8) != 0:
+            closure = sPop()
+          sPush newPyFunc(PyStrObject(name), PyCodeObject(code), f.globals, closure)
 
         of OpCode.BuildSlice:
           var lower, upper, step: PyObject
@@ -486,6 +485,21 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           if slice.isThrownException:
             handleException(slice)
           sSetTop slice
+
+        of OpCode.LoadClosure:
+          sPush cellVars[opArg]
+
+        of OpCode.LoadDeref:
+          let c = cellVars[opArg]
+          if c.refObj.isNil:
+            let name = f.code.cellVars[opArg]
+            let msg = fmt"local variable {name} referenced before assignment"
+            let excp = newUnboundLocalError(msg)
+            handleException(excp)
+          sPush c.refObj
+
+        of OpCode.StoreDeref:
+          cellVars[opArg].refObj = sPop
 
         else:
           let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
@@ -556,11 +570,33 @@ proc newPyFrame*(fun: PyFuncObject,
   result.back = back
   result.code = code
   result.globals = fun.globals
-  # builtins not used for now
-  # result.builtins = bltinDict
+  # todo: use flags for faster simple function call
   result.fastLocals = newSeq[PyObject](code.localVars.len)
-  for idx, arg in args:
-    result.fastLocals[idx] = arg
+  result.cellVars = newSeq[PyCellObject](code.cellVars.len + code.freeVars.len)
+  # todo: wrong number of arguments error handling
+  # init cells. Can do some optimizations here
+  for i in 0..<code.cellVars.len:
+    result.cellVars[i] = newPyCell(nil)
+  # setup arguments
+  for i in 0..<args.len:
+    let (scope, scopeIdx) = code.argScope[i]
+    case scope
+    of Scope.Local:
+      result.fastLocals[scopeIdx] = args[i]
+    of Scope.Global:
+      unreachable
+    of Scope.Cell:
+      result.cellVars[scopeIdx].refObj = args[i]
+    of Scope.Free:
+      unreachable("arguments can't be free")
+  # setup closures. Note some are done when setting up arguments
+  if fun.closure.isNil:
+    assert code.freeVars.len == 0
+  else:
+    assert code.freevars.len == fun.closure.items.len
+    for idx, c in fun.closure.items:
+      assert c.ofPyCellObject
+      result.cellVars[code.cellVars.len + idx] = PyCellObject(c)
 
 proc runCode*(co: PyCodeObject): PyObject = 
   when defined(debug):

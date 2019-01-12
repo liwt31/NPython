@@ -39,7 +39,7 @@ proc genMember(member: NimNode): NimNode =
     assert false
 
 # name of the type
-proc getDefName(def: NimNode): string= 
+proc getDefName(def: NimNode): string = 
   expectKind(def, {nnkCall, nnkIdent})
   case def.kind
   of nnkCall:
@@ -57,6 +57,9 @@ proc genType(def: NimNode, prefix: string, parent: string): NimNode =
   if def.kind == nnkCall:
     for i in 1..<def.len:
       recList.add(genMember(def[i]))
+  if parent == "AstNodeBase":
+    let tkName = "Asdl" & getDefName(def) & "Tk"
+    recList.add(newIdentDefs(postFix(ident("kind"), "*"), ident(tkName)))
 
   result = nnkTypeDef.newTree(
     nnkPostFix.newTree(
@@ -72,6 +75,40 @@ proc genType(def: NimNode, prefix: string, parent: string): NimNode =
       )
     )
   )
+
+proc genAsdlToken(subtypes: NimNode, parentName: string): NimNode = 
+  
+  # asdl type token
+  let enumList = nnkEnumTy.newTree(newEmptyNode())
+  for subType in subtypes:
+    let name = getDefName(subType)
+    enumlist.add(ident(name))
+  result = nnkTypeSection.newTree(
+    nnkTypeDef.newTree(
+      nnkPragmaExpr.newTree(
+        postFix(
+          ident(parentName & "Tk"),
+          "*"
+        ),
+        nnkPragma.newTree(
+          newIdentNode("pure")
+        )
+      ),
+      newEmptyNode(),
+      enumList
+    )
+  )
+
+
+template newFuncTmpl(typeName, parentName) = 
+  proc `newAst typeName`*: `Ast typeName` = 
+    new result
+    result.kind = `parentName Tk`.`typeName`
+
+
+proc genTypeNewFunc(subType: NimNode, parentName: string): NimNode = 
+  let typeName = getDefName(subType)
+  getAst(newFuncTmpl(ident(typeName), ident(parentName)))
 
 
 method `$`*(node: AstNodeBase): string {.base.} = 
@@ -238,6 +275,15 @@ proc genReprMethod(def: NimNode, prefix: string): NimNode =
 
 macro genAsdlTypes(inputTree: untyped): untyped = 
   result = newStmtList()
+  # asdl tokens
+  for child in inputTree:
+    let parentName = "Asdl" & getDefName(child[0])
+    let right = child[1]
+    expectKind(right, nnkPar)
+    # generate asdl tokens
+    result.add(genAsdlToken(right, parentName))
+
+  # asdl types
   var baseTypes = nnkTypeSection.newTree
   for child in inputTree:
     expectKind(child, nnkAsgn)
@@ -250,12 +296,14 @@ macro genAsdlTypes(inputTree: untyped): untyped =
     let parentName = "Asdl" & getDefName(child[0])
     let right = child[1]
     expectKind(right, nnkPar)
+    # generate ast types
     for subType in right:
       result.add(
         nnkTypeSection.newTree(
           genType(subType, "Ast", parentName)
         ) 
       )
+      result.add(genTypeNewFunc(subType, parentName))
 
   # forward declarations
   for child in inputTree:
@@ -401,3 +449,7 @@ genAsdlTypes:
 
 {.warning[Spacing]: on.}
 
+
+when isMainModule:
+  let t = newAstWithitem()
+  echo t.kind

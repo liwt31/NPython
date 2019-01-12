@@ -20,6 +20,7 @@ type
     NimFunc,
     Func,
     Slice,
+    Cell,
 
 
 type 

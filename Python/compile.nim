@@ -50,6 +50,7 @@ type
 
   Compiler = ref object
     units: seq[CompilerUnit]
+    st: SymTable
     interactive: bool
 
 proc `$`*(i: Instr): string = 
@@ -79,15 +80,16 @@ proc newBasicBlock(tp=BlockType.Misc): BasicBlock =
   result.seenReturn = false
   result.tp = tp
 
-proc newCompilerUnit: CompilerUnit =
+proc newCompilerUnit(st: SymTable, node: AstNodeBase): CompilerUnit =
   result = new CompilerUnit
-  result.ste = newSymTableEntry()
+  result.ste = st.getSte(cast[int](node))
   result.blocks.add(newBasicBlock())
 
 
-proc newCompiler: Compiler =
+proc newCompiler(root: AsdlModl): Compiler =
   result = new Compiler
-  result.units.add(newCompilerUnit())
+  result.st = newSymTable(root)
+  result.units.add(newCompilerUnit(result.st, root))
 
 
 method toTuple(instr: Instr): (OpCode, int) {.base.} =
@@ -177,7 +179,23 @@ proc assemble(cu: CompilerUnit): PyCodeObject =
   result.constants = cu.constants
   result.names = cu.ste.namesToSeq()
   result.localVars = cu.ste.localVarsToSeq()
-
+  # todo: add flags for faster simple function call
+  result.cellVars = cu.ste.cellVarsToSeq()
+  result.freeVars = cu.ste.freeVarsToSeq()
+  result.argScope = newSeq[(Scope, int)](cu.ste.argVars.len)
+  for argName, argIdx in cu.ste.argVars.pairs:
+    let scope = cu.ste.getScope(argName)
+    var scopeIdx: int
+    case scope
+    of Scope.Local:
+      scopeIdx = cu.ste.localId(argName)
+    of Scope.Global:
+      scopeIdx = cu.ste.nameId(argName)
+    of Scope.Cell:
+      scopeIdx = cu.ste.cellId(argName)
+    of Scope.Free:
+      unreachable("arguments can't be free")
+    result.argScope[argIdx] = (scope, scopeIdx)
 
 macro genMapMethod(methodName, code: untyped): untyped =
   result = newStmtList()
@@ -261,22 +279,25 @@ template compileSeq(c: Compiler, s: untyped) =
     c.compile(astNode)
 
 proc addLoadOp(c: Compiler, nameStr: PyStrObject) = 
-  let isLocal = c.tste.hasLocal(nameStr)
+  let scope = c.tste.getScope(nameStr)
 
   var
     opArg: int
     opCode: OpCode
 
-  if isLocal:
+  case scope
+  of Scope.Local:
     opArg = c.tste.localId(nameStr)
-  else:
-    opArg = c.tste.nameId(nameStr)
-
-  if isLocal:
     opCode = OpCode.LoadFast
-  else:
-    # locals() scope not implemented
+  of Scope.Global:
+    opArg = c.tste.nameId(nameStr)
     opCode = OpCode.LoadGlobal
+  of Scope.Cell:
+    opArg = c.tste.cellId(nameStr)
+    opCode = OpCode.LoadDeref
+  of Scope.Free:
+    opArg = c.tste.freeId(nameStr)
+    opCode = OpCode.LoadDeref
 
   let instr = newArgInstr(opCode, opArg)
   c.addOp(instr)
@@ -288,21 +309,25 @@ proc addLoadOp(c: Compiler, name: AsdlIdentifier) =
 
 
 proc addStoreOp(c: Compiler, nameStr: PyStrObject) = 
-  let isLocal = c.tste.hasLocal(nameStr)
+  let scope = c.tste.getScope(nameStr)
 
   var
     opArg: int
     opCode: OpCode
 
-  if isLocal:
+  case scope
+  of Scope.Local:
     opArg = c.tste.localId(nameStr)
-  else:
-    opArg = c.tste.nameId(nameStr)
-
-  if isLocal:
     opCode = OpCode.StoreFast
-  else:
+  of Scope.Global:
+    opArg = c.tste.nameId(nameStr)
     opCode = OpCode.StoreGlobal
+  of Scope.Cell:
+    opArg = c.tste.cellId(nameStr)
+    opCode = OpCode.StoreDeref
+  of Scope.Free:
+    opArg = c.tste.freeId(nameStr)
+    opCode = OpCode.StoreDeref
 
   let instr = newArgInstr(opCode, opArg)
   c.addOp(instr)
@@ -333,15 +358,40 @@ compileMethod Interactive:
 compileMethod FunctionDef:
   assert astNode.decorator_list.len == 0
   assert astNode.returns == nil
-  c.units.add(newCompilerUnit())
-  c.tste.collectLocalVar(astNode)
-  #c.compile(astNode.args)
+  c.units.add(newCompilerUnit(c.st, astNode))
+  #c.compile(astNode.args) # not useful when we don't have default args
   c.compileSeq(astNode.body)
   let co = c.units.pop.assemble
+
+  var flag: int
+  # stack and flag according to CPython document:
+  # 0x01 a tuple of default values for positional-only and positional-or-keyword parameters in positional order
+  # 0x02 a dictionary of keyword-only parameters’ default values
+  # 0x04 an annotation dictionary
+  # 0x08 a tuple containing cells for free variables, making a closure
+  # the code associated with the function (at TOS1)
+  # the qualified name of the function (at TOS)
+  
+  if co.freeVars.len != 0:
+    # several sources of the cellVars and freeVars:
+    # * a closure in the body used it
+    # * the code it self is a closure
+    # In the first case, the variable may be declared in the code or in the upper level
+    # In the second case, the variable must be declared in the upper level
+    for name in co.freeVars:
+      if c.tste.hasCell(name):
+        c.addOp(newArgInstr(OpCode.LoadClosure, c.tste.cellId(name)))
+      elif c.tste.hasFree(name):
+        c.addOp(newArgInstr(OpCode.LoadClosure, c.tste.freeId(name)))
+      else:
+        unreachable
+    c.addOp(newArgInstr(OpCode.BuildTuple, co.freeVars.len))
+    flag = flag or 8
+
   c.tcu.addLoadConst(co)
   c.tcu.addLoadConst(astNode.name.value)
-  # the second arg: simplest case (no flag)
-  c.addOp(newArgInstr(OpCode.MakeFunction, 0))
+  # currently flag is 0 or 8
+  c.addOp(newArgInstr(OpCode.MakeFunction, flag))
   c.addStoreOp(astNode.name)
 
 
@@ -673,10 +723,9 @@ compileMethod Arguments:
 
 proc compile*(input: TaintedString | ParseNode): PyCodeObject =
   let astRoot = ast(input)
-  #echo astRoot
-  let c = newCompiler()
+  let c = newCompiler(astRoot)
   c.compile(astRoot)
-  result = c.tcu.assemble
+  c.tcu.assemble
 
 
 when isMainModule:

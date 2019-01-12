@@ -6,7 +6,7 @@ import iterobject
 import sliceobject
 
 
-declarePyType Tuple(reprLock):
+declarePyType Tuple(reprLock, tpToken):
   items: seq[PyObject]
 
 

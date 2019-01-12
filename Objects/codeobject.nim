@@ -3,14 +3,21 @@ import strutils
 
 import pyobject
 import stringobject
-import ../Python/opcode
+import ../Python/[opcode, symtable]
 
 
 declarePyType Code(tpToken):
     code: seq[(OpCode, int)]
     constants: seq[PyObject]
+
+    # store the strings for exception and debugging infomation
     names: seq[PyStrObject]
     localVars: seq[PyStrObject]
+    cellVars: seq[PyStrObject]
+    freeVars: seq[PyStrObject]
+
+    argScope: seq[(Scope, int)]
+
 
 
 # code objects are initialized in compile.nim
@@ -25,6 +32,8 @@ method `$`*(code: PyCodeObject): string =
   var s: seq[string]
   s.add("Names: " & $code.names)
   s.add("Local variables: " & $code.localVars)
+  s.add("Cell variables: " & $code.cellVars)
+  s.add("Free variables: " & $code.freeVars)
   # temperary workaround for code obj in the disassembly
   var otherCodes: seq[PyCodeObject]
   for idx, opArray in code.code:

@@ -5,6 +5,7 @@ import baseBundle
 import codeobject
 import funcobject
 import dictobject
+import cellobject
 import ../Python/opcode
 
 declarePyType Frame():
@@ -16,6 +17,7 @@ declarePyType Frame():
   globals: PyDictObject
   # builtins: PyDictObject
   fastLocals: seq[PyObject]
+  cellVars: seq[PyCellObject]
 
 proc newPyFrame*: PyFrameObject = 
   newPyFrameSimple()

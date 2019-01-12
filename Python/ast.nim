@@ -17,7 +17,7 @@ import ../Utils/utils
 # but it should be keeped since now.
 
 proc newAstExpr(expr: AsdlExpr): AstExpr = 
-  result = new AstExpr
+  result = newAstExpr()
   result.value = expr
 
 
@@ -28,41 +28,43 @@ proc newIdentifier*(value: string): AsdlIdentifier =
 
 proc newAstName(tokenNode: TokenNode): AstName = 
   assert tokenNode.token in contentTokenSet
-  result = new AstName
+  result = newAstName()
   result.id = newIdentifier(tokenNode.content)
   # start in load because it's most common, 
   # then we only need to take care of store (such as lhs of `=`)
-  result.ctx = new AstLoad
+  result.ctx = newAstLoad()
 
 proc newAstConstant(obj: PyObject): AstConstant = 
-  result = new AstConstant
+  result = newAstConstant()
   result.value = new AsdlConstant 
   result.value.value = obj
 
 proc newBoolOp(op: AsdlBoolop, values: seq[AsdlExpr]): AstBoolOp =
-  new result
+  result = newAstBoolOp()
   result.op = op
   result.values = values
 
 proc newBinOp(left: AsdlExpr, op: AsdlOperator, right: AsdlExpr): AstBinOp =
-  new result
+  result = newAstBinOp()
   result.left = left
   result.op = op
   result.right = right
 
 proc newUnaryOp(op: AsdlUnaryop, operand: AsdlExpr): AstUnaryOp = 
-  new result
+  result = newAstUnaryOp()
   result.op = op
   result.operand = operand
 
 
 proc newList(elts: seq[AsdlExpr]): AstList = 
-  new result
+  result = newAstList()
   result.elts = elts
+  result.ctx = newAstLoad()
 
 proc newTuple(elts: seq[AsdlExpr]): AstTuple = 
-  new result
+  result = newAstTuple()
   result.elts = elts
+  result.ctx = newAstLoad()
 
 proc astDecorated(parseNode: ParseNode): AsdlStmt
 proc astFuncdef(parseNode: ParseNode): AstFunctionDef
@@ -221,19 +223,19 @@ method setStore(astNode: AstNodeBase) {.base.} =
   raiseSyntaxError("can't assign")
 
 method setStore(astNode: AstName) = 
-  astnode.ctx = new AstStore
+  astnode.ctx = newAstStore()
 
 
 method setStore(astNode: AstAttribute) = 
-  astnode.ctx = new AstStore
+  astnode.ctx = newAstStore()
 
 
 method setStore(astNode: AstSubscript) = 
-  astnode.ctx = new AstStore
+  astnode.ctx = newAstStore()
 
 # single_input: NEWLINE | simple_stmt | compound_stmt NEWLINE
 ast single_input, [AstInteractive]:
-  result = new AstInteractive
+  result = newAstInteractive()
   let child = parseNode.children[0]
   case parseNode.children.len
   of 1:
@@ -251,7 +253,7 @@ ast single_input, [AstInteractive]:
   
 # file_input: (NEWLINE | stmt)* ENDMARKER
 ast file_input, [AstModule]:
-  result = new AstModule
+  result = newAstModule()
   for child in parseNode.children:
     if child.tokenNode.token == Token.stmt:
       result.body &= astStmt(child)
@@ -275,7 +277,7 @@ ast async_funcdef, [AsdlStmt]:
   
 # funcdef  'def' NAME parameters ['->' test] ':' suite
 ast funcdef, [AstFunctionDef]:
-  result = new AstFunctionDef
+  result = newAstFunctionDef()
   result.name = newIdentifier(parseNode.children[1].tokenNode.content)
   result.args = astParameters(parseNode.children[2])
   if not (parseNode.children.len == 5): 
@@ -287,7 +289,7 @@ ast funcdef, [AstFunctionDef]:
 ast parameters, [AstArguments]:
   case parseNode.children.len
   of 2:
-    result = new AstArguments
+    result = newAstArguments()
   of 3:
     result = astTypedArgsList(parseNode.children[1])
   else:
@@ -302,7 +304,7 @@ ast parameters, [AstArguments]:
 # 
 # Just one tfpdef should be easy enough
 ast typedargslist, [AstArguments]:
-  new result
+  result = newAstArguments()
   for i in 0..<parseNode.children.len:
     let child = parseNode.children[i]
     if i mod 2 == 1:
@@ -315,7 +317,7 @@ ast typedargslist, [AstArguments]:
   
 # tfpdef  NAME [':' test]
 ast tfpdef, [AstArg]:
-  result = new AstArg
+  result = newAstArg()
   result.arg = newIdentifier(parseNode.children[0].tokenNode.content)
   
 #[
@@ -382,7 +384,7 @@ ast expr_stmt, [AsdlStmt]:
     if not (parseNode.children.len == 3):
       raiseSyntaxError("Only support simple assign like x=1")
     let testlistStarExpr2 = astTestlistStarExpr(parseNode.children[2])
-    let node = new AstAssign
+    let node = newAstAssign()
     testlistStarExpr1.setStore
     node.targets.add(testlistStarExpr1) 
     if not (node.targets.len == 1):
@@ -395,7 +397,7 @@ ast expr_stmt, [AsdlStmt]:
     assert parseNode.children.len == 3
     let op = astAugAssign(parseNode.children[1])
     let testlist2 = astTestlist(parseNode.children[2])
-    let node = new AstAugAssign
+    let node = newAstAugAssign()
     node.target = testlistStarExpr1
     node.op = op
     node.value = testlist2
@@ -426,9 +428,9 @@ ast augassign, [AsdlOperator]:
   #[
   case parseNode.children[0].tokenNode.token
   of Token.PlusEqual:
-    result = new AstAdd
+    result = newAstAdd()
   of Token.MinEqual:
-    result = new AstSub
+    result = newAstSub()
   else:
     assert false
   ]#
@@ -437,7 +439,7 @@ proc astDelStmt(parseNode: ParseNode): AsdlStmt =
   discard
   
 ast pass_stmt, [AstPass]:
-  new result
+  result = newAstPass()
   
 
 # flow_stmt: break_stmt | continue_stmt | return_stmt | raise_stmt | yield_stmt
@@ -455,14 +457,14 @@ ast flow_stmt, [AsdlStmt]:
 
 
 ast break_stmt, [AsdlStmt]:
-  new AstBreak
+  newAstBreak()
   
 ast continue_stmt, [AsdlStmt]:
-  new AstContinue
+  newAstContinue()
 
 # return_stmt: 'return' [testlist]
 ast return_stmt, [AsdlStmt]:
-  let node = new AstReturn
+  let node = newAstReturn()
   if parseNode.children.len == 0:
     return node
   node.value = astTestList(parseNode.children[1])
@@ -473,7 +475,7 @@ ast yield_stmt, [AsdlStmt]:
   
 # raise_stmt: 'raise' [test ['from' test]]
 ast raise_stmt, [AstRaise]:
-  new result
+  result = newAstRaise()
   case parseNode.children.len
   of 1:
     discard
@@ -497,7 +499,7 @@ ast import_stmt, [AsdlStmt]:
 
 # import_name  'import' dotted_as_names
 ast import_name, [AsdlStmt]:
-  let node = new AstImport
+  let node = newAstImport()
   for c in parseNode.children[1].astDottedAsNames:
     node.names.add c
   node
@@ -531,7 +533,7 @@ ast dotted_as_names, [seq[AstAlias]]:
 ast dotted_name, [AstAlias]:
   if parseNode.children.len != 1:
     raiseSyntaxError("dotted import name not supported")
-  new result
+  result = newAstAlias()
   result.name = newIdentifier(parseNode.children[0].tokenNode.content)
   
 proc astGlobalStmt(parseNode: ParseNode): AsdlStmt = 
@@ -542,7 +544,7 @@ proc astNonlocalStmt(parseNode: ParseNode): AsdlStmt =
   
 # assert_stmt  'assert' test [',' test]
 ast assert_stmt, [AstAssert]:
-  new result
+  result = newAstAssert()
   result.test = astTest(parseNode.children[1])
   if parseNode.children.len == 4:
     result.msg = astTest(parseNode.children[3])
@@ -568,7 +570,7 @@ ast async_stmt, [AsdlStmt]:
   
 # if_stmt  'if' test ':' suite ('elif' test ':' suite)* ['else' ':' suite]
 ast if_stmt, [AstIf]:
-  result = new AstIf
+  result = newAstIf()
   result.test = astTest(parseNode.children[1])
   result.body = astSuite(parseNode.children[3])
   if parseNode.children.len == 4:  # simple if no else
@@ -579,7 +581,7 @@ ast if_stmt, [AstIf]:
   
 # while_stmt  'while' test ':' suite ['else' ':' suite]
 ast while_stmt, [AstWhile]:
-  result = new AstWhile
+  result = newAstWhile()
   result.test = astTest(parseNode.children[1])
   result.body = astSuite(parseNode.children[3])
   if not (parseNode.children.len == 4):
@@ -589,7 +591,7 @@ ast while_stmt, [AstWhile]:
 ast for_stmt, [AsdlStmt]:
   if not (parseNode.children.len == 6):
     raiseSyntaxError("for with else not implemented")
-  let forNode = new AstFor
+  let forNode = newAstFor()
   forNode.target = astExprList(parseNode.children[1])
   forNode.target.setStore
   forNode.iter = astTestlist(parseNode.children[3])
@@ -602,7 +604,7 @@ ast for_stmt, [AsdlStmt]:
 #            ['finally' ':' suite] |
 #           'finally' ':' suite))
 ast try_stmt, [AstTry]:
-  new result
+  result = newAstTry()
   result.body = astSuite(parseNode.children[2])
   for i in 1..((parseNode.children.len-1) div 3):
     let child1 = parseNode.children[i*3]
@@ -624,7 +626,7 @@ ast with_item:
 
 # except_clause: 'except' [test ['as' NAME]]
 ast except_clause, [AstExceptHandler]:
-  new result
+  result = newAstExceptHandler()
   case parseNode.children.len
   of 1:
     return
@@ -683,9 +685,9 @@ template astForBoolOp(childAstFunc: untyped) =
   var op: AsdlBoolop
   case token
   of Token.and:
-    op = new AstAnd
+    op = newAstAnd()
   of Token.or:
-    op = new AstOr
+    op = newAstOr()
   else:
     unreachable
   var nodeSeq = @[firstAstNode]
@@ -708,7 +710,7 @@ ast not_test, [AsdlExpr]:
   let child = parseNode.children[0]
   case child.tokenNode.token
   of Token.not:
-    result = newUnaryOp(new AstNot, astNotTest(parsenode.children[1]))
+    result = newUnaryOp(newAstNot(), astNotTest(parsenode.children[1]))
   of Token.comparison:
     result = astComparison(child)
   else:
@@ -726,7 +728,7 @@ ast comparison, [AsdlExpr]:
     raiseSyntaxError("Chained comparison not implemented")
   let op = astCompOp(parseNode.children[1])
   let expr2 = astExpr(parseNode.children[2])
-  let cmp = new AstCompare
+  let cmp = newAstCompare()
   cmp.left = expr1
   cmp.ops.add(op)
   cmp.comparators.add(expr2)
@@ -738,21 +740,21 @@ ast comp_op, [AsdlCmpop]:
   let token = parseNode.children[0].tokenNode.token
   case token
   of Token.Less:
-    result = new AstLt
+    result = newAstLt()
   of Token.Greater:
-    result = new AstGt
+    result = newAstGt()
   of Token.Eqequal:
-    result = new AstEq
+    result = newAstEq()
   of Token.GreaterEqual:
-    result = new AstGtE
+    result = newAstGtE()
   of Token.LessEqual:
-    result = new AstLtE
+    result = newAstLtE()
   of Token.NotEqual:
-    result = new AstNotEq
+    result = newAstNotEq()
   of Token.in:
-    result = new AstIn
+    result = newAstIn()
   of Token.not:
-    result = new AstNotIn
+    result = newAstNotIn()
   else:
     raiseSyntaxError(fmt"Complex comparison operation {token} not implemented")
 #  
@@ -770,17 +772,17 @@ template astForBinOp(childAstFunc: untyped) =
     let token = parseNode.children[2 * idx - 1].tokenNode.token
     case token
     of Token.Plus:
-      op = new AstAdd
+      op = newAstAdd()
     of Token.Minus:
-      op = new AstSub
+      op = newAstSub()
     of Token.Star:
-      op = new AstMult
+      op = newAstMult()
     of Token.Slash:
-      op = new AstDiv
+      op = newAstDiv()
     of Token.Percent:
-      op = new AstMod
+      op = newAstMod()
     of Token.DoubleSlash:
-      op = new AstFloorDiv
+      op = newAstFloorDiv()
     else:
       let msg = fmt"Complex binary operation not implemented: " & $token
       raiseSyntaxError(msg)
@@ -825,9 +827,9 @@ ast factor, [AsdlExpr]:
     let factor = astFactor(parseNode.children[1])
     case child1.tokenNode.token
     of Token.Plus:
-      result = newUnaryOp(new AstUAdd, factor)
+      result = newUnaryOp(newAstUAdd(), factor)
     of Token.Minus:
-      result = newUnaryOp(new AstUSub, factor)
+      result = newUnaryOp(newAstUSub(), factor)
     else:
       raiseSyntaxError("Unary ~ not implemented")
   else:
@@ -841,7 +843,7 @@ proc astPower(parseNode: ParseNode): AsdlExpr =
     result = base
   else:
     let exp = astFactor(parseNode.children[2])
-    result = newBinOp(base, new AstPow, exp)
+    result = newBinOp(base, newAstPow(), exp)
   
 # atom_expr  ['await'] atom trailer*
 proc astAtomExpr(parseNode: ParseNode): AsdlExpr = 
@@ -893,7 +895,7 @@ ast atom, [AsdlExpr]:
   of Token.Lbrace:
     case parseNode.children.len
     of 2:
-      result = new AstDict
+      result = newAstDict()
     of 3:
       result = astDictOrSetMaker(parseNode.children[1])
     else:
@@ -961,7 +963,7 @@ ast testlist_comp, [seq[AsdlExpr]]:
 ast trailer, [AsdlExpr, leftExpr: AsdlExpr]:
   case parseNode.children[0].tokenNode.token
   of Token.Lpar:
-    var callNode = new AstCall
+    var callNode = newAstCall()
     callNode.fun = leftExpr
     case parseNode.children.len
     of 2:
@@ -971,16 +973,16 @@ ast trailer, [AsdlExpr, leftExpr: AsdlExpr]:
     else:
       unreachable
   of Token.Lsqb:
-    let sub = new AstSubscript
+    let sub = newAstSubscript()
     sub.value = leftExpr
     sub.slice = astSubscriptlist(parseNode.children[1])
-    sub.ctx = new AstLoad
+    sub.ctx = newAstLoad()
     result = sub
   of Token.Dot:
-    let attr = new AstAttribute
+    let attr = newAstAttribute()
     attr.value = leftExpr
     attr.attr = newIdentifier(parseNode.children[1].tokenNode.content)
-    attr.ctx = new AstLoad
+    attr.ctx = newAstLoad()
     result = attr
   else:
     unreachable
@@ -996,11 +998,11 @@ ast subscriptlist, [AsdlSlice]:
 ast subscript, [AsdlSlice]:
   let child1 = parseNode.children[0]
   if (child1.tokenNode.token == Token.test) and parseNode.children.len == 1:
-    let index = new AstIndex
+    let index = newAstIndex()
     index.value = astTest(child1)
     return index
   # slice
-  let slice= new AstSlice
+  let slice= newAstSlice()
   # lower
   var idx = 0
   var child = parseNode.children[idx]
@@ -1045,7 +1047,7 @@ ast testlist, [AsdlExpr]:
   # below is valid but not implemented in the compiler
   # so cancel for now
   #[
-  let node = new AstTuple
+  let node = newAstTuple()
   for child in parseNode.children:
     if child.tokenNode.token == Token.Comma:
       continue
@@ -1059,7 +1061,7 @@ ast testlist, [AsdlExpr]:
 #                   (comp_for | (',' (test | star_expr))* [','])) )
 ast dictorsetmaker, [AsdlExpr]:
   let children = parseNode.children
-  let d = new AstDict
+  let d = newAstDict()
   for idx in 0..<((children.len+1) div 4):
     let i = idx * 4
     if children.len < i + 3:

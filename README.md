@@ -10,8 +10,8 @@ Just for fun and practice. Learn both Python and Nim.
 Capable of:
 * basic arithmetic calculations (+ - * / // ** % int float)
 * flow control with `if else`, `while` and `for`
-* very basic function defination and call
-* builtin print, dir, len, range, tuple, list, dict
+* basic function (closure) defination and call
+* builtin print, dir, len, range, tuple, list, dict, exceptions
 * basic import such as `import foo`, no alias, no `from`, etc
 * indexing with `[]` with slice (can not store to slice yet).
 * assert statement. Raise exceptions. Basic `try`...`except XXXError`...
@@ -29,7 +29,7 @@ nim c ./Python/python
 ```
 
 ### Todo
-* list comprehension (complicated, should be able to define function in a function body first)
+* list comprehension (relies on closure)
 * user defined class
 
 ### Performance
