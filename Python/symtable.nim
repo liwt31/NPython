@@ -51,9 +51,6 @@ type
     cellVars: Table[PyStrObject, int]  # declared in the scope
     freeVars: Table[PyStrObject, int]  # not declared in the scope
 
-proc getSte*(st: SymTable, key: int): SymTableEntry = 
-  st.entries[key]
-
 proc newSymTableEntry(parent: SymTableEntry): SymTableEntry =
   result = new SymTableEntry
   result.parent = parent
@@ -68,6 +65,11 @@ proc newSymTableEntry(parent: SymTableEntry): SymTableEntry =
   result.cellVars = initTable[PyStrObject, int]()
   result.freeVars = initTable[PyStrObject, int]()
 
+{. push inline, cdecl .}
+
+proc getSte*(st: SymTable, key: int): SymTableEntry = 
+  st.entries[key]
+
 proc isRootSte(ste: SymTableEntry): bool = 
   ste.parent.isNil
 
@@ -77,9 +79,12 @@ proc declared(ste: SymTableEntry, localName: PyStrObject): bool =
 proc getScope*(ste: SymTableEntry, name: PyStrObject): Scope = 
   ste.scopes[name]
 
+proc addDeclaration(ste: SymTableEntry, name: PyStrObject) =
+  ste.declaredVars.incl name
+
 proc addDeclaration(ste: SymTableEntry, name: AsdlIdentifier) =
   let nameStr = name.value
-  ste.declaredVars.incl nameStr
+  ste.addDeclaration nameStr
 
 proc addUsed(ste: SymTableEntry, name: PyStrObject) =
   ste.usedVars.incl name
@@ -129,6 +134,8 @@ proc cellVarsToSeq*(ste: SymTableEntry): seq[PyStrObject] =
 proc freeVarsToSeq*(ste: SymTableEntry): seq[PyStrObject] = 
   ste.freeVars.toInverseSeq
 
+{. pop .}
+
 # traverse the ast to collect local vars
 # local vars can be defined in Name List Tuple For Import
 # currently we only have Name, For, Import, so it's pretty simple. 
@@ -153,21 +160,33 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
         toVisitPerSte.add(astNode)
 
     template addBodies(TypeName) = 
-      if astNode of TypeName:
-        for node in TypeName(astNode).body:
-          toVisitPerSte.add(node)
+      for node in TypeName(astNode).body:
+        toVisitPerSte.add(node)
     # these asts mean new scopes
-    addBodies(AstModule)
-    addBodies(AstInteractive)
-    addBodies(AstFunctionDef)
-    # deal with function args
-    if astNode of AstFunctionDef:
+    if astNode of AstModule:
+      addBodies(AstModule)
+    elif astNode of AstInteractive:
+      addBodies(AstInteractive)
+    elif astNode of AstFunctionDef:
+      addBodies(AstFunctionDef)
+      # deal with function args
       let f = AstFunctionDef(astNode)
       let args = AstArguments(f.args).args
       for idx, arg in args:
         assert arg of AstArg
         ste.addDeclaration(AstArg(arg).arg)
         ste.argVars[AstArg(arg).arg.value] = idx
+    elif astNode of AstListComp:
+      let compNode = AstListComp(astNode)
+      toVisitPerSte.add compNode.elt
+      for gen in compNode.generators:
+        let genNode = AstComprehension(gen)
+        toVisitPerSte.add(genNode.target)
+      # the iterator. Need to add here to let symbol table make room for the localVar
+      ste.addDeclaration(newPyString(".0"))
+      ste.argVars[newPyString(".0")] = 0
+    else:
+      unreachable
 
     while toVisitPerSte.len != 0:
       let astNode = toVisitPerSte.pop
@@ -257,6 +276,14 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
         of AsdlExprTk.Set:
           let setNode = AstSet(astNode)
           visitSeq setNode.elts
+
+        of AsdlExprTk.ListComp:
+          # tricky here. Parts in this level, parts in a new function
+          toVisit.add((astNode, ste))
+          let compNode = AstListComp(astNode)
+          for gen in compNode.generators:
+            let genNode = AstComprehension(gen)
+            visit genNode.iter
 
         of AsdlExprTk.Compare:
           let compareNode = AstCompare(astNode)

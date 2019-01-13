@@ -12,6 +12,7 @@ Capable of:
 * flow control with `if else`, `while` and `for`
 * basic function (closure) defination and call
 * builtin print, dir, len, range, tuple, list, dict, exceptions
+* list comprehension (no set or dict yet).
 * basic import such as `import foo`, no alias, no `from`, etc
 * indexing with `[]` with slice (can not store to slice yet).
 * assert statement. Raise exceptions. Basic `try`...`except XXXError`...
@@ -29,7 +30,6 @@ nim c ./Python/python
 ```
 
 ### Todo
-* list comprehension (relies on closure)
 * user defined class
 
 ### Performance

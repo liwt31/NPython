@@ -111,6 +111,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   template sPop: PyObject = 
     valStack.pop
 
+  template sPeek(idx: int): PyObject = 
+    valStack[^idx]
+
   template sSetTop(obj: PyObject) = 
     valStack[^1] = obj
 
@@ -543,6 +546,12 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
         of OpCode.StoreDeref:
           cellVars[opArg].refObj = sPop
+
+        of OpCode.ListAppend:
+          let top = sPop()
+          let l = sPeek(opArg)
+          assert l.ofPyListObject
+          PyListObject(l).items.add top
 
         else:
           let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"

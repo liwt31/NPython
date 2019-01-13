@@ -133,8 +133,8 @@ proc astDictOrSetMaker(parseNode: ParseNode): AsdlExpr
 proc astClassDef(parseNode: ParseNode): AstClassDef
 proc astArglist(parseNode: ParseNode, callNode: AstCall): AstCall
 proc astArgument(parseNode: ParseNode): AsdlExpr
-
-
+proc astSyncCompFor(parseNode: ParseNode): seq[AsdlComprehension]
+proc astCompFor(parseNode: ParseNode): seq[AsdlComprehension]
 
 proc genParamsSeq(paramSeq: NimNode): seq[NimNode] {.compileTime.} = 
   expectKind(paramSeq, nnkBracket)
@@ -886,6 +886,8 @@ ast atom, [AsdlExpr]:
         let testListComp = astTestlistComp(child)
         # no tuple, just things like (1 + 2) * 3
         if testListComp.len == 1:
+          if testListComp[0].kind == AsdlExprTk.ListComp:
+            raiseSyntaxError("generator expression not implemented")
           return testListComp[0]
         return newTuple(testListComp)
       else:
@@ -898,7 +900,11 @@ ast atom, [AsdlExpr]:
     of 2:
       result = newList(@[])
     of 3:
-      result = newList(astTestlistComp(parseNode.children[1]))
+      let contents = astTestlistComp(parseNode.children[1])
+      if contents.len == 1 and contents[0].kind == AsdlExprTk.ListComp:
+        result = contents[0]
+      else:
+        result = newList(contents)
     else:
       unreachable
 
@@ -949,16 +955,24 @@ ast atom, [AsdlExpr]:
 # testlist_comp  (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
 # currently only used in atom
 ast testlist_comp, [seq[AsdlExpr]]:
+  # return type: if comprehension, a seq with only one element: AstListComp
+  # or a seq with comma separated elements
   let child1 = parseNode.children[0]
   if child1.tokenNode.token == Token.star_expr:
     raiseSyntaxError("Star expression not implemented")
-  result.add astTest(child1)
-  if parseNode.children.len == 1:
+  let test1 = astTest(child1)
+  # if comprehension
+  if (parseNode.children.len == 2) and 
+      (parseNode.children[1].tokenNode.token == Token.comp_for):
+    let listComp = newAstListComp()
+    listComp.elt = test1
+    listComp.generators = astCompFor(parseNode.children[1])
+    result.add listComp
     return
+  # comma separated items
+  result.add test1
   for child in parseNode.children[1..^1]:
     case child.tokenNode.token
-    of Token.comp_for:
-      raiseSyntaxError("Comprehension not implemented")
     of Token.Comma:
       discard
     of Token.test:
@@ -967,7 +981,6 @@ ast testlist_comp, [seq[AsdlExpr]]:
       raiseSyntaxError("Star expression not implemented")
     else:
       unreachable
-
   
 # trailer  '(' [arglist] ')' | '[' subscriptlist ']' | '.' NAME
 ast trailer, [AsdlExpr, leftExpr: AsdlExpr]:
@@ -1107,22 +1120,32 @@ ast argument, [AsdlExpr]:
   
 
 
-#[
 #ast comp_iter:
 #  discard
   
 
 # sync_comp_for: 'for' exprlist 'in' or_test [comp_iter]
-ast sync_comp_for, [AsdlExpr]:
-  discard
+ast sync_comp_for, [seq[AsdlComprehension]]:
+  if parseNode.children.len == 5:
+    raiseSyntaxError("Complex comprehension not implemented")
+  let comp = newAstComprehension()
+  comp.target = astExprList(parseNode.children[1])
+  comp.target.setStore()
+  comp.iter = astOrTest(parseNode.children[3])
+  result.add comp
+  
   
 # comp_for: ['async'] sync_comp_for
-ast comp_for, [AsdlExpr]:
-  discard
+ast comp_for, [seq[AsdlComprehension]]:
+  if parseNode.children.len == 2:
+    raiseSyntaxError("Async comprehension not implemented")
+  return astSyncCompFor(parseNode.children[0])
+
   
-ast comp_if:
-  discard
+#ast comp_if:
+#  discard
   
+#[
 ast encoding_decl:
   discard
   

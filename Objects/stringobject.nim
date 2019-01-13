@@ -13,6 +13,8 @@ proc newPyString*(str: string): PyStrObject =
   result = newPyStrSimple()
   result.str = str
 
+let newPyStr* = newPyString
+
 when isMainModule:
   import dictobject
   let d = newPyDict()
