@@ -291,9 +291,7 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
         of AsdlExprTk.List:
           let listNode = AstList(astNode)
           case listNode.ctx.kind
-          of AsdlExprContextTk.Store:
-            unreachable
-          of AsdlExprContextTk.Load:
+          of AsdlExprContextTk.Store, AsdlExprContextTk.Load:
             visitSeq listNode.elts
           else:
             unreachable
@@ -301,9 +299,7 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
         of AsdlExprTk.Tuple:
           let tupleNode = AstTuple(astNode)
           case tupleNode.ctx.kind
-          of AsdlExprContextTk.Store:
-            unreachable
-          of AsdlExprContextTk.Load:
+          of AsdlExprContextTk.Store, AsdlExprContextTk.Load:
             visitSeq tupleNode.elts
           else:
             unreachable

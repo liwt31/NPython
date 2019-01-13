@@ -233,6 +233,11 @@ method setStore(astNode: AstAttribute) =
 method setStore(astNode: AstSubscript) = 
   astnode.ctx = newAstStore()
 
+method setStore(astNode: AstTuple) = 
+  astNode.ctx = newAstStore()
+  for elm in astNode.elts:
+    elm.setStore()
+
 # single_input: NEWLINE | simple_stmt | compound_stmt NEWLINE
 ast single_input, [AstInteractive]:
   result = newAstInteractive()

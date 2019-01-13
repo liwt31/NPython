@@ -10,7 +10,7 @@ import sliceobject
 import iterobject
 import ../Utils/utils
 
-declarePyType List(reprLock, mutable):
+declarePyType List(reprLock, mutable, tpToken):
   items: seq[PyObject]
 
 

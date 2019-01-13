@@ -120,6 +120,12 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   template sEmpty: bool = 
     valStack.len == 0
 
+  template sLen: int = 
+    valStack.len
+
+  template setStackLen(s: int) = 
+    valStack.setlen(s)
+
   template cleanUp = 
     dealloc(cast[ptr OpCode](opCodes))
     dealloc(cast[ptr int](opArgs))
@@ -246,7 +252,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             discard popTryBlock
           else:
             let top = sTop()
-            valStack.setlen popTryBlock
+            setStackLen popTryBlock
             # previous `except` clause failed to handle the exception
             if top.isThrownException:
               handleException(top)
@@ -255,9 +261,52 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         of OpCode.StoreName:
           unreachable("locals() scope not implemented")
 
+        of OpCode.UnpackSequence:
+          template inCompatibleLengthError(gotLen: int) = 
+            let got {. inject .} = $gotLen
+            let msg = fmt"not enough values to unpack (expected {oparg}, got {got})"
+            let excp = newValueError(msg)
+            handleException(excp)
+          let s = sPop()
+          if s.ofPyTupleObject():
+            let t = PyTupleObject(s)
+            if opArg != t.items.len:
+              inCompatibleLengthError(t.items.len)
+            for i in 1..opArg: 
+              sPush t.items[^i]
+          elif s.ofPyListObject():
+            let l = PyListObject(s)
+            if opArg != l.items.len:
+              inCompatibleLengthError(l.items.len)
+            for i in 1..opArg: 
+              sPush l.items[^i]
+          else:
+            let iterFunc = s.getMagic(iter)
+            if iterFunc.isNil:
+              let msg = "cannot unpack non-iterable {s.pyType.name} object"
+              handleException(newTypeError(msg))
+            let iterable = s.iterFunc
+            let nextFunc = iterable.getMagic(iternext)
+            if nextFunc.isNil:
+              let msg = "cannot unpack non-iterable {s.pyType.name} object"
+              handleException(newTypeError(msg))
+            # there is a much clever approach in CPython
+            # the power of low level memory accessing!
+            var items = newseq[PyObject](opArg)
+            for i in 0..<opArg:
+              let retObj = iterable.nextFunc
+              if retObj.isStopIter:
+                inCompatibleLengthError(i)
+              elif retObj.isThrownException:
+                handleException(retObj)
+              else:
+                items[i] = retObj
+            for i in 1..opArg: 
+              sPush items[^i]
+
         of OpCode.ForIter:
           let top = sTop()
-          let nextFunc = top.pyType.magicMethods.iternext
+          let nextFunc = top.getMagic(iternext)
           if nextFunc.isNil:
             echo top.pyType.name
             unreachable
@@ -279,7 +328,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
         of OpCode.LoadName:
           unreachable("locals() scope not implemented")
-
 
         of OpCode.BuildTuple:
           var args = newSeq[PyObject](opArg)
@@ -517,7 +565,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             excp.context = topBlock.context
             topBlock.context = excp
             topBlock.status = TryStatus.Except
-            valStack.setlen topBlock.sPtr
+            setStackLen topBlock.sPtr
             sPush excp # for comparison in `except` clause
             jumpTo(topBlock.handler)
             when defined(debug):
@@ -527,7 +575,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             if excp.context.isNil: # raised without nesting try/except
               excp.context = topBlock.context 
             # else with nesting try/except, the context has already been set properly
-            valStack.setlen popTryBlock() # try to find a handler along the stack
+            setStackLen popTryBlock() # try to find a handler along the stack
           else:
             unreachable
         return excp

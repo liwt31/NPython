@@ -666,9 +666,17 @@ compileMethod List:
   c.addOp(newArgInstr(OpCode.BuildList, astNode.elts.len))
 
 compileMethod Tuple:
-  for elt in astNode.elts:
-    c.compile(elt)
-  c.addOp(newArgInstr(OpCode.BuildTuple, astNode.elts.len))
+  case astNode.ctx.kind
+  of AsdlExprContextTk.Load:
+    for elt in astNode.elts:
+      c.compile(elt)
+    c.addOp(newArgInstr(OpCode.BuildTuple, astNode.elts.len))
+  of AsdlExprContextTk.Store:
+    c.addOp(newArgInstr(OpCode.UnpackSequence, astNode.elts.len))
+    for elt in astNode.elts:
+      c.compile(elt)
+  else:
+    unreachable
 
 compileMethod Slice:
   var n = 2

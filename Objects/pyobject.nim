@@ -16,10 +16,13 @@ export macros except name
 export pyobjectBase
 
 
+template getMagic*(obj: PyObject, methodName): untyped = 
+  obj.pyType.magicMethods.methodName
+
 template getFun*(obj: PyObject, methodName: untyped, handleExcp=false):untyped = 
   if obj.pyType == nil:
     unreachable("Py type not set")
-  let fun = obj.pyType.magicMethods.methodName
+  let fun = getMagic(obj, methodName)
   if fun == nil:
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
@@ -49,6 +52,7 @@ template callMagic*(obj: PyObject, methodName: untyped, arg1, arg2: PyObject, ha
 
 proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) = 
   if t.bltinMethods.hasKey(name):
+
     unreachable(fmt"Method {name} is registered twice for type {t.name}")
   t.bltinMethods[name] = fun
 

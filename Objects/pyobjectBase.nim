@@ -15,6 +15,7 @@ type
     Bool,
     Type,
     Tuple,
+    List,
     Str,
     Code,
     NimFunc,
