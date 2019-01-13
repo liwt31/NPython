@@ -31,9 +31,10 @@ type
     
 
 proc pyImport*(name: PyStrObject): PyObject
+proc newPyFrame*(fun: PyFuncObject): PyFrameObject 
 proc newPyFrame*(fun: PyFuncObject, 
                  args: seq[PyObject], 
-                 back: PyFrameObject): PyFrameObject
+                 back: PyFrameObject): PyObject
 
 template doUnary(opName: untyped) = 
   let top = sTop()
@@ -493,17 +494,20 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           var args = newseq[PyObject](opArg)
           for i in 1..opArg:
             args[^i] = sPop()
-          let funcObj = sPop()
+          let funcObjNoCast = sPop()
           var retObj: PyObject
           # runtime function, evaluate recursively
-          if funcObj.ofPyFuncObject:
-            let newF = newPyFrame(PyFuncObject(funcObj), args, f)
-            retObj = newF.evalFrame
+          if funcObjNoCast.ofPyFuncObject:
+            let funcObj = PyFuncObject(funcObjNoCast)
+            let newF = newPyFrame(funcObj, args, f)
+            if newF.isThrownException:
+              handleException(newF)
+            retObj = PyFrameObject(newF).evalFrame
           # else use dispatcher defined in methodobject.nim
           # todo: should first dispatch Nim level function (same as CPython). 
           # this is of low priority because profit is unknown
           else:
-            retObj = funcObj.call(args)
+            retObj = funcObjNoCast.call(args)
           if retObj.isThrownException:
             handleException(retObj)
           sPush retObj
@@ -605,7 +609,7 @@ proc pyImport*(name: PyStrObject): PyObject =
   when defined(debug):
     echo co
   let fun = newPyFunc(name, co, newPyDict())
-  let f = newPyFrame(fun, @[], nil)
+  let f = newPyFrame(fun)
   let retObj = f.evalFrame
   if retObj.isThrownException:
     return retObj
@@ -613,32 +617,45 @@ proc pyImport*(name: PyStrObject): PyObject =
   module.dict = f.globals
   module
 
+proc newPyFrame*(fun: PyFuncObject): PyFrameObject = 
+  let obj = newPyFrame(fun, @[], nil)
+  if obj.isThrownException:
+    unreachable
+  else:
+    PyFrameObject(obj)
+
 proc newPyFrame*(fun: PyFuncObject, 
                  args: seq[PyObject], 
-                 back: PyFrameObject): PyFrameObject = 
+                 back: PyFrameObject): PyObject = 
   let code = fun.code
-  assert code != nil
-  result = newPyFrame()
-  result.back = back
-  result.code = code
-  result.globals = fun.globals
+  if code.argScopes.len < args.len:
+    let msg = fmt"{fun.name.str}() takes {code.argScopes.len} positional arguments but {args.len} were given"
+    return newTypeError(msg)
+  elif args.len < code.argScopes.len:
+    let diff = code.argScopes.len - args.len
+    let msg = fmt"{fun.name.str}() missing {diff} required positional argument: {code.argNames[^diff..^1]}"
+    return newTypeError(msg)
+  let frame = newPyFrame()
+  frame.back = back
+  frame.code = code
+  frame.globals = fun.globals
   # todo: use flags for faster simple function call
-  result.fastLocals = newSeq[PyObject](code.localVars.len)
-  result.cellVars = newSeq[PyCellObject](code.cellVars.len + code.freeVars.len)
+  frame.fastLocals = newSeq[PyObject](code.localVars.len)
+  frame.cellVars = newSeq[PyCellObject](code.cellVars.len + code.freeVars.len)
   # todo: wrong number of arguments error handling
   # init cells. Can do some optimizations here
   for i in 0..<code.cellVars.len:
-    result.cellVars[i] = newPyCell(nil)
+    frame.cellVars[i] = newPyCell(nil)
   # setup arguments
   for i in 0..<args.len:
-    let (scope, scopeIdx) = code.argScope[i]
+    let (scope, scopeIdx) = code.argScopes[i]
     case scope
     of Scope.Local:
-      result.fastLocals[scopeIdx] = args[i]
+      frame.fastLocals[scopeIdx] = args[i]
     of Scope.Global:
       unreachable
     of Scope.Cell:
-      result.cellVars[scopeIdx].refObj = args[i]
+      frame.cellVars[scopeIdx].refObj = args[i]
     of Scope.Free:
       unreachable("arguments can't be free")
   # setup closures. Note some are done when setting up arguments
@@ -648,13 +665,14 @@ proc newPyFrame*(fun: PyFuncObject,
     assert code.freevars.len == fun.closure.items.len
     for idx, c in fun.closure.items:
       assert c.ofPyCellObject
-      result.cellVars[code.cellVars.len + idx] = PyCellObject(c)
+      frame.cellVars[code.cellVars.len + idx] = PyCellObject(c)
+  frame
 
 proc runCode*(co: PyCodeObject): PyObject = 
   when defined(debug):
     echo co
   let fun = newPyFunc(newPyString("main"), co, newPyDict())
-  let f = newPyFrame(fun, @[], nil)
+  let f = newPyFrame(fun)
   f.evalFrame
 
 

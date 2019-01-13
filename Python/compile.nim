@@ -244,7 +244,8 @@ proc assemble(cu: CompilerUnit): PyCodeObject =
   # todo: add flags for faster simple function call
   result.cellVars = cu.ste.cellVarsToSeq()
   result.freeVars = cu.ste.freeVarsToSeq()
-  result.argScope = newSeq[(Scope, int)](cu.ste.argVars.len)
+  result.argNames = newSeq[PyStrObject](cu.ste.argVars.len)
+  result.argScopes = newSeq[(Scope, int)](cu.ste.argVars.len)
   for argName, argIdx in cu.ste.argVars.pairs:
     let scope = cu.ste.getScope(argName)
     var scopeIdx: int
@@ -257,7 +258,8 @@ proc assemble(cu: CompilerUnit): PyCodeObject =
       scopeIdx = cu.ste.cellId(argName)
     of Scope.Free:
       unreachable("arguments can't be free")
-    result.argScope[argIdx] = (scope, scopeIdx)
+    result.argNames[argIdx] = argName
+    result.argScopes[argIdx] = (scope, scopeIdx)
 
 
 proc makeFunction(c: Compiler, cu: CompilerUnit, functionName: PyStrObject) = 

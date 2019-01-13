@@ -62,7 +62,7 @@ proc interactiveShell =
     else:
       globals = newPyDict()
     let fun = newPyFunc(newPyString("Bla"), co, globals)
-    let f = newPyFrame(fun, @[], prevF)
+    let f = newPyFrame(fun)
     var retObj = f.evalFrame
     if retObj.isThrownException:
       echo PyExceptionObject(retObj).excpStrWithContext

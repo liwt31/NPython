@@ -16,7 +16,8 @@ declarePyType Code(tpToken):
     cellVars: seq[PyStrObject]
     freeVars: seq[PyStrObject]
 
-    argScope: seq[(Scope, int)]
+    argNames: seq[PyStrObject]
+    argScopes: seq[(Scope, int)]
 
 
 
