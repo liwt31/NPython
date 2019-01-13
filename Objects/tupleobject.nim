@@ -1,4 +1,5 @@
 import strutils
+import strformat
 
 import pyobject
 import baseBundle
@@ -14,6 +15,24 @@ proc newPyTuple*(items: seq[PyObject]): PyTupleObject =
   result = newPyTupleSimple()
   # shallow copy
   result.items = items
+
+
+implTupleBinary eq:
+  if not other.ofPyTupleObject:
+    return pyFalseObj
+  let tOther = PyTupleObject(other)
+  if self.items.len != tOther.items.len:
+    return pyFalseObj
+  for i in 0..<self.items.len:
+    let i1 = self.items[i]
+    let i2 = tOther.items[i]
+    let retObj = i1.callMagic(eq, i2)
+    if retObj.isThrownException:
+      return retObj
+    assert retObj.ofPyBoolObject
+    if not PyBoolObject(retObj).b:
+      return pyFalseObj
+  pyTrueObj
 
 
 implTupleUnary iter: 
@@ -60,4 +79,29 @@ implTupleBinary getitem:
     
   return newIndexTypeError("tuple", other)
 
+
+proc newTuple(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} = 
+  # todo: use macro, add iterable to checkArgTypes
+  case args.len:
+  of 0:
+    result = newPyTupleSimple()
+  of 1:
+    let iterable = getIterableWithCheck(args[0])
+    if iterable.isThrownException:
+      return iterable
+    let nextMethod = iterable.getMagic(iternext)
+    let newTuple = newPyTupleSimple()
+    while true:
+      let nextObj = nextMethod(iterable)
+      if nextObj.isStopIter:
+        break
+      if nextObj.isThrownException:
+        return nextObj
+      newTuple.items.add nextObj
+    result = newTuple
+  else:
+    let msg = fmt"tuple expected at most 1 args, got {args.len}"
+    return newTypeError(msg)
+
+pyTupleObjectType.magicMethods.new = newTuple
 

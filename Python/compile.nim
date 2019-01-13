@@ -396,7 +396,10 @@ compileMethod FunctionDef:
 
 
 compileMethod Return:
-  c.compile(astNode.value)
+  if astNode.value.isNil:
+    c.addLoadConst(pyNone)
+  else:
+    c.compile(astNode.value)
   c.addOp(newInstr(OpCode.ReturnValue))
   c.tcb.seenReturn = true
 

@@ -226,7 +226,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
         of OpCode.GetIter:
           let top = sTop()
-          let iterObj = checkIterable(top)
+          let iterObj = getIterableWithCheck(top)
           if iterObj.isThrownException:
             handleException(iterObj)
           sSetTop(iterObj)
@@ -281,15 +281,10 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             for i in 1..opArg: 
               sPush l.items[^i]
           else:
-            let iterFunc = s.getMagic(iter)
-            if iterFunc.isNil:
-              let msg = "cannot unpack non-iterable {s.pyType.name} object"
-              handleException(newTypeError(msg))
-            let iterable = s.iterFunc
+            let iterable = getIterableWithCheck(s)
+            if iterable.isThrownException:
+              handleException(iterable)
             let nextFunc = iterable.getMagic(iternext)
-            if nextFunc.isNil:
-              let msg = "cannot unpack non-iterable {s.pyType.name} object"
-              handleException(newTypeError(msg))
             # there is a much clever approach in CPython
             # the power of low level memory accessing!
             var items = newseq[PyObject](opArg)

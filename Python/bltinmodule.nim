@@ -107,8 +107,10 @@ implBltinFunc iter(obj: PyObject), []:
 registerBltinObject("None", pyNone)
 registerBltinObject("range", pyRangeObjectType)
 registerBltinObject("list", pyListObjectType)
+registerBltinObject("tuple", pyTupleObjectType)
 registerBltinObject("dict", pyDictObjectType)
 registerBltinObject("int", pyIntObjectType)
+
 
 macro registerErrors: untyped = 
   result = newStmtList()

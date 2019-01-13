@@ -13,11 +13,15 @@ t = 3, 2
 assert t[0] == 3
 assert t[1] == 2
 
-def foo():
-    return 1,2
 
-assert len(foo()) == 2
+def foo():
+    return 1, 2
+
+
+assert foo() == (1, 2)
+
+assert (1, 2) != [1, 2]
+
+assert tuple([3, 4]) == (3, 4)
 
 print("ok")
-
-

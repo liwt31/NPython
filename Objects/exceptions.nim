@@ -154,13 +154,14 @@ template errorIfNotBool*(pyObj: untyped, methodName: string) =
       return newTypeError(msg)
 
 
-template checkIterable*(obj: PyObject): PyObject = 
-  let iterFunc = obj.pyType.magicMethods.iter
+template getIterableWithCheck*(obj: PyObject): PyObject = 
+  # return exception, or a iterable with `iternext` method
+  let iterFunc = obj.getMagic(iter)
   if iterFunc == nil:
     let msg = obj.pyType.name & " object is not iterable"
     return newTypeError(msg)
   let iterObj = iterFunc(obj)
-  if iterObj.pyType.magicMethods.iternext == nil:
+  if iterObj.getMagic(iternext) == nil:
     let msg = fmt"iter() returned non-iterator of type " & iterObj.pyType.name
     return newTypeError(msg)
   iterobj

@@ -55,6 +55,11 @@ method `$`*(code: PyCodeObject): string =
           line &= fmt" ({code.constants[opArg]})"
       of OpCode.LoadFast, OpCode.StoreFast:
         line &= fmt" ({code.localVars[opArg]})"
+      of OpCode.LoadDeref, OpCode.StoreDeref:
+        if opArg < code.cellVars.len:
+          line &= fmt" ({code.cellVars[opArg]})"
+        else:
+          line &= fmt" ({code.freeVars[opArg - code.cellVars.len]})"
       of OpCode.CallFunction, jumpSet, OpCode.BuildList:
         discard
       else:

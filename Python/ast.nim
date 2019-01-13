@@ -475,7 +475,7 @@ ast continue_stmt, [AsdlStmt]:
 # return_stmt: 'return' [testlist]
 ast return_stmt, [AsdlStmt]:
   let node = newAstReturn()
-  if parseNode.children.len == 0:
+  if parseNode.children.len == 1:
     return node
   node.value = astTestList(parseNode.children[1])
   node

@@ -169,7 +169,6 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
         ste.addDeclaration(AstArg(arg).arg)
         ste.argVars[AstArg(arg).arg.value] = idx
 
-    assert toVisitPerSte.len != 0
     while toVisitPerSte.len != 0:
       let astNode = toVisitPerSte.pop
       if astNode of AsdlStmt:

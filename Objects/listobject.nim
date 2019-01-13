@@ -186,10 +186,10 @@ proc newList(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} =
   of 0:
     result = newPyListSimple()
   of 1:
-    let iterable = checkIterable(args[0])
+    let iterable = getIterableWithCheck(args[0])
     if iterable.isThrownException:
       return iterable
-    let nextMethod = iterable.pyType.magicMethods.iternext
+    let nextMethod = iterable.getMagic(iternext)
     let newList = newPyListSimple()
     while true:
       let nextObj = nextMethod(iterable)
@@ -197,12 +197,11 @@ proc newList(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} =
         break
       if nextObj.isThrownException:
         return nextObj
-      newList.append(nextObj)
+      newList.items.add nextObj
     result = newList
   else:
     let msg = fmt"list expected at most 1 args, got {args.len}"
     return newTypeError(msg)
-  
 
 pyListObjectType.magicMethods.new = newList
 
