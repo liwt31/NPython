@@ -413,11 +413,16 @@ ast expr_stmt, [AsdlStmt]:
   
 # testlist_star_expr  (test|star_expr) (',' (test|star_expr))* [',']
 ast testlist_star_expr, [AsdlExpr]:
-  if not (parseNode.children.len == 1):
-    raiseSyntaxError("Testlist with comma not supported")
-  if not (parseNode.children[0].tokenNode.token == Token.test):
-    raiseSyntaxError("Star expression not implemented")
-  result = ast_test(parseNode.children[0])
+  var elms: seq[AsdlExpr]
+  for i in 0..<((parseNode.children.len + 1) div 2):
+    let child = parseNode.children[2 * i]
+    if not (child.tokenNode.token == Token.test):
+      raiseSyntaxError("Star expression not implemented")
+    elms.add ast_test(child)
+  if parseNode.children.len == 1:
+    result = elms[0]
+  else:
+    result = newTuple(elms)
   assert result != nil
   
 
@@ -1041,19 +1046,16 @@ ast exprlist, [AsdlExpr]:
   
 # testlist: test (',' test)* [',']
 ast testlist, [AsdlExpr]:
+  var elms: seq[AsdlExpr]
+  for i in 0..<((parseNode.children.len + 1) div 2):
+    let child = parseNode.children[2 * i]
+    elms.add ast_test(child)
   if parseNode.children.len == 1:
-    return ast_test(parseNode.children[0])
-  raiseSyntaxError("Long testlist (with comma) not implemented")
-  # below is valid but not implemented in the compiler
-  # so cancel for now
-  #[
-  let node = newAstTuple()
-  for child in parseNode.children:
-    if child.tokenNode.token == Token.Comma:
-      continue
-    node.elts.add astTest(child) 
-  return node
-  ]#
+    result = elms[0]
+  else:
+    result = newTuple(elms)
+  assert result != nil
+
 
 #   dictorsetmaker: ( ((test ':' test | '**' expr)
 #                   (comp_for | (',' (test ':' test | '**' expr))* [','])) |

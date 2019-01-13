@@ -20,4 +20,15 @@ def foo():
 
 
 assert 3 == foo()()
+
+
+def change():
+    x = 1
+    def bar():
+        assert x == 2
+    x = 2
+    bar()
+
+change()
+
 print("ok")
