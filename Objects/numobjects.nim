@@ -74,24 +74,24 @@ template intBinaryTemplate(op, methodName: untyped, methodNameStr:string) =
     result = newTypeError(msg)
 
 
-implIntBinary add:
+implIntMagic add:
   intBinaryTemplate(`+`, add, "+")
 
 
-implIntBinary sub:
+implIntMagic sub:
   intBinaryTemplate(`-`, sub, "-")
 
 
-implIntBinary mul:
+implIntMagic mul:
   intBinaryTemplate(`*`, mul, "*")
 
 
-implIntBinary trueDiv:
+implIntMagic trueDiv:
   let casted = newPyFloat(self)
   casted.callMagic(trueDiv, other)
 
 
-implIntBinary floorDiv:
+implIntMagic floorDiv:
  if other.ofPyIntObject:
    let intOther = PyIntObject(other)
    if intOther.v == 0:
@@ -104,25 +104,25 @@ implIntBinary floorDiv:
    result = newTypeError(fmt"floor divide not supported by int and {other.pyType.name}")
 
 
-implIntBinary pow:
+implIntMagic pow:
   intBinaryTemplate(pow, pow, "**")
 
 
-implIntUnary positive:
+implIntMagic positive:
   self
 
-implIntUnary negative: 
+implIntMagic negative: 
   newPyInt(-self.v)
 
 
-implIntUnary bool:
+implIntMagic bool:
   if self.v == 0:
     pyFalseObj
   else:
     pyTrueObj
 
 
-implIntBinary lt:
+implIntMagic lt:
   if other.ofPyIntObject:
     if self.v < PyIntObject(other).v:
       result = pyTrueObj
@@ -135,7 +135,7 @@ implIntBinary lt:
     result = newTypeError(msg)
 
 
-implIntBinary eq:
+implIntMagic eq:
   if other.ofPyIntObject:
     if self.v == PyIntObject(other).v:
       result = pyTrueObj
@@ -153,15 +153,15 @@ implIntBinary eq:
     result = newTypeError(msg)
 
 
-implIntUnary str:
+implIntMagic str:
   newPyString($self)
 
 
-implIntUnary repr:
+implIntMagic repr:
   newPyString($self)
 
 
-implIntUnary hash:
+implIntMagic hash:
   self
 
 
@@ -213,73 +213,73 @@ macro castOther(code:untyped):untyped =
   code
 
 
-implFloatBinary add, [castOther]:
+implFloatMagic add, [castOther]:
   newPyFloat(self.v + casted.v)
 
 
-implFloatBinary sub, [castOther]:
+implFloatMagic sub, [castOther]:
   newPyFloat(self.v - casted.v)
 
 
-implFloatBinary mul, [castOther]:
+implFloatMagic mul, [castOther]:
   newPyFloat(self.v * casted.v)
 
 
-implFloatBinary trueDiv, [castOther]:
+implFloatMagic trueDiv, [castOther]:
   newPyFloat(self.v / casted.v)
 
 
-implFloatBinary floorDiv, [castOther]:
+implFloatMagic floorDiv, [castOther]:
   newPyFloat(floor(self.v / casted.v))
 
 
-implFloatBinary pow, [castOther]:
+implFloatMagic pow, [castOther]:
   newPyFloat(self.v.pow(casted.v))
 
 
-implFloatUnary positive:
+implFloatMagic positive:
   self
 
-implFloatUnary negative:
+implFloatMagic negative:
   newPyFloat(-self.v)
 
 
-implFloatUnary bool:
+implFloatMagic bool:
   if self.v == 0:
     return pyFalseObj
   else:
     return pyTrueObj
 
 
-implFloatBinary lt, [castOther]:
+implFloatMagic lt, [castOther]:
   if self.v < casted.v:
     return pyTrueObj
   else:
     return pyFalseObj
 
 
-implFloatBinary eq, [castOther]:
+implFloatMagic eq, [castOther]:
   if self.v == casted.v:
     return pyTrueObj
   else:
     return pyFalseObj
 
 
-implFloatBinary gt, [castOther]:
+implFloatMagic gt, [castOther]:
   if self.v > casted.v:
     return pyTrueObj
   else:
     return pyFalseObj
 
 
-implFloatUnary str:
+implFloatMagic str:
   newPyString($self)
 
 
-implFloatUnary repr:
+implFloatMagic repr:
   newPyString($self)
 
-implFloatUnary hash:
+implFloatMagic hash:
   newPyInt(hash(self.v))
 
 

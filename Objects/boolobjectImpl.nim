@@ -15,18 +15,18 @@ method `$`*(obj: PyBoolObject): string =
 
 methodMacroTmpl(Bool, "Bool")
 
-implBoolUnary Not:
+implBoolMagic Not:
   if self == pyTrueObj:
     pyFalseObj
   else:
     pyTrueObj
 
 
-implBoolUnary bool:
+implBoolMagic bool:
   self
 
 
-implBoolBinary And:
+implBoolMagic And:
   let otherBoolObj = other.callMagic(bool)
   errorIfNotBool(otherBoolObj, "__bool__")
   if self.b and PyBoolObject(otherBoolObj).b:
@@ -34,7 +34,7 @@ implBoolBinary And:
   else:
     return pyFalseObj
 
-implBoolBinary Xor:
+implBoolMagic Xor:
   let otherBoolObj = other.callMagic(bool)
   errorIfNotBool(otherBoolObj, "__bool__")
   if self.b xor PyBoolObject(otherBoolObj).b:
@@ -42,7 +42,7 @@ implBoolBinary Xor:
   else:
     return pyFalseObj
 
-implBoolBinary Or:
+implBoolMagic Or:
   let otherBoolObj = other.callMagic(bool)
   errorIfNotBool(otherBoolObj, "__bool__")
   if self.b or PyBoolObject(otherBoolObj).b:
@@ -50,7 +50,7 @@ implBoolBinary Or:
   else:
     return pyFalseObj
 
-implBoolBinary eq:
+implBoolMagic eq:
   let otherBoolObj = other.callMagic(bool)
   errorIfNotBool(otherBoolObj, "__bool__")
   let otherBool = PyBoolObject(otherBoolObj).b
@@ -60,15 +60,15 @@ implBoolBinary eq:
     return pyFalseObj
   
 
-implBoolUnary str:
+implBoolMagic str:
   if self.b:
     return newPyString("True")
   else:
     return newPyString("False")
 
-implBoolUnary repr:
+implBoolMagic repr:
   strPyBoolObject(self)
 
 
-implBoolUnary hash:
+implBoolMagic hash:
   newPyInt(Hash(self.b))

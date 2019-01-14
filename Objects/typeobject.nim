@@ -24,10 +24,10 @@ setDictOffset(Type)
 pyTypeObjectType.tp = PyTypeToken.Type
 
 
-implTypeUnary repr:
+implTypeMagic repr:
   newPyString(self.name)
 
-implTypeUnary str:
+implTypeMagic str:
   self.reprPyTypeObject
 
 

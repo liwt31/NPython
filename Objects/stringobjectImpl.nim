@@ -19,7 +19,7 @@ proc `==`*(self, other: PyStrObject): bool {. inline, cdecl .} =
 methodMacroTmpl(Str, "str")
 
 
-implStrBinary eq:
+implStrMagic eq:
   if not other.ofPyStrObject:
     return pyFalseObj
   if self.str == PyStrObject(other).str:
@@ -28,13 +28,13 @@ implStrBinary eq:
     return pyFalseObj
 
 
-implStrUnary str:
+implStrMagic str:
   self
 
 
-implStrUnary repr:
+implStrMagic repr:
   newPyString($self)
 
 
-implStrUnary hash:
+implStrMagic hash:
   newPyInt(self.hash)

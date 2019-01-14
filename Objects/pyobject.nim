@@ -77,13 +77,45 @@ macro castSelf*(ObjectType: untyped, code: untyped): untyped =
   code
 
 
-proc genImpl*(methodName, ObjectType, body:NimNode, 
-              params: openarray[NimNode],
-              pragmas: NimNode): NimNode= 
+proc getParams(methodName: NimNode): seq[NimNode] = 
+  var params = @[
+                  ident("PyObject"),  # return type
+                  newIdentDefs(ident("selfNoCast"), ident("PyObject")),  # first arg
+                ]
+  var m: MagicMethods
+  # the loop is no doubt slow, however we are at compile time and this won't cost
+  # 1ms during the entire compile process on mordern CPU
+  for name, tp in m.fieldPairs:
+    if name == methodName.strVal:
+      if tp is UnaryMethod:
+        discard  # do nothing
+      elif tp is BinaryMethod:
+        params.add newIdentDefs(ident("other"), ident("PyObject"))
+      elif tp is TernaryMethod:
+        params.add @[
+                      newIdentDefs(ident("arg1"), ident("PyObject")),
+                      newIdentDefs(ident("arg2"), ident("PyObject")),
+                    ]
+      elif tp is BltinMethod:
+        params.add @[
+                      newIdentDefs(
+                        ident("args"), 
+                        nnkBracketExpr.newTree(ident("seq"), ident("PyObject"))
+                      ),
+                    ]
+      else:
+        unreachable
+      return params
+  error(fmt"method name {methodName.strVal} is not magic method")
+
+
+proc genMagicImpl*(methodName, ObjectType, body:NimNode, pragmas: NimNode): NimNode= 
   methodName.expectKind({nnkIdent, nnkSym})
   ObjectType.expectKind(nnkIdent)
   body.expectKind(nnkStmtList)
   pragmas.expectKind(nnkBracket)
+  let params = getParams(methodName)
+
 
   result = newStmtList()
   let name = ident($methodName & $ObjectType)
@@ -116,33 +148,6 @@ proc genImpl*(methodName, ObjectType, body:NimNode,
     )
   )
 
-
-proc implUnary*(methodName, objectType, code:NimNode, 
-                pragmasBracket:NimNode): NimNode = 
-  let params = [ident("PyObject"), newIdentDefs(ident("selfNoCast"), ident("PyObject"))]
-  genImpl(methodName, objectType, code, params, pragmasBracket)
-
-
-
-proc implBinary*(methodName, objectType, code:NimNode,
-                 pragmasBracket:NimNode): NimNode = 
-  let params = [
-                 ident("PyObject"), 
-                 newIdentDefs(ident("selfNoCast"), ident("PyObject")),
-                 newIdentDefs(ident("other"), ident("PyObject"))
-               ]
-  genImpl(methodName, objectType, code, params, pragmasBracket)
-
-
-proc implTernary*(methodName, objectType, code:NimNode,
-                 pragmasBracket:NimNode): NimNode = 
-  let params = [
-                 ident("PyObject"), 
-                 newIdentDefs(ident("selfNoCast"), ident("PyObject")),
-                 newIdentDefs(ident("arg1"), ident("PyObject")),
-                 newIdentDefs(ident("arg2"), ident("PyObject")),
-               ]
-  genImpl(methodName, objectType, code, params, pragmasBracket)
 
 proc objName2tpObjName(objName: string): string {. compileTime .} = 
   result = objName & "Type"
@@ -369,7 +374,8 @@ template methodMacroTmpl*(name: untyped, nameStr: string,
       else:
         pragmas.add(getMutableReadPragma())
 
-  macro `impl name Unary`(methodName, pragmas, code:untyped): untyped {. used .} = 
+  # default args won't work here, so use overload
+  macro `impl name Magic`(methodName, pragmas, code:untyped): untyped {. used .} = 
     addMutablePragma(methodName, realMethodName)
     expectKind(realMethodName, {nnkIdent, nnkSym})
 
@@ -380,25 +386,10 @@ template methodMacroTmpl*(name: untyped, nameStr: string,
           realMethodName
         )
       )
-    implUnary(realMethodName, ident(objNameStr), code, pragmas)
+    genMagicImpl(realMethodName, ident(objNameStr), code, pragmas)
 
-  # default args won't work here, so use overload
-  macro `impl name Unary`(methodName, code:untyped): untyped {. used .} = 
-    getAst(`impl name Unary`(methodName, nnkBracket.newTree(), code))
-
-  macro `impl name Binary`(methodName, pragmas, code:untyped): untyped {. used .} = 
-    addMutablePragma(methodName, realMethodName)
-    implBinary(realMethodName, ident(objNameStr), code, pragmas)
-
-  macro `impl name Binary`(methodName, code:untyped): untyped {. used .}= 
-    getAst(`impl name Binary`(methodName, nnkBracket.newTree(), code))
-
-  macro `impl name Ternary`(methodName, pragmas, code:untyped): untyped {. used .} = 
-    addMutablePragma(methodName, realMethodName)
-    implTernary(realMethodName, ident(objNameStr), code, pragmas)
-
-  macro `impl name Ternary`(methodName, code:untyped): untyped {. used .}= 
-    getAst(`impl name Ternary`(methodName, nnkBracket.newTree(), code))
+  macro `impl name Magic`(methodName, code:untyped): untyped {. used .} = 
+    getAst(`impl name Magic`(methodName, nnkBracket.newTree(), code))
 
   macro `impl name Method`(prototype, pragmas, code:untyped): untyped {. used .}= 
     addMutablePragma(prototype, realPrototype)

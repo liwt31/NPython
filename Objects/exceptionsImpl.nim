@@ -21,7 +21,7 @@ genMethodMacros
 
 template newMagicTmpl(excpName: untyped, excpNameStr: string) = 
 
-  `impl excpName ErrorUnary` repr:
+  `impl excpName ErrorMagic` repr:
     # must return pyStringObject, used when formatting traceback
     var msg: string
     if self.msg.isNil:

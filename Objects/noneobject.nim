@@ -6,7 +6,7 @@ declarePyType None(tpToken):
 
 let pyNone* = newPyNoneSimple()
 
-implNoneBinary eq:
+implNoneMagic eq:
   if other.ofPyNoneObject:
     return pyTrueObj
   else:

@@ -22,7 +22,7 @@ proc newPyList*(items: seq[PyObject]): PyListObject =
   result.items = items
 
 
-implListBinary contains:
+implListMagic contains:
   for idx, item in self.items:
     let retObj =  item.callMagic(eq, other)
     if retObj.isThrownException:
@@ -32,11 +32,11 @@ implListBinary contains:
   return pyFalseObj
 
 
-implListUnary iter: 
+implListMagic iter: 
   newPySeqIter(self.items)
 
 
-implListUnary repr:
+implListMagic repr:
   var ss: seq[string]
   for item in self.items:
     var itemRepr: PyStrObject
@@ -46,13 +46,13 @@ implListUnary repr:
     ss.add(itemRepr.str)
   return newPyString("[" & ss.join(", ") & "]")
 
-implListUnary str:
+implListMagic str:
   self.reprPyListObject
 
-implListUnary len:
+implListMagic len:
   newPyInt(self.items.len)
 
-implListBinary getitem:
+implListMagic getitem:
   if other.ofPyIntObject:
     let idx = getIndex(PyIntObject(other), self.items.len)
     return self.items[idx]
@@ -68,7 +68,7 @@ implListBinary getitem:
   return newIndexTypeError("list", other)
 
 
-implListTernary *setitem:
+implListMagic *setitem:
   if arg1.ofPyIntObject:
     let idx = getIndex(PyIntObject(arg1), self.items.len)
     self.items[idx] = arg2

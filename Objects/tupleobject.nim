@@ -17,7 +17,7 @@ proc newPyTuple*(items: seq[PyObject]): PyTupleObject =
   result.items = items
 
 
-implTupleBinary eq:
+implTupleMagic eq:
   if not other.ofPyTupleObject:
     return pyFalseObj
   let tOther = PyTupleObject(other)
@@ -35,11 +35,11 @@ implTupleBinary eq:
   pyTrueObj
 
 
-implTupleUnary iter: 
+implTupleMagic iter: 
   newPySeqIter(self.items)
 
 
-implTupleUnary repr:
+implTupleMagic repr:
   var ss: seq[string]
   for item in self.items:
     var itemRepr: PyStrObject
@@ -50,21 +50,21 @@ implTupleUnary repr:
   return newPyString("(" & ss.join(", ") & ")")
 
 
-implTupleUnary str:
+implTupleMagic str:
   self.reprPyTupleObject
 
 
-implTupleUnary len:
+implTupleMagic len:
   newPyInt(self.items.len)
 
-implTupleUnary hash:
+implTupleMagic hash:
   var h = self.id
   for item in self.items:
     h = h xor item.id
   return newPyInt(h)
 
 
-implTupleBinary getitem:
+implTupleMagic getitem:
   if other.ofPyIntObject:
     let idx = getIndex(PyIntObject(other), self.items.len)
     return self.items[idx]

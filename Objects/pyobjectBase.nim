@@ -42,7 +42,7 @@ type
 
 
   # modify their names in typeobject.nim when modify the magic methods
-  MagicMethods = tuple
+  MagicMethods* = tuple
     add: BinaryMethod
     sub: BinaryMethod
     mul: BinaryMethod

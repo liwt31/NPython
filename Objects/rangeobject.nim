@@ -13,14 +13,14 @@ declarePyType Range():
   length: PyIntObject
 
 
-implRangeUnary len:
+implRangeMagic len:
   self.length
 
-implRangeUnary repr:
+implRangeMagic repr:
   # todo: make it the same as CPython
   newPyString(fmt"range({self.start.v}, {self.ending.v}, {self.step.v}, {self.length.v})")
 
-implRangeUnary str:
+implRangeMagic str:
   self.reprPyRangeObject
   
 
@@ -82,7 +82,7 @@ declarePyType RangeIter():
   index: PyIntObject
 
 
-implRangeUnary iter:
+implRangeMagic iter:
   let iter = newPyRangeIterSimple()
   iter.start = self.start
   iter.step = self.step
@@ -92,11 +92,11 @@ implRangeUnary iter:
 
 
 
-implRangeIterUnary iter:
+implRangeIterMagic iter:
   self
 
 
-implRangeIterUnary iternext:
+implRangeIterMagic iternext:
   if self.index.callMagic(lt, self.length) == pyTrueObj:
     result = newPyInt(self.start.v + self.index.v * self.step.v)
     let newIndex = self.index.callMagic(add, newPyInt(1))
