@@ -90,9 +90,6 @@ implBltinFunc dir(obj: PyObject), []:
   mergedDict.keys
 
 
-implBltinFunc type(obj: PyObject), []:
-  obj.pyType
-
 implBltinFunc id(obj: PyObject), []:
   newPyInt(obj.id)
 
@@ -105,6 +102,7 @@ implBltinFunc iter(obj: PyObject), []:
 
 
 registerBltinObject("None", pyNone)
+registerBltinObject("type", pyTypeObjectType)
 registerBltinObject("range", pyRangeObjectType)
 registerBltinObject("list", pyListObjectType)
 registerBltinObject("tuple", pyTupleObjectType)

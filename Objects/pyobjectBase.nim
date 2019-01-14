@@ -1,4 +1,5 @@
 import strformat
+import macros
 import strutils
 import tables
 
@@ -43,18 +44,18 @@ type
   # modify their names in typeobject.nim when modify the magic methods
   MagicMethods = tuple
     add: BinaryMethod
-    subtract: BinaryMethod
-    multiply: BinaryMethod
-    trueDivide: BinaryMethod
-    floorDivide: BinaryMethod
-    remainder: BinaryMethod
-    power: BinaryMethod
-    
+    sub: BinaryMethod
+    mul: BinaryMethod
+    trueDiv: BinaryMethod
+    floorDiv: BinaryMethod
     # use uppercase to avoid conflict with nim keywords
+    Mod: BinaryMethod
+    pow: BinaryMethod
+    
     Not: UnaryMethod
     negative: UnaryMethod
     positive: UnaryMethod
-    absolute: UnaryMethod
+    abs: UnaryMethod
     index: UnaryMethod
     bool: UnaryMethod
 
@@ -132,6 +133,28 @@ type
     dictOffset*: int
 
 
+# add underscores
+macro genMagicNames: untyped = 
+  let bracketNode = nnkBracket.newTree()
+  var m: MagicMethods
+  for name, v in m.fieldpairs:
+    bracketNode.add newLit("__" & name & "__")
+
+  nnkStmtList.newTree(
+    nnkConstSection.newTree(
+      nnkConstDef.newTree(
+        nnkPostfix.newTree(
+          ident("*"),
+          newIdentNode("magicNames"),
+        ),
+        newEmptyNode(),
+        bracketNode
+      )
+    )
+  )
+
+genMagicNames
+
 
 method `$`*(obj: PyObject): string {.base, inline.} = 
   "Python object"
@@ -162,6 +185,10 @@ let pyObjectType* = newPyTypePrivate("object")
 proc newPyType*(name: string): PyTypeObject =
   result = newPyTypePrivate(name)
   result.base = pyObjectType
+
+
+proc hasDict*(obj: PyObject): bool {. inline .} = 
+  0 < obj.pyType.dictOffset
 
 proc getDict*(obj: PyObject): PyObject {. cdecl .} = 
   let tp = obj.pyType

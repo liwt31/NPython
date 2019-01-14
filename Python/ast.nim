@@ -136,7 +136,10 @@ proc astArgument(parseNode: ParseNode): AsdlExpr
 proc astSyncCompFor(parseNode: ParseNode): seq[AsdlComprehension]
 proc astCompFor(parseNode: ParseNode): seq[AsdlComprehension]
 
-proc genParamsSeq(paramSeq: NimNode): seq[NimNode] {.compileTime.} = 
+
+# DSL to simplify function defination
+# should use a pragma instead?
+proc genParamsSeq(paramSeq: NimNode): seq[NimNode] = 
   expectKind(paramSeq, nnkBracket)
   assert 0 < paramSeq.len
   result.add(paramSeq[0])
@@ -148,7 +151,7 @@ proc genParamsSeq(paramSeq: NimNode): seq[NimNode] {.compileTime.} =
     result.add(newIdentDefs(child[0], child[1]))
 
 
-proc genFuncDef(tokenIdent: NimNode, funcDef: NimNode): NimNode {.compileTime.} = 
+proc genFuncDef(tokenIdent: NimNode, funcDef: NimNode): NimNode = 
   # add assert type check for the function
   expectKind(funcDef, nnkStmtList)
   let assertType = nnkCommand.newTree(
@@ -171,8 +174,7 @@ proc genFuncDef(tokenIdent: NimNode, funcDef: NimNode): NimNode {.compileTime.} 
 
   result = newStmtList(assertType, funcDef)
 
-# DSL to simplify function defination
-# should use a pragma instead?
+
 macro ast(tokenName, paramSeq, funcDef: untyped): untyped = 
   result = newProc(
     ident(fmt"ast_{tokenName}"), 
@@ -182,7 +184,7 @@ macro ast(tokenName, paramSeq, funcDef: untyped): untyped =
 
 
 
-#  build ast Node according to token of child
+#  build ast Node according to tokens of children
 macro childAst(child, astNode: untyped, tokens: varargs[Token]): untyped = 
   result = nnkCaseStmt.newTree
   # the case condition `child.tokenNode.token`
@@ -218,6 +220,7 @@ macro childAst(child, astNode: untyped, tokens: varargs[Token]): untyped =
     )
   )
     
+# set context to store. The contexts are load by default
 method setStore(astNode: AstNodeBase) {.base.} = 
   echo astNode
   raiseSyntaxError("can't assign")
@@ -225,10 +228,8 @@ method setStore(astNode: AstNodeBase) {.base.} =
 method setStore(astNode: AstName) = 
   astnode.ctx = newAstStore()
 
-
 method setStore(astNode: AstAttribute) = 
   astnode.ctx = newAstStore()
-
 
 method setStore(astNode: AstSubscript) = 
   astnode.ctx = newAstStore()
@@ -275,10 +276,10 @@ ast decorators:
   
 ]#
 ast decorated, [AsdlStmt]:
-  discard
+  raiseSyntaxError("decorator not implemented")
   
 ast async_funcdef, [AsdlStmt]:
-  discard
+  raiseSyntaxError("async function defination not implemented")
   
 # funcdef  'def' NAME parameters ['->' test] ':' suite
 ast funcdef, [AstFunctionDef]:
@@ -351,7 +352,6 @@ ast stmt, [seq[AsdlStmt]]:
   
   
 # simple_stmt: small_stmt (';' small_stmt)* [';'] NEWLINE
-#proc astSimpleStmt(parseNode: ParseNode): seq[AsdlStmt] = 
 ast simple_stmt, [seq[AsdlStmt]]:
   for child in parseNode.children:
     if child.tokenNode.token == Token.small_stmt:
@@ -362,7 +362,6 @@ ast simple_stmt, [seq[AsdlStmt]]:
   
 # small_stmt: (expr_stmt | del_stmt | pass_stmt | flow_stmt |
 #              import_stmt | global_stmt | nonlocal_stmt | assert_stmt)
-#proc astSmallStmt(parseNode: ParseNode): AsdlStmt = 
 ast small_stmt, [AsdlStmt]:
   let child = parseNode.children[0]
   childAst(child, result, 
@@ -381,8 +380,7 @@ ast small_stmt, [AsdlStmt]:
 ast expr_stmt, [AsdlStmt]:
   let testlistStarExpr1 = astTestlistStarExpr(parseNode.children[0])
   if parseNode.children.len == 1:
-    result = newAstExpr(testlistStarExpr1)
-    return
+    return newAstExpr(testlistStarExpr1)
   
   case parseNode.children[1].tokenNode.token
   of Token.Equal: # simple cases like `x=1`
@@ -446,10 +444,10 @@ ast augassign, [AsdlOperator]:
   ]#
   
 proc astDelStmt(parseNode: ParseNode): AsdlStmt = 
-  discard
+  raiseSyntaxError("del not implemented")
   
 ast pass_stmt, [AstPass]:
-  result = newAstPass()
+  newAstPass()
   
 
 # flow_stmt: break_stmt | continue_stmt | return_stmt | raise_stmt | yield_stmt
@@ -493,7 +491,6 @@ ast raise_stmt, [AstRaise]:
     result.exc = astTest(parseNode.children[1])
   else:
     raiseSyntaxError("Fancy raise not implemented")
-  
 
 
 # import_stmt  import_name | import_from
@@ -662,7 +659,6 @@ ast suite, [seq[AsdlStmt]]:
     assert child != nil
   
 # test  or_test ['if' or_test 'else' test] | lambdef
-#proc astTest(parseNode: ParseNode): AsdlExpr = 
 ast test, [AsdlExpr]:
   if not (parseNode.children.len == 1):
     raiseSyntaxError("Inline if else not implemented")

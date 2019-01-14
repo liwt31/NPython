@@ -1,10 +1,12 @@
 import typetraits
 import strformat
+import strutils
 import tables
 
 import pyobject
 import exceptionsImpl
 import dictobject
+import tupleobject
 import boolobjectImpl
 import stringobjectImpl
 import methodobject
@@ -12,11 +14,12 @@ import descrobject
 
 import ../Utils/utils
 
-
+# PyTypeObject is manually declared in pyobjectBase.nim
+# here we need to do some initialization
 methodMacroTmpl(Type, "Type")
 
 
-let pyTypeObjectType = newPyType("type")
+let pyTypeObjectType* = newPyType("type")
 setDictOffset(Type)
 pyTypeObjectType.tp = PyTypeToken.Type
 
@@ -30,67 +33,6 @@ implTypeUnary str:
 
 proc getTypeDict*(obj: PyObject): PyDictObject = 
   PyDictObject(obj.pyType.dict)
-
-
-proc hasDict*(obj: PyObject): bool {. inline .} = 
-  0 < obj.pyType.dictOffset
-
-
-const magicNames = [
-  "__add__",
-  "__sub__",
-  "__mul__",
-  "__truediv__",
-  "__floordiv__",
-  "__mod__",
-  "__pow__",
-
-  "__not__",
-  "__negative__",
-  "__positive__",
-  "__abs__",
-  "__index__",
-  "__bool__",
-
-  "__and__",
-  "__xor__",
-  "__or__",
-
-  "__lt__",
-  "__le__",
-  "__eq__",
-  "__ne__",
-  "__gt__",
-  "__ge__",
-  "__contains__",
-
-  "__len__",
-
-  "__str__",
-  "__repr__",
-
-  "__new__",
-  "__init__",
-  "__getattribute__",
-  "__hash__",
-  "__dict__",
-  "__call__",
-
-  "__getitem__",
-  "__setitem__",
-
-  "__get__",
-
-  "__iter__",
-  "__next__",
-]
-
-
-static:
-  if (not (PyTypeObject.magicMethods.arity == magicNames.len)):
-    echo PyTypeObject.magicMethods.arity
-    echo magicNames.len
-    error("field not sync")
 
 # some generic behaviors that every type should obey
 proc le(o1, o2: PyObject): PyObject {. cdecl .} =
@@ -177,8 +119,13 @@ proc typeReady*(t: PyTypeObject) =
 
 pyTypeObjectType.typeReady()
 
-proc newInstance*(selfNoCast: PyObject, args: seq[PyObject]): 
+proc newInstance(selfNoCast: PyObject, args: seq[PyObject]): 
   PyObject {. castSelf: PyTypeObject, cdecl .} = 
+  # quoting CPython: "ugly exception". 
+  # Deal with `type("abc") == str`, what a design failure.
+  if (self == pyTypeObjectType) and (args.len == 1):
+    return args[0].pyType
+
   let newFunc = self.magicMethods.new
   if newFunc == nil:
     let msg = fmt"cannot create '{self.name}' instances because __new__ is not set"
@@ -195,6 +142,9 @@ proc newInstance*(selfNoCast: PyObject, args: seq[PyObject]):
 
 pyTypeObjectType.magicMethods.call = newInstance
 
+
+#implTypeMethod new(name: PyStrObject, bases: PyTupleObject, dict: PyDictObject):
+#  unreachable
 
 proc isClass*(obj: PyObject): bool {. cdecl .} = 
   obj.pyType.tp == PyTypeToken.Type

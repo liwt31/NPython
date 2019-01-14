@@ -197,13 +197,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           doUnary(Not)
 
         of OpCode.BinaryPower:
-          doBinary(power)
+          doBinary(pow)
 
         of OpCode.BinaryMultiply:
-          doBinary(multiply)
+          doBinary(mul)
 
         of OpCode.BinaryModulo:
-          doBinary(remainder)
+          doBinary(Mod)
 
         of OpCode.StoreSubscr:
           let idx = sPop()
@@ -217,16 +217,16 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           doBinary(add)
 
         of OpCode.BinarySubtract:
-          doBinary(subtract)
+          doBinary(sub)
 
         of OpCode.BinarySubscr:
           doBinary(getitem)
 
         of OpCode.BinaryFloorDivide:
-          doBinary(floorDivide)
+          doBinary(floorDiv)
 
         of OpCode.BinaryTrueDivide:
-          doBinary(trueDivide)
+          doBinary(trueDiv)
 
         of OpCode.GetIter:
           let top = sTop()
@@ -622,12 +622,13 @@ proc newPyFrame*(fun: PyFuncObject): PyFrameObject =
   if obj.isThrownException:
     unreachable
   else:
-    PyFrameObject(obj)
+    return PyFrameObject(obj)
 
 proc newPyFrame*(fun: PyFuncObject, 
                  args: seq[PyObject], 
                  back: PyFrameObject): PyObject = 
   let code = fun.code
+  # handle wrong number of args
   if code.argScopes.len < args.len:
     let msg = fmt"{fun.name.str}() takes {code.argScopes.len} positional arguments but {args.len} were given"
     return newTypeError(msg)
@@ -642,7 +643,6 @@ proc newPyFrame*(fun: PyFuncObject,
   # todo: use flags for faster simple function call
   frame.fastLocals = newSeq[PyObject](code.localVars.len)
   frame.cellVars = newSeq[PyCellObject](code.cellVars.len + code.freeVars.len)
-  # todo: wrong number of arguments error handling
   # init cells. Can do some optimizations here
   for i in 0..<code.cellVars.len:
     frame.cellVars[i] = newPyCell(nil)

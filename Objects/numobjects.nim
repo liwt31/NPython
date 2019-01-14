@@ -78,20 +78,20 @@ implIntBinary add:
   intBinaryTemplate(`+`, add, "+")
 
 
-implIntBinary subtract:
-  intBinaryTemplate(`-`, subtract, "-")
+implIntBinary sub:
+  intBinaryTemplate(`-`, sub, "-")
 
 
-implIntBinary multiply:
-  intBinaryTemplate(`*`, multiply, "*")
+implIntBinary mul:
+  intBinaryTemplate(`*`, mul, "*")
 
 
-implIntBinary trueDivide:
+implIntBinary trueDiv:
   let casted = newPyFloat(self)
-  casted.callMagic(trueDivide, other)
+  casted.callMagic(trueDiv, other)
 
 
-implIntBinary floorDivide:
+implIntBinary floorDiv:
  if other.ofPyIntObject:
    let intOther = PyIntObject(other)
    if intOther.v == 0:
@@ -99,13 +99,13 @@ implIntBinary floorDivide:
    result = newPyInt(self.v.div PyIntObject(other).v)
  elif other.ofPyFloatObject:
    let newFloat = newPyFloat(self)
-   result = newFloat.callMagic(floorDivide, other)
+   result = newFloat.callMagic(floorDiv, other)
  else:
    result = newTypeError(fmt"floor divide not supported by int and {other.pyType.name}")
 
 
-implIntBinary power:
-  intBinaryTemplate(pow, power, "**")
+implIntBinary pow:
+  intBinaryTemplate(pow, pow, "**")
 
 
 implIntUnary positive:
@@ -217,23 +217,23 @@ implFloatBinary add, [castOther]:
   newPyFloat(self.v + casted.v)
 
 
-implFloatBinary subtract, [castOther]:
+implFloatBinary sub, [castOther]:
   newPyFloat(self.v - casted.v)
 
 
-implFloatBinary multiply, [castOther]:
+implFloatBinary mul, [castOther]:
   newPyFloat(self.v * casted.v)
 
 
-implFloatBinary trueDivide, [castOther]:
+implFloatBinary trueDiv, [castOther]:
   newPyFloat(self.v / casted.v)
 
 
-implFloatBinary floorDivide, [castOther]:
+implFloatBinary floorDiv, [castOther]:
   newPyFloat(floor(self.v / casted.v))
 
 
-implFloatBinary power, [castOther]:
+implFloatBinary pow, [castOther]:
   newPyFloat(self.v.pow(casted.v))
 
 
