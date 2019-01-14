@@ -91,10 +91,8 @@ implRangeMagic iter:
   iter
 
 
-
 implRangeIterMagic iter:
   self
-
 
 implRangeIterMagic iternext:
   if self.index.callMagic(lt, self.length) == pyTrueObj:

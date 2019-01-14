@@ -125,8 +125,6 @@ when not defined(release):
     self.items.add(i)
     pyNone
 
-
-
   # for macro pragma testing
   macro hello(code: untyped): untyped = 
     code.body.insert(0, nnkCommand.newTree(ident("echo"), newStrLitNode("hello")))

@@ -52,7 +52,6 @@ template callMagic*(obj: PyObject, methodName: untyped, arg1, arg2: PyObject, ha
 
 proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) = 
   if t.bltinMethods.hasKey(name):
-
     unreachable(fmt"Method {name} is registered twice for type {t.name}")
   t.bltinMethods[name] = fun
 
@@ -100,7 +99,11 @@ proc getParams(methodName: NimNode): seq[NimNode] =
         params.add @[
                       newIdentDefs(
                         ident("args"), 
-                        nnkBracketExpr.newTree(ident("seq"), ident("PyObject"))
+                        nnkBracketExpr.newTree(ident("seq"), ident("PyObject")),
+                        nnkPrefix.newTree( # default arg
+                          ident("@"),
+                          nnkBracket.newTree()
+                        )                      
                       ),
                     ]
       else:
@@ -109,57 +112,9 @@ proc getParams(methodName: NimNode): seq[NimNode] =
   error(fmt"method name {methodName.strVal} is not magic method")
 
 
-proc genMagicImpl*(methodName, ObjectType, body:NimNode, pragmas: NimNode): NimNode= 
-  methodName.expectKind({nnkIdent, nnkSym})
-  ObjectType.expectKind(nnkIdent)
-  body.expectKind(nnkStmtList)
-  pragmas.expectKind(nnkBracket)
-  let params = getParams(methodName)
-
-
-  result = newStmtList()
-  let name = ident($methodName & $ObjectType)
-  let namePublic = nnkPostfix.newTree(ident("*"), name)
-
-  let procNode = newProc(namePublic, params, body)
-  for p in pragmas:
-    procNode.addPragma(p)
-  procNode.addPragma(
-    nnkExprColonExpr.newTree(
-      ident("castSelf"),
-      ObjectType
-    )
-  )
-  procNode.addPragma(ident("cdecl"))
-  result.add(procNode)
-
-  var typeObjName = $ObjectType & "Type"
-  typeObjName[0] = typeObjName[0].toLowerAscii
-  result.add(
-    newAssignment(
-      newDotExpr(
-        newDotExpr(
-          ident(typeObjName),
-          ident("magicMethods")
-        ),
-        methodName
-      ),
-      name
-    )
-  )
-
-
 proc objName2tpObjName(objName: string): string {. compileTime .} = 
   result = objName & "Type"
   result[0] = result[0].toLowerAscii
-
-
-#  return `checkArgNum(1, "append")` like
-proc checkArgNumNimNode(artNum: int, methodName:string): NimNode = 
-  result = newCall(ident("checkArgNum"), 
-                   newIntLitNode(artNum), 
-                   newStrLitNode(methodName))
-
 
 # example here: For a definition like `i: PyIntObject`
 # obj: i
@@ -180,7 +135,12 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
   let argTypes = nameAndArg[1]
   let body = newStmtList()
   let argNum = argTypes.len
-  body.add(checkArgNumNimNode(argNum, methodName.strVal))
+  #  return `checkArgNum(1, "append")` like
+  body.add newCall(ident("checkArgNum"), 
+             newIntLitNode(argNum), 
+             newStrLitNode(methodName.strVal)
+           )
+
   for idx, child in argTypes:
     let obj = nnkBracketExpr.newTree(
       ident("args"),
@@ -204,9 +164,11 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
   code
 
 
-
 # works with thingks like `append(obj: PyObject)`
+# if no parenthesis, then return nil as argTypes, means do not check arg type
 proc getNameAndArgTypes*(prototype: NimNode): (NimNode, NimNode) = 
+  if prototype.kind == nnkIdent or prototype.kind == nnkSym:
+    return (prototype, nil)
   let argTypes = nnkPar.newTree()
   let methodName = prototype[0]
   if prototype.kind == nnkObjConstr:
@@ -222,36 +184,28 @@ proc getNameAndArgTypes*(prototype: NimNode): (NimNode, NimNode) =
   (methodName, argTypes)
 
 
-proc implMethod*(prototype, objectType, pragmas, body: NimNode): NimNode = 
+proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): NimNode = 
   var (methodName, argTypes) = getNameAndArgTypes(prototype)
-  let name = ident($methodName & $objectType)
-  var typeObjName = objName2tpObjName($objectType)
+  methodName.expectKind({nnkIdent, nnkSym})
+  ObjectType.expectKind(nnkIdent)
+  body.expectKind(nnkStmtList)
+  pragmas.expectKind(nnkBracket)
+  let name = ident($methodName & $ObjectType)
+  var typeObjName = objName2tpObjName($ObjectType)
   let typeObjNode = ident(typeObjName)
+
+  var params: seq[NimNode]
+  if magic:
+    params = getParams(methodName)
+  else:
+    params = getParams(ident("new")) # pretent to be a magic method, slow but not harmful
 
   let procNode = newProc(
     nnkPostFix.newTree(
       ident("*"),  # let other modules call without having to lookup in the type dict
       name,
     ),
-    [
-      ident("PyObject"), # return value
-      nnkIdentDefs.newTree( # first arg
-        ident("selfNoCast"),
-        ident("PyObject"),
-        newEmptyNode(),
-      ),
-      nnkIdentDefs.newTree( # second arg
-        newIdentNode("args"),
-        nnkBracketExpr.newTree(
-          ident("seq"),
-          ident("PyObject")
-        ),
-        nnkPrefix.newTree(
-          ident("@"),
-          nnkBracket.newTree()
-        )
-      )
-    ],
+    params,
     body, # the function body
   )
   # add pragmas, the last to add is the first to execute
@@ -261,34 +215,47 @@ proc implMethod*(prototype, objectType, pragmas, body: NimNode): NimNode =
   procNode.addPragma(
     nnkExprColonExpr.newTree(
       ident("castSelf"),
-      objectType
+      ObjectType
     )
   )
 
-  procNode.addPragma(
-    nnkExprColonExpr.newTree(
-      ident("checkArgTypes"),
-      nnkPar.newTree(
-        methodName,
-        argTypes
-      ) 
+  # no arg type info is provided
+  if not argTypes.isNil:
+    procNode.addPragma(
+      nnkExprColonExpr.newTree(
+        ident("checkArgTypes"),
+        nnkPar.newTree(
+          methodName,
+          argTypes
+        ) 
+      )
     )
-  )
   procNode.addPragma(ident("cdecl"))
 
-  result = newStmtList(
-    procNode,
-    nnkCall.newTree(
-      nnkDotExpr.newTree(
-        typeObjNode,
-        newIdentNode("registerBltinMethod")
-      ),
-      newLit(methodName.strVal),
-      name
-    )
-  )
+  result = newStmtList()
+  result.add procNode
 
-  
+  if magic:
+    result.add newAssignment(
+        newDotExpr(
+          newDotExpr(
+            ident(typeObjName),
+            ident("magicMethods")
+          ),
+          methodName
+        ),
+        name
+      )
+  else:
+    result.add nnkCall.newTree(
+        nnkDotExpr.newTree(
+          typeObjNode,
+          newIdentNode("registerBltinMethod")
+        ),
+        newLit(methodName.strVal),
+        name
+      )
+
 
 macro hasReprLock*(methodName, code: untyped): untyped = 
   let reprEnter = quote do:
@@ -386,29 +353,28 @@ template methodMacroTmpl*(name: untyped, nameStr: string,
           realMethodName
         )
       )
-    genMagicImpl(realMethodName, ident(objNameStr), code, pragmas)
+    implMethod(realMethodName, ident(objNameStr), pragmas, code, true)
 
   macro `impl name Magic`(methodName, code:untyped): untyped {. used .} = 
     getAst(`impl name Magic`(methodName, nnkBracket.newTree(), code))
 
   macro `impl name Method`(prototype, pragmas, code:untyped): untyped {. used .}= 
     addMutablePragma(prototype, realPrototype)
-    implMethod(realPrototype, ident(objNameStr), pragmas, code)
+    implMethod(realPrototype, ident(objNameStr), pragmas, code, false)
 
   macro `impl name Method`(prototype, code:untyped): untyped {. used .}= 
     getAst(`impl name Method`(prototype, nnkBracket.newTree(), code))
 
-
 template setDictOffset*(name) = 
   var t: `Py name Object`
   `py name ObjectType`.dictOffset = cast[int](t.dict.addr) - cast[int](t[].addr)
-
 
 macro declarePyType*(prototype, fields: untyped): untyped = 
   prototype.expectKind(nnkCall)
   fields.expectKind(nnkStmtList)
   var tpToken, mutable, dict, reprLock: bool
   var baseTypeStr = "PyObject"
+  # parse options the silly way
   for i in 1..<prototype.len:
     let option = prototype[i]
     if option.kind == nnkCall:
@@ -454,6 +420,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     field.expectKind(nnkCall)
     reclist.addField(field[0], field[1][0])
 
+  # add fields related to options
   if reprLock:
     reclist.addField(ident("reprLock"), ident("bool"))
   if dict:
@@ -462,6 +429,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     reclist.addField(ident("readNum"), ident("int"))
     reclist.addField(ident("writeLock"), ident("bool"))
 
+  # declare the type
   let decObjNode = nnkTypeSection.newTree(
     nnkTypeDef.newTree(
       nnkPostFix.newTree(
@@ -482,6 +450,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   )
   result.add(decObjNode)
 
+  # boiler plates for pyobject type
   template initTypeTmpl(name, nameStr, hasTpToken, hasDict, baseType) = 
     let `py name ObjectType`* {. inject .} = newPyType(nameStr)
     `py name ObjectType`.base = `py baseType ObjectType`
@@ -493,7 +462,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
 
     when hasTpToken:
       `py name ObjectType`.tp = PyTypeToken.`name`
-      proc `ofPy name Object`*(obj: PyObject): bool {. cdecl, inline .}= 
+      proc `ofPy name Object`*(obj: PyObject): bool {. cdecl, inline .} = 
         obj.pyType.tp == PyTypeToken.`name`
 
     # base constructor that should be used for any custom constructors
@@ -509,13 +478,11 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       `newPy name Simple`()
     `py name ObjectType`.magicMethods.new = `newPy name Default`
 
-
   result.add(getAst(initTypeTmpl(nameIdent, 
     nameIdent.strVal, 
     newLit(tpToken), 
     newLit(dict),
     ident(baseTypeStr[2..^7]))))
-
 
   result.add(getAst(methodMacroTmpl(nameIdent, nameIdent.strVal, 
                                     newLit(mutable), newLit(reprLock))))

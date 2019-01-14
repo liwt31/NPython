@@ -143,8 +143,8 @@ proc newInstance(selfNoCast: PyObject, args: seq[PyObject]):
 pyTypeObjectType.magicMethods.call = newInstance
 
 
-#implTypeMethod new(name: PyStrObject, bases: PyTupleObject, dict: PyDictObject):
-#  unreachable
+#implTypeMagic new(name: PyStrObject):
+#  discard
 
 proc isClass*(obj: PyObject): bool {. cdecl .} = 
   obj.pyType.tp == PyTypeToken.Type
