@@ -1,42 +1,6 @@
-import macros
-import sequtils
 
-macro genOpCode(code: untyped): untyped =
-  result = newStmtList()
-  # opcode tokens
-  let children = toSeq(code[0].items) # convert to seq of nimNode
-  result.add(
-    newEnum(
-      ident("OpCode"),
-      children,
-      true, # public and pure
-    true
-  )
-  )
-
-  # generate an array of opcode as map
-  var constBrackets = nnkBracket.newTree()
-  for child in code[0]:
-    constBrackets.add(
-      nnkDotExpr.newTree(
-        ident("OpCode"),
-        child
-      )
-    )
-
-  result.add(
-    newConstStmt(
-      nnkPostFix.newTree(
-        ident("*"),
-        ident("OpCodeIndex"),
-      ),
-      constBrackets,
-    )
-  )
-
-
-genOpCode:
-  (
+type
+  OpCode* {. pure .} = enum
     NULLCODE,
     POP_TOP,
     ROT_TWO,
@@ -160,7 +124,6 @@ genOpCode:
     CALL_FINALLY,
     POP_FINALLY,
     EXCEPT_HANDLER,
-  )
 
 type CmpOp* {.pure.} = enum
   Lt, Le, Eq, Ne, Gt, Ge, In, NotIn, Is, IsNot, ExcpMatch
