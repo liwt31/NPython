@@ -24,7 +24,7 @@ implRangeMagic str:
   self.reprPyRangeObject
   
 
-proc newRange(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} = 
+implRangeMagic init:
   for arg in args:
     if not arg.ofPyIntObject:
       # CPython uses duck typing here, anything behaves like an int
@@ -64,15 +64,11 @@ proc newRange(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} =
     length = (-ending.v + start.v - step.v - 1) div -step.v
   if length < 0:
     length = initBigInt(0)
-  let newPyRange = newPyRangeSimple()
-  newPyRange.start = start
-  newPyRange.ending = ending
-  newPyRange.step = step
-  newPyRange.length = newPyInt(length)
-  newPyRange
-
-
-pyRangeObjectType.magicMethods.new = newRange
+  self.start = start
+  self.ending = ending
+  self.step = step
+  self.length = newPyInt(length)
+  pyNone
 
 
 declarePyType RangeIter():

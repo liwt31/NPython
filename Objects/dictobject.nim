@@ -65,7 +65,7 @@ template checkHashableTmpl(obj) =
     return newTypeError(msg)
 
 
-implDictMagic contains:
+implDictMagic contains, [mutable: read]:
   checkHashableTmpl(other)
   try:
     result = self.table.getOrDefault(other, nil)
@@ -77,7 +77,7 @@ implDictMagic contains:
   else:
     return pyTrueObj
 
-implDictMagic repr:
+implDictMagic repr, [mutable: read, reprLock]:
   var ss: seq[string]
   for k, v in self.table.pairs:
     let kRepr = k.callMagic(repr)
@@ -88,20 +88,19 @@ implDictMagic repr:
   return newPyString("{" & ss.join(", ") & "}")
 
 
-implDictMagic len:
+implDictMagic len, [mutable: read]:
   newPyInt(self.table.len)
 
 
-implDictMagic str:
+implDictMagic str, [mutable: read]:
   reprPyDictObject(self)
   
 
-proc newPyDictObject(self: PyObject, args: seq[PyObject]): PyObject {. cdecl .} =
+implDictMagic New:
   newPyDict()
-pyDictObjectType.magicMethods.new = newPyDictObject
   
 
-implDictMagic getitem:
+implDictMagic getitem, [mutable: read]:
   checkHashableTmpl(other)
   try:
     result = self.table.getOrDefault(other, nil)
@@ -120,7 +119,7 @@ implDictMagic getitem:
   return newKeyError(msg)
 
 
-implDictMagic setitem:
+implDictMagic setitem, [mutable: write]:
   checkHashableTmpl(arg1)
   try:
     self.table[arg1] = arg2

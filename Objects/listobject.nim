@@ -22,7 +22,7 @@ proc newPyList*(items: seq[PyObject]): PyListObject =
   result.items = items
 
 
-implListMagic contains:
+implListMagic contains, [mutable: read]:
   for idx, item in self.items:
     let retObj =  item.callMagic(eq, other)
     if retObj.isThrownException:
@@ -32,11 +32,11 @@ implListMagic contains:
   return pyFalseObj
 
 
-implListMagic iter: 
+implListMagic iter, [mutable: read]: 
   newPySeqIter(self.items)
 
 
-implListMagic repr:
+implListMagic repr, [mutable: read, reprLock]:
   var ss: seq[string]
   for item in self.items:
     var itemRepr: PyStrObject
@@ -46,13 +46,13 @@ implListMagic repr:
     ss.add(itemRepr.str)
   return newPyString("[" & ss.join(", ") & "]")
 
-implListMagic str:
+implListMagic str, [mutable: read]:
   self.reprPyListObject
 
-implListMagic len:
+implListMagic len, [mutable: read]:
   newPyInt(self.items.len)
 
-implListMagic getitem:
+implListMagic getitem, [mutable: read]:
   if other.ofPyIntObject:
     let idx = getIndex(PyIntObject(other), self.items.len)
     return self.items[idx]
@@ -68,7 +68,7 @@ implListMagic getitem:
   return newIndexTypeError("list", other)
 
 
-implListMagic *setitem:
+implListMagic setitem, [mutable: write]:
   if arg1.ofPyIntObject:
     let idx = getIndex(PyIntObject(arg1), self.items.len)
     self.items[idx] = arg2
@@ -78,27 +78,23 @@ implListMagic *setitem:
   return newIndexTypeError("list", arg1)
 
 
-proc append(self: PyListObject, item: PyObject) {. inline .} = 
+implListMethod append(item: PyObject), [mutable: write]:
   self.items.add(item)
-
-
-implListMethod *append(item: PyObject):
-  self.append(item)
   pyNone
 
 
-implListMethod *clear():
+implListMethod clear(), [mutable: write]:
   self.items.setLen 0
   pyNone
 
 
-implListMethod copy():
+implListMethod copy(), [mutable: read]:
   let newL = newPyList()
   newL.items = self.items # shallow copy
   newL
 
 
-implListMethod count(target: PyObject):
+implListMethod count(target: PyObject), [mutable: read]:
   var count: int
   for item in self.items:
     let retObj = item.callMagic(eq, target)
@@ -111,17 +107,17 @@ implListMethod count(target: PyObject):
 # some test methods just for debugging
 when not defined(release):
   # for lock testing
-  implListMethod doClear():
+  implListMethod doClear(), [mutable: read]:
   # should fail because trying to write while reading
     self.clearPyListObject()
 
-  implListMethod *doRead():
+  implListMethod doRead(), [mutable: write]:
     # trying to read whiel writing
     return self.doClearPyListObject()
 
 
   # for checkArgTypes testing
-  implListMethod aInt(i: PyIntObject):
+  implListMethod aInt(i: PyIntObject), [mutable: read]:
     self.items.add(i)
     pyNone
 
@@ -137,7 +133,7 @@ when not defined(release):
 # todo
 #
 
-implListMethod index(target: PyObject):
+implListMethod index(target: PyObject), [mutable: read]:
   for idx, item in self.items:
     let retObj =  item.callMagic(eq, target)
     if retObj.isThrownException:
@@ -149,7 +145,7 @@ implListMethod index(target: PyObject):
 
 
 
-implListMethod *insert(idx: PyIntObject, item: PyObject):
+implListMethod insert(idx: PyIntObject, item: PyObject), [mutable: write]:
   var intIdx: int
   if 0 < idx.v:
     intIdx = 0
@@ -163,13 +159,13 @@ implListMethod *insert(idx: PyIntObject, item: PyObject):
   pyNone
 
 
-implListMethod *pop():
+implListMethod pop(), [mutable: write]:
   if self.items.len == 0:
     let msg = "pop from empty list"
     return newIndexError(msg)
   self.items.pop
 
-implListMethod *remove(target: PyObject):
+implListMethod remove(target: PyObject), [mutable: write]:
   let retObj = indexPyListObject(selfNoCast, @[target])
   if retObj.isThrownException:
     return retObj
@@ -178,11 +174,12 @@ implListMethod *remove(target: PyObject):
   self.items.delete(idx, idx+1)
 
 
-proc newList(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} = 
+implListMagic init:
   # todo: use macro, add iterable to checkArgTypes
+  # now ugly as we have to pop out the first argument which is the type
   case args.len:
   of 0:
-    result = newPyListSimple()
+    discard
   of 1:
     let iterable = getIterableWithCheck(args[0])
     if iterable.isThrownException:
@@ -195,11 +192,8 @@ proc newList(theType: PyObject, args:seq[PyObject]): PyObject {. cdecl .} =
         break
       if nextObj.isThrownException:
         return nextObj
-      newList.items.add nextObj
-    result = newList
+      self.items.add nextObj
   else:
     let msg = fmt"list expected at most 1 args, got {args.len}"
     return newTypeError(msg)
-
-pyListObjectType.magicMethods.new = newList
-
+  pyNone

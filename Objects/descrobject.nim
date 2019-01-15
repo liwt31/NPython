@@ -10,7 +10,7 @@ declarePyType MethodDescr():
   name: PyStrObject
   dType: PyTypeObject
   kind: NFunc
-  meth: int
+  meth: int # the method function pointer. Have to be int to make it generic.
 
 
 template newMethodDescrTmpl(funName, FunType) = 
@@ -30,6 +30,13 @@ newMethodDescrTmpl(unaryMethod, UnaryMethod)
 newMethodDescrTmpl(binaryMethod, BinaryMethod)
 newMethodDescrTmpl(ternaryMethod, TernaryMethod)
 newMethodDescrTmpl(bltinMethod, BltinMethod)
+# placeholder to fool compiler in when init type dict
+proc newPyMethodDescr*(t: PyTypeObject, 
+                       meth: BltinFunc, 
+                       name: PyStrObject
+                       ): PyMethodDescrObject = 
+  unreachable("bltin function shouldn't be method. " & 
+    "This is a placeholder to fool the compiler")
 
 
 proc getMethod(selfNoCast: PyObject, owner: PyObject): 
@@ -54,10 +61,3 @@ proc getMethod(selfNoCast: PyObject, owner: PyObject):
 
 
 pyMethodDescrObjectType.magicMethods.get = getMethod
-#
-#[ have to figure out how to define arg list as something like 
-#  call(owner: PyObject, args: seq[PyObject]) in macro
-# the same problem with the builtin print function
-implNimFuncMethod call, ():
-  discard
-]#

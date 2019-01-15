@@ -1,5 +1,5 @@
-# the object file is devided into two parts. pyobjectBase.nim is for very basic and 
-# generic pyobject behavior. pyobject.nim is for helpful macros for object method
+# the object file is devided into two parts: pyobjectBase.nim is for very basic and 
+# generic pyobject behavior; pyobject.nim is for helpful macros for object method
 # definition
 import macros except name
 import sets
@@ -75,40 +75,61 @@ macro castSelf*(ObjectType: untyped, code: untyped): untyped =
   )
   code
 
+let unaryMethodParams {. compileTime .} = @[
+      ident("PyObject"),  # return type
+      newIdentDefs(ident("selfNoCast"), ident("PyObject")),  # first arg, self
+    ]
+
+let binaryMethodParams {. compileTime .} = unaryMethodParams & @[
+      newIdentDefs(ident("other"), ident("PyObject")), # second arg, other
+    ]
+
+let ternaryMethodParams {. compileTime .} = unaryMethodParams & @[
+      newIdentDefs(ident("arg1"), ident("PyObject")),
+      newIdentDefs(ident("arg2"), ident("PyObject")),
+    ]
+
+let bltinMethodParams {. compileTime .} = unaryMethodParams & @[
+      newIdentDefs(
+        ident("args"), 
+        nnkBracketExpr.newTree(ident("seq"), ident("PyObject")),
+        nnkPrefix.newTree( # default arg
+          ident("@"),
+          nnkBracket.newTree()
+        )                      
+      ),
+    ]
+
+let bltinFuncParams {. compileTime .} = @[
+      ident("PyObject"),  # return type
+      newIdentDefs(
+        ident("args"), 
+        nnkBracketExpr.newTree(ident("seq"), ident("PyObject")),
+        nnkPrefix.newTree( # default arg
+          ident("@"),
+          nnkBracket.newTree()
+        )                      
+      ),
+    ]
 
 proc getParams(methodName: NimNode): seq[NimNode] = 
-  var params = @[
-                  ident("PyObject"),  # return type
-                  newIdentDefs(ident("selfNoCast"), ident("PyObject")),  # first arg
-                ]
   var m: MagicMethods
   # the loop is no doubt slow, however we are at compile time and this won't cost
   # 1ms during the entire compile process on mordern CPU
   for name, tp in m.fieldPairs:
     if name == methodName.strVal:
       if tp is UnaryMethod:
-        discard  # do nothing
+        return unaryMethodParams
       elif tp is BinaryMethod:
-        params.add newIdentDefs(ident("other"), ident("PyObject"))
+        return binaryMethodParams
       elif tp is TernaryMethod:
-        params.add @[
-                      newIdentDefs(ident("arg1"), ident("PyObject")),
-                      newIdentDefs(ident("arg2"), ident("PyObject")),
-                    ]
+        return ternaryMethodParams
       elif tp is BltinMethod:
-        params.add @[
-                      newIdentDefs(
-                        ident("args"), 
-                        nnkBracketExpr.newTree(ident("seq"), ident("PyObject")),
-                        nnkPrefix.newTree( # default arg
-                          ident("@"),
-                          nnkBracket.newTree()
-                        )                      
-                      ),
-                    ]
+        return bltinMethodParams
+      elif tp is BltinFunc:
+        return bltinFuncParams
       else:
         unreachable
-      return params
   error(fmt"method name {methodName.strVal} is not magic method")
 
 
@@ -152,7 +173,7 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
       body.add(quote do:
           let `name` = `obj`
       )
-    if tp.strVal != "PyObject": 
+    else:
       let tpObj = ident(objName2tpObjName(tp.strVal))
       let methodNameStrNode = newStrLitNode(methodName.strVal)
       body.add(getAst(checkTypeTmpl(obj, tp, tpObj, methodNameStrNode)))
@@ -185,12 +206,19 @@ proc getNameAndArgTypes*(prototype: NimNode): (NimNode, NimNode) =
 
 
 proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): NimNode = 
+  # transforms user implementation cod
+  # prototype: function defination, contains argumetns to check
+  # ObjectType: the code belongs to which object
+  # pragmas: custom pragmas
+  # body: function body
   var (methodName, argTypes) = getNameAndArgTypes(prototype)
   methodName.expectKind({nnkIdent, nnkSym})
   ObjectType.expectKind(nnkIdent)
   body.expectKind(nnkStmtList)
   pragmas.expectKind(nnkBracket)
-  let name = ident($methodName & $ObjectType)
+  # toLowerAscii because we used uppercase in declaration to prevent conflict with
+  # Nim keywords. Now it's not necessary as we append $ObjectType
+  let name = ident(($methodName).toLowerAscii & $ObjectType)
   var typeObjName = objName2tpObjName($ObjectType)
   let typeObjNode = ident(typeObjName)
 
@@ -198,7 +226,7 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): Ni
   if magic:
     params = getParams(methodName)
   else:
-    params = getParams(ident("new")) # pretent to be a magic method, slow but not harmful
+    params = bltinMethodParams
 
   let procNode = newProc(
     nnkPostFix.newTree(
@@ -209,15 +237,19 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): Ni
     body, # the function body
   )
   # add pragmas, the last to add is the first to execute
+  
+  # custom pragms
   for p in pragmas:
     procNode.addPragma(p)
 
-  procNode.addPragma(
-    nnkExprColonExpr.newTree(
-      ident("castSelf"),
-      ObjectType
+  # builtin function has no `self` to cast
+  if params != bltinFuncParams:
+    procNode.addPragma(
+      nnkExprColonExpr.newTree(
+        ident("castSelf"),
+        ObjectType
+      )
     )
-  )
 
   # no arg type info is provided
   if not argTypes.isNil:
@@ -257,7 +289,7 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): Ni
       )
 
 
-macro hasReprLock*(methodName, code: untyped): untyped = 
+macro reprLock*(code: untyped): untyped = 
   let reprEnter = quote do:
     if self.reprLock:
       return newPyString("...")
@@ -266,8 +298,6 @@ macro hasReprLock*(methodName, code: untyped): untyped =
   let reprLeave = quote do: 
     self.reprLock = false
 
-  if methodName.strVal != "repr":
-    return code
   code.body = newStmtList( 
       reprEnter,
       nnkTryStmt.newTree(
@@ -328,46 +358,21 @@ proc getMutableWritePragma*: NimNode =
   )
 
 # generate useful macros for function defination
-template methodMacroTmpl*(name: untyped, nameStr: string, 
-                          mutable=false, reprLock=false) = 
+template methodMacroTmpl*(name: untyped, nameStr: string) = 
   const objNameStr = "Py" & nameStr & "Object"
-
-  template addMutablePragma(origName, newName) = 
-    var `newName` {. inject .} = origName
-    when mutable:
-      if origName.kind == nnkPrefix: # indication of a write method
-        pragmas.add(getMutableWritePragma())
-        newName = origName[1]
-      else:
-        pragmas.add(getMutableReadPragma())
 
   # default args won't work here, so use overload
   macro `impl name Magic`(methodName, pragmas, code:untyped): untyped {. used .} = 
-    addMutablePragma(methodName, realMethodName)
-    expectKind(realMethodName, {nnkIdent, nnkSym})
-
-    when reprLock:
-      pragmas.add(
-        nnkExprColonExpr.newTree(
-          ident("hasReprLock"),
-          realMethodName
-        )
-      )
-    implMethod(realMethodName, ident(objNameStr), pragmas, code, true)
+    implMethod(methodName, ident(objNameStr), pragmas, code, true)
 
   macro `impl name Magic`(methodName, code:untyped): untyped {. used .} = 
     getAst(`impl name Magic`(methodName, nnkBracket.newTree(), code))
 
   macro `impl name Method`(prototype, pragmas, code:untyped): untyped {. used .}= 
-    addMutablePragma(prototype, realPrototype)
-    implMethod(realPrototype, ident(objNameStr), pragmas, code, false)
+    implMethod(prototype, ident(objNameStr), pragmas, code, false)
 
   macro `impl name Method`(prototype, code:untyped): untyped {. used .}= 
     getAst(`impl name Method`(prototype, nnkBracket.newTree(), code))
-
-template setDictOffset*(name) = 
-  var t: `Py name Object`
-  `py name ObjectType`.dictOffset = cast[int](t.dict.addr) - cast[int](t[].addr)
 
 macro declarePyType*(prototype, fields: untyped): untyped = 
   prototype.expectKind(nnkCall)
@@ -474,9 +479,9 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       obj
 
     # default for __new__ hook, could be overrided at any time
-    proc `newPy name Default`(self: PyObject, args: seq[PyObject]): PyObject {. cdecl .} = 
+    proc `newPy name Default`(args: seq[PyObject]): PyObject {. cdecl .} = 
       `newPy name Simple`()
-    `py name ObjectType`.magicMethods.new = `newPy name Default`
+    `py name ObjectType`.magicMethods.New = `newPy name Default`
 
   result.add(getAst(initTypeTmpl(nameIdent, 
     nameIdent.strVal, 
@@ -484,6 +489,5 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     newLit(dict),
     ident(baseTypeStr[2..^7]))))
 
-  result.add(getAst(methodMacroTmpl(nameIdent, nameIdent.strVal, 
-                                    newLit(mutable), newLit(reprLock))))
+  result.add(getAst(methodMacroTmpl(nameIdent, nameIdent.strVal)))
 

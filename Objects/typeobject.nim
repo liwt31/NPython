@@ -10,6 +10,7 @@ import tupleobject
 import boolobjectImpl
 import stringobjectImpl
 import methodobject
+import funcobject
 import descrobject
 
 import ../Utils/utils
@@ -28,7 +29,7 @@ implTypeMagic repr:
   newPyString(self.name)
 
 implTypeMagic str:
-  self.reprPyTypeObject
+  newPyString(fmt"<class '{self.name}'>")
 
 
 proc getTypeDict*(obj: PyObject): PyDictObject = 
@@ -66,11 +67,11 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
   let name = PyStrObject(nameObj)
   let typeDict = self.getTypeDict
   if typeDict == nil:
-    unreachable("for type object d must not be nil")
+    unreachable("for type object dict must not be nil")
   if typeDict.hasKey(name):
     let descr = typeDict[name]
     let descrGet = descr.pyType.magicMethods.get
-    if descrGet == nil:
+    if descrGet.isNil:
       return descr
     else:
       return descr.descrGet(self)
@@ -97,54 +98,82 @@ proc addGeneric(t: PyTypeObject) =
   if m.repr == nil:
     t.magicMethods.repr = reprDefault
 
-
-proc typeReady*(t: PyTypeObject) = 
-  t.pyType = pyTypeObjectType
-  t.addGeneric
-
+# for internal objects
+proc initTypeDict(tp: PyTypeObject) = 
+  assert tp.dict.isNil
   let d = newPyDict()
   # magic methods. field loop syntax is pretty weird
+  # no continue, no enumerate
   var i = 0
-  for meth in t.magicMethods.fields:
-    if meth != nil:
+  for meth in tp.magicMethods.fields:
+    if not meth.isNil:
       let namePyStr = newPyString(magicNames[i])
-      d[namePyStr] = t.newPyMethodDescr(meth, namePyStr)
+      if meth is BltinFunc:
+        d[namePyStr] = newPyStaticMethod(newPyNimFunc(meth, namePyStr))
+      else:
+        d[namePyStr] = tp.newPyMethodDescr(meth, namePyStr)
     inc i
    
-  for name, meth in t.bltinMethods.pairs:
+  # bltin methods
+  for name, meth in tp.bltinMethods.pairs:
     let namePyStr = newPyString(name)
-    d[namePyStr] = t.newPyMethodDescr(meth, namePyStr)
+    d[namePyStr] = tp.newPyMethodDescr(meth, namePyStr)
 
-  t.dict = d
+  tp.dict = d
+
+proc typeReady*(tp: PyTypeObject) = 
+  tp.pyType = pyTypeObjectType
+  tp.addGeneric
+  if tp.dict.isNil:
+    tp.initTypeDict
 
 pyTypeObjectType.typeReady()
 
-proc newInstance(selfNoCast: PyObject, args: seq[PyObject]): 
-  PyObject {. castSelf: PyTypeObject, cdecl .} = 
+
+implTypeMagic call:
   # quoting CPython: "ugly exception". 
   # Deal with `type("abc") == str`, what a design failure.
   if (self == pyTypeObjectType) and (args.len == 1):
     return args[0].pyType
 
-  let newFunc = self.magicMethods.new
-  if newFunc == nil:
+  let newFunc = self.magicMethods.New
+  if newFunc.isNil:
     let msg = fmt"cannot create '{self.name}' instances because __new__ is not set"
     return newTypeError(msg)
-  let newObj = self.newFunc(args)
+  let newObj = newFunc(@[PyObject(self)] & args)
   if newObj.isThrownException:
     return newObj
   let initFunc = self.magicMethods.init
-  if initFunc != nil:
-    let initRet = self.initFunc(args)
+  if not initFunc.isNil:
+    let initRet = newObj.initFunc(args)
     if initRet.isThrownException:
       return initRet
   return newObj
 
-pyTypeObjectType.magicMethods.call = newInstance
+
+# create user defined class
+# As long as relying on Nim GC it's hard to do something like variable length object
+# in CPython, so we have to use a somewhat traditional and clumsy way
+declarePyType Instance(dict):
+  discard
+
+# todo: should to the base object when inheritance and mro is ready
+# todo: should support more complicated arg declaration
+implInstanceMagic New(tp: PyTypeObject):
+  result = new PyInstanceObject
+  result.pyType = tp
 
 
-#implTypeMagic new(name: PyStrObject):
-#  discard
+implTypeMagic New(metaType: PyTypeObject, name: PyStrObject, 
+                  bases: PyTupleObject, dict: PyDictObject):
+  assert metaType == pyTypeObjectType
+  let tp = newPyType(name.str)
+  setDictOffset(Type)
+  tp.tp = PyTypeToken.Type
+  tp.magicMethods.New = newPyInstanceObject
+  tp.dict = dict
+  tp.typeReady
+  tp
 
 proc isClass*(obj: PyObject): bool {. cdecl .} = 
   obj.pyType.tp == PyTypeToken.Type

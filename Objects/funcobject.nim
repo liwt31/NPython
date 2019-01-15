@@ -1,6 +1,6 @@
 import pyobject
 import codeobject
-import stringobject
+import baseBundle
 import dictobject
 import tupleobject
 
@@ -23,3 +23,19 @@ proc newPyFunc*(name: PyStrObject,
     assert closure.ofPyTupleObject()
   result.closure = PyTupleObject(closure)
 
+
+declarePyType StaticMethod():
+  callable: PyObject
+
+
+implStaticMethodMagic get:
+  self.callable
+
+
+implStaticMethodMagic init(callable: PyObject):
+  self.callable = callable
+  pyNone
+
+proc newPyStaticMethod*(callable: PyObject): PyStaticMethodObject = 
+  result = newPyStaticMethodSimple()
+  result.callable = callable

@@ -164,10 +164,9 @@ implIntMagic repr:
 implIntMagic hash:
   self
 
-
-proc newPyInt(tp: PyObject, args:seq[PyObject]): PyObject {. cdecl .} = 
-  checkArgNum(1)
-  let arg = args[0]
+implIntMagic New:
+  checkArgNum(2)
+  let arg = args[1]
   case arg.pyType.tp
   of PyTypeToken.Int:
     return arg
@@ -188,9 +187,6 @@ proc newPyInt(tp: PyObject, args:seq[PyObject]): PyObject {. cdecl .} =
       return newPyInt(0)
   else:
     return newTypeError(fmt"Int argument can't be '{arg.pyType.name}'")
-
-pyIntObjectType.magicMethods.new = newPyInt
-  
 
 template castOtherTypeTmpl(methodName) = 
   var casted {. inject .} : PyFloatObject

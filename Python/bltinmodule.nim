@@ -108,6 +108,7 @@ registerBltinObject("list", pyListObjectType)
 registerBltinObject("tuple", pyTupleObjectType)
 registerBltinObject("dict", pyDictObjectType)
 registerBltinObject("int", pyIntObjectType)
+registerBltinObject("staticmethod", pyStaticMethodObjectType)
 
 
 macro registerErrors: untyped = 

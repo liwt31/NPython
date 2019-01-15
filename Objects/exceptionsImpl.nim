@@ -12,8 +12,7 @@ macro genMethodMacros: untyped  =
   result = newStmtList()
   for i in ExceptionToken.low..ExceptionToken.high:
     let objName = $ExceptionToken(i) & "Error"
-    result.add(getAst(methodMacroTmpl(ident(objname), objname, 
-      newLit(false), newLit(false))))
+    result.add(getAst(methodMacroTmpl(ident(objname), objname)))
 
 
 genMethodMacros
@@ -39,12 +38,11 @@ template newMagicTmpl(excpName: untyped, excpNameStr: string) =
     newPyString(str)
 
   # this is for initialization at Python level
-  proc `newPy excpName Error`(tp: PyObject, args:seq[PyObject]): PyObject {. cdecl .} = 
+  `impl excpName ErrorMagic` New:
     let excp = `newPy excpName ErrorSimple`()
     excp.tk = ExceptionToken.`excpName`
     excp.msg = newPyTuple(args) 
     excp
-  `py excpName ErrorObjectType`.magicMethods.new = `newPy excpName Error`
 
 
 
@@ -84,5 +82,5 @@ proc isExceptionType*(obj: PyObject): bool =
   objType.tp == PyTypeToken.BaseError
 
 when isMainModule:
-  let excp = pyNameErrorObjectType.magicMethods.new(pyNameErrorObjectType, @[])
+  let excp = pyNameErrorObjectType.magicMethods.New()
   echo PyNameErrorObject(excp).tk

@@ -23,31 +23,24 @@ declarePyType NimFunc(tpToken):
     fun: int  # generic function pointer, determined by kind
                   
 
-proc call*(obj: PyObject, args: seq[PyObject]): PyObject = 
-  if obj.ofPyNimFuncObject:
-    let f = PyNimFuncObject(obj)
-    case f.kind
-    of NFunc.BltinFunc:
-      return cast[BltinFunc](f.fun)(args)
-    of NFunc.UnaryMethod:
-      checkArgNum(0)
-      return cast[UnaryMethod](f.fun)(f.self)
-    of NFunc.BinaryMethod:
-      checkArgNum(1)
-      return cast[BinaryMethod](f.fun)(f.self, args[0])
-    of NFunc.TernaryMethod:
-      checkArgNum(2)
-      return cast[TernaryMethod](f.fun)(f.self, args[0], args[1])
-    of NFunc.BltinMethod:
-      return cast[BltinMethod](f.fun)(f.self, args)
-
-  let callFunc = obj.pyType.magicMethods.call
-  if callFunc != nil:
-    return callFunc(obj, args)
-  let msg = fmt"{obj.pyType.name} is not callable"
-  newTypeError(msg)
+implNimFuncMagic call:
+  case self.kind
+  of NFunc.BltinFunc:
+    return cast[BltinFunc](self.fun)(args)
+  of NFunc.UnaryMethod:
+    checkArgNum(0)
+    return cast[UnaryMethod](self.fun)(self.self)
+  of NFunc.BinaryMethod:
+    checkArgNum(1)
+    return cast[BinaryMethod](self.fun)(self.self, args[0])
+  of NFunc.TernaryMethod:
+    checkArgNum(2)
+    return cast[TernaryMethod](self.fun)(self.self, args[0], args[1])
+  of NFunc.BltinMethod:
+    return cast[BltinMethod](self.fun)(self.self, args)
 
 
+# diff with methods: no `self` init
 proc newPyNimFunc*(fun: BltinFunc, name: PyStrObject): PyNimFuncObject =
   result = newPyNimFuncSimple()
   result.name = name
@@ -56,7 +49,10 @@ proc newPyNimFunc*(fun: BltinFunc, name: PyStrObject): PyNimFuncObject =
   
 
 template newMethodTmpl(funName, FunType) = 
-  proc newPyNimFunc*(fun: FunType, name: PyStrObject, self:PyObject): PyNimFuncObject = 
+  proc newPyNimFunc*(fun: FunType, name: PyStrObject, self:PyObject=nil): PyNimFuncObject = 
+    # `self` should never be nil. The default arg here is to fool the 
+    # compiler when init type dict
+    assert (not self.isNil)
     result = newPyNimFuncSimple()
     result.name = name
     result.kind = NFunc.FunType

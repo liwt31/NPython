@@ -1,6 +1,6 @@
 import strformat
-import macros
 import strutils
+import macros
 import tables
 
 import ../Utils/utils
@@ -77,7 +77,7 @@ type
     str: UnaryMethod
     repr: UnaryMethod
 
-    new: BltinMethod
+    New: BltinFunc  # __new__ is a `staticmethod` in Python
     init: BltinMethod
     getattr: BinaryMethod
     hash: UnaryMethod
@@ -87,6 +87,7 @@ type
     getitem: BinaryMethod
     setitem: TernaryMethod
 
+    # descriptor protocol
     # what to do when getting attribute of its intances
     get: BinaryMethod
     
@@ -138,7 +139,7 @@ macro genMagicNames: untyped =
   let bracketNode = nnkBracket.newTree()
   var m: MagicMethods
   for name, v in m.fieldpairs:
-    bracketNode.add newLit("__" & name & "__")
+    bracketNode.add newLit("__" & name.toLowerAscii & "__")
 
   nnkStmtList.newTree(
     nnkConstSection.newTree(
@@ -173,7 +174,7 @@ var bltinTypes*: seq[PyTypeObject]
 
 proc newPyTypePrivate(name: string):PyTypeObject = 
   new result
-  result.name = name.toLowerAscii
+  result.name = name
   result.bltinMethods = initTable[string, BltinMethod]()
   result.dictOffset = -1
   bltinTypes.add(result)
@@ -186,6 +187,12 @@ proc newPyType*(name: string): PyTypeObject =
   result = newPyTypePrivate(name)
   result.base = pyObjectType
 
+# why use this ugly, unreliable hack? because when getting attribute of an 
+# object whose type is unknown to compiler, the compiler should have some way to 
+# (dynamically) find out where to get its dict, and below is the most intuitive solution.
+template setDictOffset*(name) = 
+  var t: `Py name Object`
+  `py name ObjectType`.dictOffset = cast[int](t.dict.addr) - cast[int](t[].addr)
 
 proc hasDict*(obj: PyObject): bool {. inline .} = 
   0 < obj.pyType.dictOffset

@@ -477,10 +477,10 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             let obj = sPop()
             var excp: PyObject
             if obj.isClass:
-              let newFunc = PyTypeObject(obj).magicMethods.new
+              let newFunc = PyTypeObject(obj).magicMethods.New
               if newFunc.isNil:
                 unreachable("__new__ of exceptions should be initialized")
-              excp = newFunc(obj, @[])
+              excp = newFunc(@[])
             else:
               excp = obj
             if not excp.ofPyExceptionObject:
@@ -503,11 +503,15 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             if newF.isThrownException:
               handleException(newF)
             retObj = PyFrameObject(newF).evalFrame
-          # else use dispatcher defined in methodobject.nim
           # todo: should first dispatch Nim level function (same as CPython). 
           # this is of low priority because profit is unknown
           else:
-            retObj = funcObjNoCast.call(args)
+            let callFunc = funcObjNoCast.pyType.magicMethods.call
+            if callFunc.isNil:
+              let msg = fmt"{funcObjNoCast.pyType.name} is not callable"
+              retObj = newTypeError(msg)
+            else:
+              retObj = callFunc(funcObjNoCast, args)
           if retObj.isThrownException:
             handleException(retObj)
           sPush retObj
