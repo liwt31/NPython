@@ -94,3 +94,7 @@ implTupleMagic init(mayBeIterable: PyObject):
       return nextObj
     self.items.add nextObj
   pyNone
+
+
+proc len*(t: PyTupleObject): int {. cdecl inline .} = 
+  t.items.len

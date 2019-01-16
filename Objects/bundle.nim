@@ -1,10 +1,11 @@
+# everything that does not rely on neval.nim
 import baseBundle
-import codeobject, descrobject, dictobject, frameobject, boolobjectImpl,
-  funcobject, listobject, methodobject, moduleobject, 
-  pyobject, stringobjectImpl, typeobject, rangeobject, exceptionsImpl,
-  sliceobject, tupleobject, cellobject
+import codeobject, dictobject, frameobject, boolobjectImpl,
+  listobject, moduleobject, methodobject, funcobject, descrobject,
+  pyobject, stringobjectImpl, rangeobject, exceptionsImpl,
+  sliceobject, tupleobject, cellobject, methodobject
 export baseBundle
-export codeobject, descrobject, dictobject, frameobject,  boolobjectImpl,
-  funcobject, listobject, methodobject, moduleobject, 
-  pyobject, stringobjectImpl, typeobject, rangeobject, exceptionsImpl,
-  sliceobject, tupleobject, cellobject
+export codeobject, dictobject, frameobject,  boolobjectImpl,
+  listobject, moduleobject, methodobject, funcobject, descrobject,
+  pyobject, stringobjectImpl, rangeobject, exceptionsImpl,
+  sliceobject, tupleobject, cellobject, methodobject

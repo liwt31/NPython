@@ -4,18 +4,23 @@ import baseBundle
 import dictobject
 import tupleobject
 
-declarePyType Func(tpToken):
+declarePyType Function(tpToken):
   name: PyStrObject
   code: PyCodeObject
   globals: PyDictObject
   closure: PyTupleObject # could be nil
 
+# forward declaretion
+declarePyType BoundMethod(tpToken):
+  fun: PyFunctionObject
+  self: PyObject
+
 
 proc newPyFunc*(name: PyStrObject, 
                 code: PyCodeObject, 
                 globals: PyDictObject,
-                closure: PyObject = nil): PyFuncObject = 
-  result = newPyFuncSimple()
+                closure: PyObject = nil): PyFunctionObject = 
+  result = newPyFunctionSimple()
   result.name = name
   result.code = code
   result.globals = globals
@@ -24,13 +29,23 @@ proc newPyFunc*(name: PyStrObject,
   result.closure = PyTupleObject(closure)
 
 
+proc newBoundMethod*(fun: PyFunctionObject, self: PyObject): PyBoundMethodObject = 
+  result = newPyBoundMethodSimple()
+  result.fun = fun
+  result.self = self
+
+
+implFunctionMagic get:
+  newBoundMethod(self, other)
+
+implBoundMethodMagic get:
+  self
+
 declarePyType StaticMethod():
   callable: PyObject
 
-
 implStaticMethodMagic get:
   self.callable
-
 
 implStaticMethodMagic init(callable: PyObject):
   self.callable = callable

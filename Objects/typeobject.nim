@@ -4,16 +4,13 @@ import strutils
 import tables
 
 import pyobject
-import exceptionsImpl
-import dictobject
-import tupleobject
-import boolobjectImpl
-import stringobjectImpl
+import bundle
 import methodobject
-import funcobject
+import funcobjectImpl
 import descrobject
 
 import ../Utils/utils
+import ../Python/neval
 
 # PyTypeObject is manually declared in pyobjectBase.nim
 # here we need to do some initialization
@@ -53,10 +50,8 @@ proc ge(o1, o2: PyObject): PyObject {. cdecl .} =
 proc reprDefault(self: PyObject): PyObject {. cdecl .} = 
   newPyString(fmt"<{self.pyType.name} at {self.idStr}>")
 
-
 proc strDefault(self: PyObject): PyObject {. cdecl .} = 
   self.reprDefault
-
 
 # generic getattr
 proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} = 
@@ -66,37 +61,68 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
     return newTypeError(msg)
   let name = PyStrObject(nameObj)
   let typeDict = self.getTypeDict
-  if typeDict == nil:
+  if typeDict.isNil:
     unreachable("for type object dict must not be nil")
+  var descr: PyObject
   if typeDict.hasKey(name):
-    let descr = typeDict[name]
+    descr = typeDict[name]
     let descrGet = descr.pyType.magicMethods.get
-    if descrGet.isNil:
-      return descr
-    else:
+    if not descrGet.isNil:
       return descr.descrGet(self)
 
   if self.hasDict:
     let instDict = PyDictObject(self.getDict)
     if instDict.hasKey(name):
       return instDict[name]
+
+  if not descr.isNil:
+    return descr
+
   return newAttributeError($self.pyType.name, $name)
   
+# generic getattr
+proc setAttr(self: PyObject, nameObj: PyObject, value: PyObject): PyObject {. cdecl .} =
+  if not nameObj.ofPyStrObject:
+    let typeStr = nameObj.pyType.name
+    let msg = fmt"attribute name must be string, not {typeStr}"
+    return newTypeError(msg)
+  let name = PyStrObject(nameObj)
+  let typeDict = self.getTypeDict
+  if typeDict.isNil:
+    unreachable("for type object dict must not be nil")
+  var descr: PyObject
+  if typeDict.hasKey(name):
+    descr = typeDict[name]
+    let descrSet = descr.pyType.magicMethods.set
+    if not descrSet.isNil:
+      return descr.descrSet(self, value)
+      
+  if self.hasDict:
+    let instDict = PyDictObject(self.getDict)
+    instDict[name] = value
+    return pyNone
+
+  return newAttributeError($self.pyType.name, $name)
+
 
 proc addGeneric(t: PyTypeObject) = 
-  # a shortcut for read, can not assign
-  let m = t.magicMethods
-  if m.lt != nil and m.eq != nil and m.le == nil:
-    t.magicMethods.le = le
-  if m.eq != nil and m.ne == nil:
-    t.magicMethods.ne = ne
-  if m.ge != nil and m.eq != nil and m.ge == nil:
-    t.magicMethods.ge = ge
-  t.magicMethods.getattr = getAttr
-  if m.str == nil:
-    t.magicMethods.str = strDefault
-  if m.repr == nil:
-    t.magicMethods.repr = reprDefault
+  template nilMagic(magicName): bool = 
+    t.magicMethods.magicName.isNil
+
+  template updateSlot(magicName, methodName) = 
+    if nilMagic(magicName):
+      t.magicMethods.magicName = methodName
+
+  if (not nilMagic(lt)) and (not nilMagic(eq)):
+    updateSlot(le, le)
+  if (not nilMagic(eq)):
+    updateSlot(ne, ne)
+  if (not nilMagic(ge)) and (not nilMagic(eq)):
+    updateSlot(ge, ge)
+  updateSlot(getattr, getAttr)
+  updateSlot(setattr, setAttr)
+  updateSlot(str, strDefault)
+  updateSlot(repr, reprDefault)
 
 # for internal objects
 proc initTypeDict(tp: PyTypeObject) = 
@@ -111,13 +137,13 @@ proc initTypeDict(tp: PyTypeObject) =
       if meth is BltinFunc:
         d[namePyStr] = newPyStaticMethod(newPyNimFunc(meth, namePyStr))
       else:
-        d[namePyStr] = tp.newPyMethodDescr(meth, namePyStr)
+        d[namePyStr] = newPyMethodDescr(tp, meth, namePyStr)
     inc i
    
   # bltin methods
   for name, meth in tp.bltinMethods.pairs:
     let namePyStr = newPyString(name)
-    d[namePyStr] = tp.newPyMethodDescr(meth, namePyStr)
+    d[namePyStr] = newPyMethodDescr(tp, meth, namePyStr)
 
   tp.dict = d
 
@@ -145,9 +171,10 @@ implTypeMagic call:
     return newObj
   let initFunc = self.magicMethods.init
   if not initFunc.isNil:
-    let initRet = newObj.initFunc(args)
+    let initRet = initFunc(newObj, args)
     if initRet.isThrownException:
       return initRet
+    # otherwise discard
   return newObj
 
 
@@ -157,21 +184,32 @@ implTypeMagic call:
 declarePyType Instance(dict):
   discard
 
-# todo: should to the base object when inheritance and mro is ready
+# todo: should move to the base object when inheritance and mro is ready
 # todo: should support more complicated arg declaration
 implInstanceMagic New(tp: PyTypeObject):
-  result = new PyInstanceObject
+  result = newPyInstanceSimple()
   result.pyType = tp
 
+implInstanceMagic init:
+  let fun = self.getTypeDict[newPyStr("__init__")]
+  if not fun.ofPyFunctionObject:
+    return newTypeError("should use a function")
+  # todo: setup the nil here, need a global state
+  # or eliminate the nil and setup directly in `newPyFrame`?
+  let newF = newPyFrame(PyFunctionObject(fun), @[PyObject(self)] & args, nil)
+  PyFrameObject(newF).evalFrame
 
 implTypeMagic New(metaType: PyTypeObject, name: PyStrObject, 
                   bases: PyTupleObject, dict: PyDictObject):
   assert metaType == pyTypeObjectType
+  assert bases.len == 0
   let tp = newPyType(name.str)
-  setDictOffset(Type)
   tp.tp = PyTypeToken.Type
+  tp.dictOffset = pyInstanceObjectType.dictOffset
   tp.magicMethods.New = newPyInstanceObject
-  tp.dict = dict
+  if dict.hasKey(newPyStr("__init__")):
+    tp.magicMethods.init = initPyInstanceObject
+  tp.dict = PyDictObject(dict.copyPyDictObject())
   tp.typeReady
   tp
 

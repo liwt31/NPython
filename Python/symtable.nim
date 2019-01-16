@@ -176,6 +176,8 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
         assert arg of AstArg
         ste.addDeclaration(AstArg(arg).arg)
         ste.argVars[AstArg(arg).arg.value] = idx
+    elif astNode of AstClassDef:
+      addBodies(AstClassDef)
     elif astNode of AstListComp:
       let compNode = AstListComp(astNode)
       toVisitPerSte.add compNode.elt
@@ -195,6 +197,14 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
 
         of AsdlStmtTk.FunctionDef:
           ste.addDeclaration(AstFunctionDef(astNode).name)
+          toVisit.add((astNode, ste))
+
+        of AsdlStmtTk.ClassDef:
+          let classNode = AstClassDef(astNode)
+          assert classNode.bases.len == 0
+          assert classNode.keywords.len == 0
+          assert classNode.decoratorList.len == 0
+          ste.addDeclaration(classNode.name)
           toVisit.add((astNode, ste))
 
         of AsdlStmtTk.Return:

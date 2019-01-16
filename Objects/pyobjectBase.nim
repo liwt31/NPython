@@ -20,7 +20,8 @@ type
     Str,
     Code,
     NimFunc,
-    Func,
+    Function,
+    BoundMethod,
     Slice,
     Cell,
 
@@ -80,16 +81,19 @@ type
     New: BltinFunc  # __new__ is a `staticmethod` in Python
     init: BltinMethod
     getattr: BinaryMethod
+    setattr: TernaryMethod
     hash: UnaryMethod
     dict: UnaryMethod
     call: BltinMethod 
 
+    # subscription
     getitem: BinaryMethod
     setitem: TernaryMethod
 
     # descriptor protocol
-    # what to do when getting attribute of its intances
+    # what to do when getting or setting attributes of its intances
     get: BinaryMethod
+    set: TernaryMethod
     
     # what to do when iter, next is operating on its instances
     iter: UnaryMethod
@@ -129,7 +133,7 @@ type
     # the values are set in typeobject.nim when the type is ready
     dict*: PyObject
 
-    # not offset of `PyTypeObject` itself 
+    # not offset of `dict` in `PyTypeObject` itself 
     # but instances of this type 
     dictOffset*: int
 
@@ -168,7 +172,6 @@ proc idStr*(obj: PyObject): string {. inline .} =
   fmt"{obj.id:#x}"
 
 
-
 var bltinTypes*: seq[PyTypeObject]
 
 
@@ -201,5 +204,5 @@ proc getDict*(obj: PyObject): PyObject {. cdecl .} =
   let tp = obj.pyType
   if tp.dictOffset < 0:
     unreachable("obj has no dict. Use hasDict before getDict")
-  let dictPtr = cast[ptr PyObject](cast[int](obj[].addr) + tp.dictOffset)
+  let dictPtr = cast[ptr PyObject](cast[int](obj) + tp.dictOffset)
   dictPtr[]

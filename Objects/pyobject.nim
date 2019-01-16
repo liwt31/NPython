@@ -100,7 +100,8 @@ let bltinMethodParams {. compileTime .} = unaryMethodParams & @[
       ),
     ]
 
-let bltinFuncParams {. compileTime .} = @[
+# used in bltinmodule.nim
+let bltinFuncParams* {. compileTime .} = @[
       ident("PyObject"),  # return type
       newIdentDefs(
         ident("args"), 
@@ -345,17 +346,6 @@ macro mutable*(kind, code: untyped): untyped =
               )
   code
 
-proc getMutableReadPragma*: NimNode = 
-  nnkExprColonExpr.newTree(
-    ident("mutable"),
-    ident("read")
-  )
-
-proc getMutableWritePragma*: NimNode = 
-  nnkExprColonExpr.newTree(
-    ident("mutable"),
-    ident("write")
-  )
 
 # generate useful macros for function defination
 template methodMacroTmpl*(name: untyped, nameStr: string) = 
@@ -373,6 +363,7 @@ template methodMacroTmpl*(name: untyped, nameStr: string) =
 
   macro `impl name Method`(prototype, code:untyped): untyped {. used .}= 
     getAst(`impl name Method`(prototype, nnkBracket.newTree(), code))
+
 
 macro declarePyType*(prototype, fields: untyped): untyped = 
   prototype.expectKind(nnkCall)
@@ -455,7 +446,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   )
   result.add(decObjNode)
 
-  # boiler plates for pyobject type
+  # boilerplates for pyobject type
   template initTypeTmpl(name, nameStr, hasTpToken, hasDict, baseType) = 
     let `py name ObjectType`* {. inject .} = newPyType(nameStr)
     `py name ObjectType`.base = `py baseType ObjectType`
@@ -476,6 +467,8 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       # use `result` here seems to be buggy
       let obj = new `Py name Object`
       obj.pyType = `py name ObjectType`
+      when hasDict:
+        obj.dict = newPyDict()
       obj
 
     # default for __new__ hook, could be overrided at any time

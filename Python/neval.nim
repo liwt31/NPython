@@ -7,10 +7,19 @@ import compile
 import symtable
 import opcode
 import coreconfig
-import bltinmodule
 import ../Objects/bundle
 import ../Utils/utils
 
+# forward declarations to resolve cyclic dependency. Certain function related objects
+# have `call` magics that rely on them
+proc newPyFrame*(fun: PyFunctionObject): PyFrameObject 
+proc newPyFrame*(fun: PyFunctionObject, 
+                 args: seq[PyObject], 
+                 back: PyFrameObject): PyObject
+proc evalFrame*(f: PyFrameObject): PyObject
+
+import ../Objects/typeobject
+import bltinmodule
 
 type
   # the exception model is different from CPython. todo: Need more documentation
@@ -31,10 +40,6 @@ type
     
 
 proc pyImport*(name: PyStrObject): PyObject
-proc newPyFrame*(fun: PyFuncObject): PyFrameObject 
-proc newPyFrame*(fun: PyFuncObject, 
-                 args: seq[PyObject], 
-                 back: PyFrameObject): PyObject
 
 template doUnary(opName: untyped) = 
   let top = sTop()
@@ -238,7 +243,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         of OpCode.PrintExpr:
           let top = sPop()
           if top.id != pyNone.id:
-            # all object should have a repr method is properly initialized in typeobject
+            # all object should have a repr method properly initialized in typeobject.nim
             let reprObj = top.pyType.magicMethods.repr(top)
             if reprObj.isThrownException:
               handleException(reprObj)
@@ -246,6 +251,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             let retObj = builtinPrint(@[reprObj])
             if retObj.isThrownException:
               handleException(retObj)
+
+        of OpCode.LoadBuildClass:
+          sPush bltinDict[newPyStr("__build_class__")]
           
         of OpCode.ReturnValue:
           return sPop()
@@ -317,6 +325,14 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             handleException(retObj)
           else:
             sPush retObj
+
+        of OpCode.StoreAttr:
+          let name = names[opArg]
+          let owner = sPop()
+          let v = sPop()
+          let retObj = owner.callMagic(setattr, name, v)
+          if retObj.isThrownException:
+            handleException(retObj)
 
         of OpCode.StoreGlobal:
           let name = names[opArg]
@@ -393,7 +409,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           of CmpOp.ExcpMatch:
             let targetExcp = sPop()
             if not targetExcp.isExceptionType:
-              let msg = "catching classes that do not inherit from BaseException is not allowed"
+              let msg = "catching classes that do not inherit " & 
+                        "from BaseException is not allowed"
               handleException(newTypeError(msg))
             let currentExcp = PyExceptionObject(sTop())
             sPush matchExcp(PyTypeObject(targetExcp), currentExcp)
@@ -452,7 +469,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           else:
             addTryBlock(opArg, valStack.len, nil)
 
-
         of OpCode.LoadFast:
           let obj = fastLocals[opArg]
           if obj.isNil:
@@ -497,8 +513,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           let funcObjNoCast = sPop()
           var retObj: PyObject
           # runtime function, evaluate recursively
-          if funcObjNoCast.ofPyFuncObject:
-            let funcObj = PyFuncObject(funcObjNoCast)
+          if funcObjNoCast.ofPyFunctionObject:
+            let funcObj = PyFunctionObject(funcObjNoCast)
+            # may fail because of wrong number of args, etc.
             let newF = newPyFrame(funcObj, args, f)
             if newF.isThrownException:
               handleException(newF)
@@ -593,8 +610,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         return excp
   finally:
     cleanUp()
-    # currently no cleaning should be done, but in future 
-    # f.fastLocals = fastLocals could be necessary
+    # copy back the local cache, used when creating classes
+    f.fastLocals = fastLocals 
+    f.cellVars = cellvars
 
 
 proc pyImport*(name: PyStrObject): PyObject =
@@ -621,14 +639,14 @@ proc pyImport*(name: PyStrObject): PyObject =
   module.dict = f.globals
   module
 
-proc newPyFrame*(fun: PyFuncObject): PyFrameObject = 
+proc newPyFrame*(fun: PyFunctionObject): PyFrameObject = 
   let obj = newPyFrame(fun, @[], nil)
   if obj.isThrownException:
     unreachable
   else:
     return PyFrameObject(obj)
 
-proc newPyFrame*(fun: PyFuncObject, 
+proc newPyFrame*(fun: PyFunctionObject, 
                  args: seq[PyObject], 
                  back: PyFrameObject): PyObject = 
   let code = fun.code
@@ -638,7 +656,8 @@ proc newPyFrame*(fun: PyFuncObject,
     return newTypeError(msg)
   elif args.len < code.argScopes.len:
     let diff = code.argScopes.len - args.len
-    let msg = fmt"{fun.name.str}() missing {diff} required positional argument: {code.argNames[^diff..^1]}"
+    let msg = fmt"{fun.name.str}() missing {diff} required positional argument: " & 
+              fmt"{code.argNames[^diff..^1]}. {args.len} args are given."
     return newTypeError(msg)
   let frame = newPyFrame()
   frame.back = back
@@ -672,6 +691,19 @@ proc newPyFrame*(fun: PyFuncObject,
       frame.cellVars[code.cellVars.len + idx] = PyCellObject(c)
   frame
 
+
+implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject), "__build_class__":
+  # may fail because of wrong number of args, etc.
+  let f = newPyFrame(funcObj)
+  if f.isThrownException:
+    unreachable("funcObj shouldn't have any arg issue")
+  let retObj = f.evalFrame
+  if retObj.isThrownException:
+    return retObj
+  newPyTypeObject(@[pyTypeObjectType, name, newPyTuple(@[]), f.toPyDict()])
+
+
+# interfaces to upper level
 proc runCode*(co: PyCodeObject): PyObject = 
   when defined(debug):
     echo co
@@ -683,13 +715,4 @@ proc runCode*(co: PyCodeObject): PyObject =
 proc runString*(input: TaintedString): PyObject = 
   let co = compile(input)
   runCode(co)
-
-
-when isMainModule:
-  let args = commandLineParams()
-  if len(args) < 1:
-    quit("No arg provided")
-  let input = readFile(args[0])
-  var retObj = input.runString
-  echo retObj
 

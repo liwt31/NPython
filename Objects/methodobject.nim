@@ -2,6 +2,8 @@ import strformat
 
 import pyobject
 import exceptions
+import funcobject
+import frameobject
 import stringobject
 
 type
@@ -48,7 +50,7 @@ proc newPyNimFunc*(fun: BltinFunc, name: PyStrObject): PyNimFuncObject =
   result.fun = cast[int](fun)
   
 
-template newMethodTmpl(funName, FunType) = 
+template newMethodTmpl(FunType) = 
   proc newPyNimFunc*(fun: FunType, name: PyStrObject, self:PyObject=nil): PyNimFuncObject = 
     # `self` should never be nil. The default arg here is to fool the 
     # compiler when init type dict
@@ -60,10 +62,10 @@ template newMethodTmpl(funName, FunType) =
     result.self = self
 
 
-newMethodTmpl(unaryMethod, UnaryMethod)
-newMethodTmpl(binaryMethod, BinaryMethod)
-newMethodTmpl(ternaryMethod, TernaryMethod)
-newMethodTmpl(bltinMethod, BltinMethod)
+newMethodTmpl(UnaryMethod)
+newMethodTmpl(BinaryMethod)
+newMethodTmpl(TernaryMethod)
+newMethodTmpl(BltinMethod)
 
 
 #[ have to figure out how to define arg list as something like 

@@ -13,9 +13,10 @@ Capable of:
 * basic function (closure) defination and call
 * builtin print, dir, len, range, tuple, list, dict, exceptions
 * list comprehension (no set or dict yet).
-* basic import such as `import foo`, no alias, no `from`, etc
+* basic import such as `import foo`. No alias, no `from`, etc
 * indexing with `[]` with slice (can not store to slice yet).
 * assert statement. Raise exceptions. Basic `try`...`except XXXError`...
+* very primitive `class` defination. No inheritance, no metatype, etc
 * interactive mode and file mode
 
 Check out `./tests` to see more examples.
@@ -30,7 +31,7 @@ nim c ./Python/python
 ```
 
 ### Todo
-* user defined class
+* more features on user defined class
 * more exception info (line no, col no)
 * decorators
 * yield stmt

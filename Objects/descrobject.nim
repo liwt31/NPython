@@ -4,6 +4,7 @@ import pyobject
 import exceptions
 import stringobject
 import methodobject
+import funcobject
 import ../Utils/utils
 
 declarePyType MethodDescr():
@@ -13,7 +14,7 @@ declarePyType MethodDescr():
   meth: int # the method function pointer. Have to be int to make it generic.
 
 
-template newMethodDescrTmpl(funName, FunType) = 
+template newMethodDescrTmpl(FunType) = 
   proc newPyMethodDescr*(t: PyTypeObject, 
                          meth: FunType,
                          name: PyStrObject,
@@ -26,11 +27,11 @@ template newMethodDescrTmpl(funName, FunType) =
     result.name = name
 
 
-newMethodDescrTmpl(unaryMethod, UnaryMethod)
-newMethodDescrTmpl(binaryMethod, BinaryMethod)
-newMethodDescrTmpl(ternaryMethod, TernaryMethod)
-newMethodDescrTmpl(bltinMethod, BltinMethod)
-# placeholder to fool compiler in when init type dict
+newMethodDescrTmpl(UnaryMethod)
+newMethodDescrTmpl(BinaryMethod)
+newMethodDescrTmpl(TernaryMethod)
+newMethodDescrTmpl(BltinMethod)
+# placeholder to fool compiler in typeobject.nim when initializing type dict
 proc newPyMethodDescr*(t: PyTypeObject, 
                        meth: BltinFunc, 
                        name: PyStrObject
@@ -39,15 +40,11 @@ proc newPyMethodDescr*(t: PyTypeObject,
     "This is a placeholder to fool the compiler")
 
 
-proc getMethod(selfNoCast: PyObject, owner: PyObject): 
-  PyObject {. castSelf: PyMethodDescrObject, cdecl .} = 
-  if owner.pyType != self.dType:
-    let name = self.name
-    let t1 = self.dType.name
-    let t2 = owner.pyType.name
-    let msg = fmt"descriptor {name} requires a {t1} object but received a {t2}"
-    return newTypeError(msg)
+implMethodDescrMagic get:
+  let owner = other
   case self.kind
+  of NFunc.BltinFunc:
+    return newPyNimFunc(cast[BltinFunc](self.meth), self.name)
   of NFunc.UnaryMethod:
     return newPyNimFunc(cast[UnaryMethod](self.meth), self.name, owner)
   of NFunc.BinaryMethod:
@@ -56,8 +53,3 @@ proc getMethod(selfNoCast: PyObject, owner: PyObject):
     return newPyNimFunc(cast[TernaryMethod](self.meth), self.name, owner)
   of NFunc.BltinMethod:
     return newPyNimFunc(cast[BltinMethod](self.meth), self.name, owner)
-  else:
-    unreachable
-
-
-pyMethodDescrObjectType.magicMethods.get = getMethod

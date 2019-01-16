@@ -404,6 +404,19 @@ compileMethod FunctionDef:
   c.addStoreOp(astNode.name.value)
 
 
+compileMethod ClassDef:
+  c.addOp(OpCode.LoadBuildClass)
+  # class body function. In CPython this is more complicated because of metatype hooks,
+  # treating it as normal function is a simpler approach
+  c.units.add(newCompilerUnit(c.st, astNode))
+  c.compileSeq(astNode.body)
+  c.makeFunction(c.units.pop, astNode.name.value)
+
+  c.addLoadConst(astNode.name.value)
+  c.addOp(newArgInstr(OpCode.CallFunction, 2)) # first for the code, second for the name
+  c.addStoreOp(astNode.name.value)
+
+
 compileMethod Return:
   if astNode.value.isNil:
     c.addLoadConst(pyNone)
@@ -662,12 +675,12 @@ compileMethod Call:
 
 
 compileMethod Attribute:
+  c.compile(astNode.value)
+  let opArg = c.tste.nameId(astNode.attr.value)
   if astNode.ctx of AstLoad:
-    c.compile(astNode.value)
-    let opArg = c.tste.nameId(astNode.attr.value)
     c.addOp(newArgInstr(OpCode.LoadAttr, opArg))
   elif astNode.ctx of AstStore:
-    unreachable("store not implemented")
+    c.addOp(newArgInstr(OpCode.StoreAttr, opArg))
   else:
     unreachable
 

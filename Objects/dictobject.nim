@@ -128,6 +128,10 @@ implDictMagic setitem, [mutable: write]:
     return newTypeError(msg)
   pyNone
 
+implDictMethod copy(), [mutable: read]:
+  let newT = newPyDict()
+  newT.table = self.table
+  newT
 
 # in real python this would return a iterator
 # this function is used internally

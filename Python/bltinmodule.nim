@@ -1,13 +1,13 @@
-import macros
 import strformat
 
-import ../Objects/bundle
+import ../Objects/[bundle, typeobject, methodobject]
 import ../Utils/utils
 
 let bltinDict* = newPyDict()
 
 
-proc registerBltinFunction(name: string, fun: BltinFunc) = 
+# make it public so that neval.nim can use it
+proc registerBltinFunction*(name: string, fun: BltinFunc) = 
   let nameStr = newPyString(name)
   assert (not bltinDict.hasKey(nameStr))
   bltinDict[nameStr] = newPyNimFunc(fun, nameStr)
@@ -18,8 +18,8 @@ proc registerBltinObject(name: string, obj: PyObject) =
   assert (not bltinDict.hasKey(nameStr))
   bltinDict[nameStr] = obj
 
-
-macro implBltinFunc(prototype, pragmas, body: untyped): untyped = 
+# make it public so that neval.nim can use it
+macro implBltinFunc*(prototype, pyName, body: untyped): untyped = 
   var (methodName, argTypes) = getNameAndArgTypes(prototype)
   let name = ident("bltin" & $methodName)
 
@@ -28,25 +28,9 @@ macro implBltinFunc(prototype, pragmas, body: untyped): untyped =
       ident("*"),  # let other modules call without having to lookup in the bltindict
       name,
     ),
-    [
-      ident("PyObject"), # return value
-      nnkIdentDefs.newTree( # args in seq
-        newIdentNode("args"),
-        nnkBracketExpr.newTree(
-          ident("seq"),
-          ident("PyObject")
-        ),
-        nnkPrefix.newTree(
-          ident("@"),
-          nnkBracket.newTree()
-        )
-      )
-    ],
+    bltinFuncParams,
     body, # the function body
   )
-  # add pragmas, the last to add is the first to execute
-  for p in pragmas:
-    procNode.addPragma(p)
 
   procNode.addPragma(
     nnkExprColonExpr.newTree(
@@ -60,16 +44,25 @@ macro implBltinFunc(prototype, pragmas, body: untyped): untyped =
 
   procNode.addPragma(ident("cdecl"))
 
+  var registerName: string
+  if pyName.strVal == "":
+    registerName = methodName.strVal
+  else:
+    registerName = pyName.strVal
   result = newStmtList(
     procNode,
     nnkCall.newTree(
       ident("registerBltinFunction"),
-      newLit(methodName.strVal),
+      newLit(registerName),
       name
     )
   )
 
-# haven't think of how to deal with infinite num of args yet
+macro implBltinFunc(prototype, body:untyped): untyped = 
+  getAst(implBltinFunc(prototype, newLit(""), body))
+
+
+# haven't thought of how to deal with infinite num of args yet
 # kwargs seems to be neccessary. So stay this way for now
 # luckily it does not require much boilerplate
 proc builtinPrint*(args: seq[PyObject]): PyObject {. cdecl .} =
@@ -80,7 +73,7 @@ proc builtinPrint*(args: seq[PyObject]): PyObject {. cdecl .} =
   pyNone
 registerBltinFunction("print", builtinPrint)
 
-implBltinFunc dir(obj: PyObject), []:
+implBltinFunc dir(obj: PyObject):
   # why in CPython 0 argument becomes `locals()`? no idea
   # get mapping proxy first then talk about how do deal with __dict__ of type
   var mergedDict = newPyDict()
@@ -90,15 +83,14 @@ implBltinFunc dir(obj: PyObject), []:
   mergedDict.keys
 
 
-implBltinFunc id(obj: PyObject), []:
+implBltinFunc id(obj: PyObject):
   newPyInt(obj.id)
 
-implBltinFunc len(obj: PyObject), []:
+implBltinFunc len(obj: PyObject):
   obj.callMagic(len)
 
 
-implBltinFunc iter(obj: PyObject), []:
-  obj.callMagic(iter)
+implBltinFunc iter(obj: PyObject): obj.callMagic(iter)
 
 
 registerBltinObject("None", pyNone)

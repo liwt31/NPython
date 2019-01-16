@@ -28,8 +28,7 @@ implRangeMagic init:
   for arg in args:
     if not arg.ofPyIntObject:
       # CPython uses duck typing here, anything behaves like an int
-      # can be passed as argument. Too early for NPython to consider
-      # this.
+      # can be passed as argument. Too early for NPython to consider this.
       let msg = "range() only support int arguments"
       return newTypeError(msg)
   var start, ending, step: PyIntObject

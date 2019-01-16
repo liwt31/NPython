@@ -1094,8 +1094,13 @@ ast dictorsetmaker, [AsdlExpr]:
     d.values.add(astTest(c3))
   result = d
   
+# classdef: 'class' NAME ['(' [arglist] ')'] ':' suite
 ast classdef, [AstClassDef]:
-  raiseSyntaxError("Class defination not implemented")
+  if parseNode.children.len != 4:
+    raiseSyntaxError("inherit not implemented")
+  result = newAstClassDef()
+  result.name = newIdentifier(parseNode.children[1].tokenNode.content)
+  result.body = astSuite(parseNode.children[^1])
   
 # arglist  argument (',' argument)*  [',']
 ast arglist, [AstCall, callNode: AstCall]:
