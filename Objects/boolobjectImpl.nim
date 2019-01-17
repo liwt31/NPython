@@ -58,17 +58,12 @@ implBoolMagic eq:
     return pyTrueObj
   else:
     return pyFalseObj
-  
 
-implBoolMagic str:
+implBoolMagic repr:
   if self.b:
     return newPyString("True")
   else:
     return newPyString("False")
-
-implBoolMagic repr:
-  strPyBoolObject(self)
-
 
 implBoolMagic hash:
   newPyInt(Hash(self.b))

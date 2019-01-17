@@ -91,11 +91,6 @@ implDictMagic repr, [mutable: read, reprLock]:
 implDictMagic len, [mutable: read]:
   newPyInt(self.table.len)
 
-
-implDictMagic str, [mutable: read]:
-  reprPyDictObject(self)
-  
-
 implDictMagic New:
   newPyDict()
   
@@ -138,7 +133,7 @@ implDictMethod copy(), [mutable: read]:
 proc keys*(d: PyDictObject): PyListObject = 
   result = newPyList()
   for key in d.table.keys:
-    let rebObj = result.appendPyListObject(@[key])
+    let rebObj = tpMethod(List, append)(result, @[key])
     if rebObj.isThrownException:
       unreachable("No chance for append to thrown exception")
 

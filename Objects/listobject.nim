@@ -46,8 +46,6 @@ implListMagic repr, [mutable: read, reprLock]:
     ss.add(itemRepr.str)
   return newPyString("[" & ss.join(", ") & "]")
 
-implListMagic str, [mutable: read]:
-  self.reprPyListObject
 
 implListMagic len, [mutable: read]:
   newPyInt(self.items.len)
@@ -109,11 +107,11 @@ when not defined(release):
   # for lock testing
   implListMethod doClear(), [mutable: read]:
   # should fail because trying to write while reading
-    self.clearPyListObject()
+    self.clearPyListObjectMethod()
 
   implListMethod doRead(), [mutable: write]:
     # trying to read whiel writing
-    return self.doClearPyListObject()
+    return self.doClearPyListObjectMethod()
 
 
   # for checkArgTypes testing
@@ -166,7 +164,7 @@ implListMethod pop(), [mutable: write]:
   self.items.pop
 
 implListMethod remove(target: PyObject), [mutable: write]:
-  let retObj = indexPyListObject(selfNoCast, @[target])
+  let retObj = indexPyListObjectMethod(selfNoCast, @[target])
   if retObj.isThrownException:
     return retObj
   assert retObj.ofPyIntObject

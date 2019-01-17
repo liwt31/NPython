@@ -50,10 +50,6 @@ implTupleMagic repr, [reprLock]:
   return newPyString("(" & ss.join(", ") & ")")
 
 
-implTupleMagic str:
-  self.reprPyTupleObject
-
-
 implTupleMagic len:
   newPyInt(self.items.len)
 

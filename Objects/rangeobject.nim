@@ -20,9 +20,6 @@ implRangeMagic repr:
   # todo: make it the same as CPython
   newPyString(fmt"range({self.start.v}, {self.ending.v}, {self.step.v}, {self.length.v})")
 
-implRangeMagic str:
-  self.reprPyRangeObject
-  
 
 implRangeMagic init:
   for arg in args:

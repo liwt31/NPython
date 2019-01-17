@@ -1,8 +1,8 @@
-import stringobject
-import pyobject
 import hashes
-import boolobject
-import numobjects
+
+import pyobject
+import baseBundle
+import stringobject
 
 export stringobject
 
@@ -38,3 +38,7 @@ implStrMagic repr:
 
 implStrMagic hash:
   newPyInt(self.hash)
+
+
+implStrMagic New(tp: PyObject, obj: PyObject):
+  obj.callMagic(str)

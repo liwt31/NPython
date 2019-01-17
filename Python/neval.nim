@@ -364,7 +364,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           for i in 0..<opArg:
             let key = sPop()
             let value = sPop()
-            let retObj = d.setitemPyDictObject(key, value)
+            let retObj = tpMagic(Dict, setitem)(d, key, value)
             if retObj.isThrownException:
               handleException(retObj)
           sPush d
@@ -700,7 +700,7 @@ implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject), "__build
   let retObj = f.evalFrame
   if retObj.isThrownException:
     return retObj
-  newPyTypeObject(@[pyTypeObjectType, name, newPyTuple(@[]), f.toPyDict()])
+  tpMagic(Type, new)(@[pyTypeObjectType, name, newPyTuple(@[]), f.toPyDict()])
 
 
 # interfaces to upper level

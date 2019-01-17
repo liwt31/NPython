@@ -29,7 +29,7 @@ template newMagicTmpl(excpName: untyped, excpNameStr: string) =
       msg = PyStrObject(self.msg).str
     else:
       # ensure this is either an throwned exception or string for user-defined type
-      let msgObj = self.msg.callmagic(repr)
+      let msgObj = self.msg.callMagic(repr)
       if msgObj.isThrownException:
         msg = "evaluating __repr__ failed"
       else:
@@ -45,7 +45,6 @@ template newMagicTmpl(excpName: untyped, excpNameStr: string) =
     excp
 
 
-
 macro genNewMagic: untyped = 
   result = newStmtList()
   for i in ExceptionToken.low..ExceptionToken.high:
@@ -56,11 +55,11 @@ macro genNewMagic: untyped =
 genNewMagic()
 
 
-proc excpStrWithContext*(excp: PyExceptionObject):string = 
+proc excpStrWithContext*(excp: PyExceptionObject): string = 
   var cur = excp
   var excpStrs: seq[string]
   while not cur.isNil:
-    excpStrs.add PyStrObject(reprPyBaseErrorObject(cur)).str
+    excpStrs.add PyStrObject(tpMagic(BaseError, repr)(cur)).str
     cur = cur.context
   let joinMsg = "\nDuring handling of the above exception, another exception occured\n"
   excpStrs.reversed.join(joinMsg)

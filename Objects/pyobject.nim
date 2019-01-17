@@ -34,6 +34,7 @@ template getFun*(obj: PyObject, methodName: untyped, handleExcp=false):untyped =
       return excp
   fun
 
+# some helper templates for internal object magics or methods call
 
 #XXX: `obj` is used twice so it better be a simple identity
 # if it's a function then the function is called twice!
@@ -45,10 +46,19 @@ template callMagic*(obj: PyObject, methodName: untyped, arg1: PyObject, handleEx
   let fun = obj.getFun(methodName, handleExcp)
   fun(obj, arg1)
 
-
-template callMagic*(obj: PyObject, methodName: untyped, arg1, arg2: PyObject, handleExcp=false): PyObject = 
+template callMagic*(obj: PyObject, methodName: untyped, 
+                    arg1, arg2: PyObject, handleExcp=false): PyObject = 
   let fun = obj.getFun(methodName, handleExcp)
   fun(obj, arg1, arg2)
+
+
+# get proc name according to type (`Dict`, etc.) and method name (`repr`, etc.)
+template tpMagic*(tp, methodName: untyped): untyped = 
+  `methodName Py tp ObjectMagic`
+
+template tpMethod*(tp, methodName: untyped): untyped = 
+  `methodName Py tp ObjectMethod`
+
 
 proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) = 
   if t.bltinMethods.hasKey(name):
@@ -207,7 +217,7 @@ proc getNameAndArgTypes*(prototype: NimNode): (NimNode, NimNode) =
 
 
 proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): NimNode = 
-  # transforms user implementation cod
+  # transforms user implementation code
   # prototype: function defination, contains argumetns to check
   # ObjectType: the code belongs to which object
   # pragmas: custom pragmas
@@ -217,9 +227,14 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): Ni
   ObjectType.expectKind(nnkIdent)
   body.expectKind(nnkStmtList)
   pragmas.expectKind(nnkBracket)
-  # toLowerAscii because we used uppercase in declaration to prevent conflict with
-  # Nim keywords. Now it's not necessary as we append $ObjectType
-  let name = ident(($methodName).toLowerAscii & $ObjectType)
+  var tail: string
+  if magic:
+    tail = "Magic"
+  else:
+    tail = "Method"
+  # use `toLowerAscii` because we used uppercase in declaration to prevent conflict with
+  # Nim keywords. Now it's not necessary as we append lots of things
+  let name = ident(($methodName).toLowerAscii & $ObjectType & tail)
   var typeObjName = objName2tpObjName($ObjectType)
   let typeObjNode = ident(typeObjName)
 
@@ -345,7 +360,6 @@ macro mutable*(kind, code: untyped): untyped =
                 )
               )
   code
-
 
 # generate useful macros for function defination
 template methodMacroTmpl(name: untyped, nameStr: string) = 

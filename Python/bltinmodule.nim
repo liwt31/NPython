@@ -92,6 +92,8 @@ implBltinFunc len(obj: PyObject):
 
 implBltinFunc iter(obj: PyObject): obj.callMagic(iter)
 
+implBltinFunc repr(obj: PyObject): obj.callMagic(repr)
+
 
 registerBltinObject("None", pyNone)
 registerBltinObject("type", pyTypeObjectType)
@@ -100,6 +102,7 @@ registerBltinObject("list", pyListObjectType)
 registerBltinObject("tuple", pyTupleObjectType)
 registerBltinObject("dict", pyDictObjectType)
 registerBltinObject("int", pyIntObjectType)
+registerBltinObject("str", pyStrObjectType)
 registerBltinObject("staticmethod", pyStaticMethodObjectType)
 
 

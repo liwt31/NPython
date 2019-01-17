@@ -33,25 +33,22 @@ proc getTypeDict*(obj: PyObject): PyDictObject =
   PyDictObject(obj.pyType.dict)
 
 # some generic behaviors that every type should obey
-proc le(o1, o2: PyObject): PyObject {. cdecl .} =
+proc defaultLe(o1, o2: PyObject): PyObject {. cdecl .} =
   let lt = o1.callMagic(lt, o2)
   let eq = o1.callMagic(eq, o2)
   lt.callMagic(Or, eq)
 
-proc ne(o1, o2: PyObject): PyObject {. cdecl .} =
+proc defaultNe(o1, o2: PyObject): PyObject {. cdecl .} =
   let eq = o1.callMagic(eq, o2)
   eq.callMagic(Not)
 
-proc ge(o1, o2: PyObject): PyObject {. cdecl .} = 
+proc defaultGe(o1, o2: PyObject): PyObject {. cdecl .} = 
   let gt = o1.callMagic(gt, o2)
   let eq = o1.callMagic(eq, o2)
   gt.callMagic(Or, eq)
 
 proc reprDefault(self: PyObject): PyObject {. cdecl .} = 
   newPyString(fmt"<{self.pyType.name} at {self.idStr}>")
-
-proc strDefault(self: PyObject): PyObject {. cdecl .} = 
-  self.reprDefault
 
 # generic getattr
 proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} = 
@@ -109,20 +106,21 @@ proc addGeneric(t: PyTypeObject) =
   template nilMagic(magicName): bool = 
     t.magicMethods.magicName.isNil
 
-  template updateSlot(magicName, methodName) = 
+  template updateSlot(magicName, defaultMethod) = 
     if nilMagic(magicName):
-      t.magicMethods.magicName = methodName
+      t.magicMethods.magicName = defaultMethod
 
   if (not nilMagic(lt)) and (not nilMagic(eq)):
-    updateSlot(le, le)
+    updateSlot(le, defaultLe)
   if (not nilMagic(eq)):
-    updateSlot(ne, ne)
+    updateSlot(ne, defaultNe)
   if (not nilMagic(ge)) and (not nilMagic(eq)):
-    updateSlot(ge, ge)
+    updateSlot(ge, defaultGe)
   updateSlot(getattr, getAttr)
   updateSlot(setattr, setAttr)
-  updateSlot(str, strDefault)
   updateSlot(repr, reprDefault)
+  updateSlot(str, t.magicMethods.repr)
+
 
 # for internal objects
 proc initTypeDict(tp: PyTypeObject) = 
@@ -206,10 +204,10 @@ implTypeMagic New(metaType: PyTypeObject, name: PyStrObject,
   let tp = newPyType(name.str)
   tp.tp = PyTypeToken.Type
   tp.dictOffset = pyInstanceObjectType.dictOffset
-  tp.magicMethods.New = newPyInstanceObject
+  tp.magicMethods.New = tpMagic(Instance, new)
   if dict.hasKey(newPyStr("__init__")):
-    tp.magicMethods.init = initPyInstanceObject
-  tp.dict = PyDictObject(dict.copyPyDictObject())
+    tp.magicMethods.init = tpMagic(Instance, init)
+  tp.dict = PyDictObject(dict.copyPyDictObjectMethod())
   tp.typeReady
   tp
 
