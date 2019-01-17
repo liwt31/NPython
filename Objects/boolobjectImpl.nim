@@ -13,7 +13,7 @@ export boolobject
 method `$`*(obj: PyBoolObject): string = 
   $obj.b
 
-methodMacroTmpl(Bool, "Bool")
+methodMacroTmpl(Bool)
 
 implBoolMagic Not:
   if self == pyTrueObj:

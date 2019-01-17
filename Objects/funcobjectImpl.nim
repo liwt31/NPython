@@ -6,8 +6,8 @@ import funcobject
 import ../Python/neval
 
 
-methodMacroTmpl(Function, "Function")
-methodMacroTmpl(BoundMethod, "BoundMethod")
+methodMacroTmpl(Function)
+methodMacroTmpl(BoundMethod)
 
 
 implFunctionMagic call:

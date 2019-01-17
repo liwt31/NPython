@@ -348,7 +348,7 @@ macro mutable*(kind, code: untyped): untyped =
 
 
 # generate useful macros for function defination
-template methodMacroTmpl*(name: untyped, nameStr: string) = 
+template methodMacroTmpl(name: untyped, nameStr: string) = 
   const objNameStr = "Py" & nameStr & "Object"
 
   # default args won't work here, so use overload
@@ -364,6 +364,9 @@ template methodMacroTmpl*(name: untyped, nameStr: string) =
   macro `impl name Method`(prototype, code:untyped): untyped {. used .}= 
     getAst(`impl name Method`(prototype, nnkBracket.newTree(), code))
 
+# further reduce args needed
+macro methodMacroTmpl*(name: untyped): untyped = 
+  getAst(methodMacroTmpl(name, name.strVal))
 
 macro declarePyType*(prototype, fields: untyped): untyped = 
   prototype.expectKind(nnkCall)
@@ -482,5 +485,5 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     newLit(dict),
     ident(baseTypeStr[2..^7]))))
 
-  result.add(getAst(methodMacroTmpl(nameIdent, nameIdent.strVal)))
+  result.add(getAst(methodMacroTmpl(nameIdent)))
 

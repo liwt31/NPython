@@ -12,7 +12,7 @@ macro genMethodMacros: untyped  =
   result = newStmtList()
   for i in ExceptionToken.low..ExceptionToken.high:
     let objName = $ExceptionToken(i) & "Error"
-    result.add(getAst(methodMacroTmpl(ident(objname), objname)))
+    result.add(getAst(methodMacroTmpl(ident(objname))))
 
 
 genMethodMacros
@@ -81,6 +81,3 @@ proc isExceptionType*(obj: PyObject): bool =
   let objType = PyTypeObject(obj)
   objType.tp == PyTypeToken.BaseError
 
-when isMainModule:
-  let excp = pyNameErrorObjectType.magicMethods.New()
-  echo PyNameErrorObject(excp).tk

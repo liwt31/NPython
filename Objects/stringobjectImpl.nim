@@ -16,7 +16,7 @@ proc `==`*(self, other: PyStrObject): bool {. inline, cdecl .} =
 
 # redeclare this for these are "private" macros
 
-methodMacroTmpl(Str, "str")
+methodMacroTmpl(Str)
 
 
 implStrMagic eq:

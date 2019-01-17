@@ -14,7 +14,7 @@ import ../Python/neval
 
 # PyTypeObject is manually declared in pyobjectBase.nim
 # here we need to do some initialization
-methodMacroTmpl(Type, "Type")
+methodMacroTmpl(Type)
 
 
 let pyTypeObjectType* = newPyType("type")
