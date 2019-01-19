@@ -20,10 +20,10 @@ template getMagic*(obj: PyObject, methodName): untyped =
   obj.pyType.magicMethods.methodName
 
 template getFun*(obj: PyObject, methodName: untyped, handleExcp=false):untyped = 
-  if obj.pyType == nil:
+  if obj.pyType.isNil:
     unreachable("Py type not set")
   let fun = getMagic(obj, methodName)
-  if fun == nil:
+  if fun.isNil:
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
     let msg = "No " & methodStr & " method for " & objTypeStr & " defined"

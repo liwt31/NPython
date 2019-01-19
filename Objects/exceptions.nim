@@ -4,6 +4,7 @@
 # Using NULL or nil as "expected" return value is bad idea
 # let alone using global variables so
 # we return exception object directly with a thrown flag inside
+# This might be a bit slower but we are not pursueing ultra performance anyway
 
 import strformat
 
@@ -33,6 +34,10 @@ declarePyType BaseError(tpToken):
   thrown: bool
   msg: PyObject  # could be nil
   context: PyBaseErrorObject  # if the exception happens during handling another exception
+  # used for tracebacks, set in neval.nim
+  fileName: PyObject # actually string
+  funName: PyObject # actually string
+  lineNo: int
 
 
 type
@@ -157,11 +162,11 @@ template errorIfNotBool*(pyObj: untyped, methodName: string) =
 template getIterableWithCheck*(obj: PyObject): PyObject = 
   # return exception, or a iterable with `iternext` method
   let iterFunc = obj.getMagic(iter)
-  if iterFunc == nil:
+  if iterFunc.isNil:
     let msg = obj.pyType.name & " object is not iterable"
     return newTypeError(msg)
   let iterObj = iterFunc(obj)
-  if iterObj.getMagic(iternext) == nil:
+  if iterObj.getMagic(iternext).isNil:
     let msg = fmt"iter() returned non-iterator of type " & iterObj.pyType.name
     return newTypeError(msg)
   iterobj

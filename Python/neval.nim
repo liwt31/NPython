@@ -139,11 +139,11 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     dealloc(cast[ptr OpCode](opCodes))
     dealloc(cast[ptr int](opArgs))
 
-  # local cache
-  let constants = f.code.constants
-  let names = f.code.names
-  var fastLocals = f.fastLocals
-  var cellVars = f.cellVars
+  # avoid dereference
+  let constants = f.code.constants.addr
+  let names = f.code.names.addr
+  let fastLocals = f.fastLocals.addr
+  let cellVars = f.cellVars.addr
 
   # in CPython this is a finite (20, CO_MAXBLOCKS) sized array as a member of 
   # frameobject. Safety is ensured by the compiler
@@ -610,9 +610,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         return excp
   finally:
     cleanUp()
-    # copy back the local cache, used when creating classes
-    f.fastLocals = fastLocals 
-    f.cellVars = cellvars
 
 
 proc pyImport*(name: PyStrObject): PyObject =
@@ -623,7 +620,7 @@ proc pyImport*(name: PyStrObject): PyObject =
   let input = readFile(filepath)
   var co: PyCodeObject
   try:
-    co = compile(input)
+    co = compile(input, filepath)
   except SyntaxError:
     let msg1 = getCurrentExceptionMsg()
     let msg2 = "Syntax Error: " & msg1
@@ -707,12 +704,11 @@ implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject), "__build
 proc runCode*(co: PyCodeObject): PyObject = 
   when defined(debug):
     echo co
-  let fun = newPyFunc(newPyString("main"), co, newPyDict())
+  let fun = newPyFunc(newPyString("<module>"), co, newPyDict())
   let f = newPyFrame(fun)
   f.evalFrame
 
 
-proc runString*(input: TaintedString): PyObject = 
-  let co = compile(input)
+proc runString*(input: TaintedString, fileName: string): PyObject = 
+  let co = compile(input, fileName)
   runCode(co)
-

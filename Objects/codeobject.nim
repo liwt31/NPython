@@ -19,15 +19,26 @@ declarePyType Code(tpToken):
     argNames: seq[PyStrObject]
     argScopes: seq[(Scope, int)]
 
+    # for tracebacks
+    codeName: PyStrObject
+    fileName: PyStrObject
 
 
-# code objects are initialized in compile.nim
-proc newPyCode*: PyCodeObject =
-  newPyCodeSimple()
+# most attrs of code objects are set in compile.nim
+proc newPyCode*(codeName, fileName: PyStrObject): PyCodeObject =
+  result = newPyCodeSimple()
+  result.codeName = codeName
+  result.fileName = fileName
 
 proc len*(code: PyCodeObject): int {. inline .} = 
   code.code.len
 
+
+implCodeMagic repr:
+  let codeName = self.codeName.str
+  let fileName = self.fileName.str
+  let msg = fmt("<code object {codeName} at {self.idStr}, file \"{fileName}\">")
+  newPyStr(msg)
 
 method `$`*(code: PyCodeObject): string = 
   var s: seq[string]
@@ -50,8 +61,10 @@ method `$`*(code: PyCodeObject): string =
       of OpCode.LoadConst:
         let constObj = code.constants[opArg]
         if constObj.ofPyCodeObject:
-          otherCodes.add(PyCodeObject(constObj))
-          line &= " (<Code>)"
+          let otherCode = PyCodeObject(constObj)
+          otherCodes.add(otherCode)
+          let reprStr = tpMagic(Code, repr)(otherCode)
+          line &= fmt" ({reprStr})"
         else:
           line &= fmt" ({code.constants[opArg]})"
       of OpCode.LoadFast, OpCode.StoreFast:
@@ -61,7 +74,9 @@ method `$`*(code: PyCodeObject): string =
           line &= fmt" ({code.cellVars[opArg]})"
         else:
           line &= fmt" ({code.freeVars[opArg - code.cellVars.len]})"
-      of OpCode.CallFunction, jumpSet, OpCode.BuildList:
+      of OpCode.CallFunction, jumpSet, OpCode.BuildList, 
+         OpCode.BuildTuple, OpCode.UnpackSequence, OpCode.MakeFunction,
+         OpCode.RaiseVarargs:
         discard
       else:
         line &= " (Unknown OpCode)"

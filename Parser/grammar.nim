@@ -503,7 +503,7 @@ proc lexGrammar =
       quit("Unknown syntax at {lineIdx}: {line}")
     while true:
       while colIdx < line.len():
-        # ")(" will lead to bug, assume not gonna happen
+        # `)(` will lead to bug, assume not gonna happen
         case line[colIdx]
         of '(':
           inc(numPar)

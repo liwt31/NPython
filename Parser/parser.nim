@@ -40,16 +40,16 @@ proc newParseNode(tokenNode, firstToken: TokenNode): ParseNode =
     if child.matchToken(firstToken.token):
       result.grammarNodeSeq.add(child)
       if child.token.isTerminator:
-        if toAdd == nil:
+        if toAdd.isNil:
           toAdd = newParseNode(firstToken)
         else:
           assert toAdd.tokenNode.token == child.token
       else:
-        if toAdd == nil:
+        if toAdd.isNil:
           toAdd = newParseNode(newTokenNode(child.token), firstToken)
         else:
           assert toAdd.tokenNode.token == child.token
-  assert toAdd != nil
+  assert (not toAdd.isNil)
   result.children.add(toAdd)
 
 proc `$`*(node: ParseNode): string = 
@@ -134,11 +134,12 @@ proc parseWithState*(input: TaintedString,
                      lexer: Lexer = nil
                      ): (ParseNode, Lexer) = 
 
+  # might be the same lexer. The name is just to avoid shadowing the original `lexer`
   let newLexer = lexString(input, mode, lexer)
   var tokenSeq = newLexer.tokenNodes
   var parseNode: ParseNode
   
-  if parseNodeArg == nil:
+  if parseNodeArg.isNil:
     let firstToken = tokenSeq.popFirst
     var rootToken: Token
     case mode

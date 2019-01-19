@@ -20,19 +20,23 @@ type
 
   Lexer* = ref object
     indentLevel: int
+    lineNo: int
     tokenNodes*: Deque[TokenNode] # might be consumed by parser
 
 var regexName = re(r"\b[a-zA-Z_]+[a-zA-Z_0-9]*\b")
 var regexNumber = re(r"\b\d*\.?\d+([eE][-+]?\d+)?\b")
 
 
-proc newTokenNode*(token: Token, content = ""): TokenNode = 
+# used in parser.nim to construct non-terminators
+proc newTokenNode*(token: Token, 
+                   lineNo = -1, colNo = -1,
+                   content = ""): TokenNode = 
   new result
   if token == Token.Name and content in reserveNameSet: 
     try:
       result.token = strTokenMap[content]
     except KeyError:
-      assert false
+      unreachable
   else:
     result.token = token
     case token
@@ -42,6 +46,12 @@ proc newTokenNode*(token: Token, content = ""): TokenNode =
     else:
       assert content == ""
   assert result.token != Token.NULLTOKEN
+  if result.token.isTerminator:
+    assert -1 < lineNo and -1 < colNo
+    result.lineNo = lineNo
+    result.colNo = colNo
+  else:
+    assert lineNo < 0 and colNo < 0
 
 
 # call lexString is better than using a Lexer directly
@@ -52,13 +62,14 @@ proc newLexer: Lexer =
 proc add(lexer: Lexer, token: TokenNode) = 
   lexer.tokenNodes.addLast(token)
 
-proc add(lexer: Lexer, token: Token) = 
-  lexer.add(newTokenNode(token))
+proc add(lexer: Lexer, token: Token, colNo:int) = 
+  assert token.isTerminator
+  lexer.add(newTokenNode(token, lexer.lineNo, colNo))
 
 
 proc dedentAll*(lexer: Lexer) = 
   while lexer.indentLevel != 0:
-    lexer.add(Token.Dedent)
+    lexer.add(Token.Dedent, lexer.indentLevel * 4)
     dec lexer.indentLevel
 
 
@@ -66,16 +77,16 @@ proc dedentAll*(lexer: Lexer) =
 proc getNextToken(
   lexer: Lexer, 
   line: TaintedString, 
-  idx: var int): TokenNode {. raises: [SyntaxError] .} = 
+  idx: var int): TokenNode {. raises: [SyntaxError, InternalError] .} = 
   template addRegexToken(tokenName:untyped, msg:string) =
     var (first, last) = line.findBounds(`regex tokenName`, start=idx)
     if first == -1:
       raiseSyntaxError(msg)
-    idx = last+1
-    result = newTokenNode(Token.tokenName, line[first..last])
+    idx = last + 1
+    result = newTokenNode(Token.tokenName, lexer.lineNo, first, line[first..last])
 
   template addSingleCharToken(tokenName) = 
-    result = newTokenNode(Token.tokenName)
+    result = newTokenNode(Token.tokenName, lexer.lineNo, idx)
     inc idx
 
   template tailing(t: char): bool = 
@@ -83,10 +94,13 @@ proc getNextToken(
 
   template addSingleOrDoubleCharToken(tokenName1, tokenName2: untyped, c:char) = 
     if tailing(c):
-      result = newTokenNode(Token.tokenName2)
+      result = newTokenNode(Token.tokenName2, lexer.lineNo, idx)
       idx += 2
     else:
       addSingleCharToken(tokenName1)
+
+  template newTokenNodeWithNo(Tk): TokenNode = 
+      newTokenNode(Token.Tk, lexer.lineNo, idx)
 
   case line[idx]
   of 'a'..'z', 'A'..'Z', '_': # possibly a name
@@ -102,11 +116,11 @@ proc getNextToken(
     if idx + l + 1 == line.len: # pairing `"` not found
       raiseSyntaxError("Invalid string syntax")
     else:
-      result = newTokenNode(Token.String, line[idx+1..idx+l])
+      result = newTokenNode(Token.String, lexer.lineNo, idx, line[idx+1..idx+l])
       idx += l + 2
 
   of '\n':
-    result = newTokenNode(Token.Newline)
+    result = newTokenNodeWithNo(Newline)
     idx += 1
   of '(':
     addSingleCharToken(Lpar)
@@ -126,10 +140,10 @@ proc getNextToken(
     addSingleOrDoubleCharToken(Plus, PlusEqual, '=')
   of '-':
     if tailing('='):
-      result = newTokenNode(Token.MinEqual)
+      result = newTokenNodeWithNo(MinEqual)
       idx += 2
     elif tailing('>'):
-      result = newTokenNode(Token.Rarrow)
+      result = newTokenNodeWithNo(Rarrow)
       idx += 2
     else:
       addSingleCharToken(Minus)
@@ -137,10 +151,10 @@ proc getNextToken(
     if tailing('*'):
       inc idx
       if tailing('='):
-        result = newTokenNode(Token.DoubleStarEqual)
+        result = newTokenNodeWithNo(DoubleStarEqual)
         idx += 2
       else:
-        result = newTokenNode(Token.DoubleStar)
+        result = newTokenNodeWithNo(DoubleStar)
         inc idx
     else:
       addSingleCharToken(Star)
@@ -148,10 +162,10 @@ proc getNextToken(
     if tailing('/'):
       inc idx
       if tailing('='):
-        result = newTokenNode(Token.DoubleSlashEqual)
+        result = newTokenNodeWithNo(DoubleSlashEqual)
         idx += 2
       else:
-        result = newTokenNode(Token.DoubleSlash)
+        result = newTokenNodeWithNo(DoubleSlash)
         inc idx
     else:
       addSingleCharToken(Slash)
@@ -161,15 +175,15 @@ proc getNextToken(
     addSingleOrDoubleCharToken(Amper, AmperEqual, '=')
   of '<': 
     if tailing('='):
-      result = newTokenNode(Token.LessEqual)
+      result = newTokenNodeWithNo(LessEqual)
       idx += 2
     elif tailing('<'):
       inc idx
       if tailing('='):
-        result = newTokenNode(Token.LeftShiftEqual)
+        result = newTokenNodeWithNo(LeftShiftEqual)
         idx += 2
       else:
-        result = newTokenNode(Token.LeftShift)
+        result = newTokenNodeWithNo(LeftShift)
         inc idx
     elif tailing('>'):
       raiseSyntaxError("<> in PEP401 not implemented")
@@ -177,15 +191,15 @@ proc getNextToken(
       addSingleCharToken(Less)
   of '>':
     if tailing('='):
-      result = newTokenNode(Token.GreaterEqual)
+      result = newTokenNodeWithNo(GreaterEqual)
       idx += 2
     elif tailing('>'):
       inc idx
       if tailing('='):
-        result = newTokenNode(Token.RightShiftEqual)
+        result = newTokenNodeWithNo(RightShiftEqual)
         idx += 2
       else:
-        result = newTokenNode(Token.RightShift)
+        result = newTokenNodeWithNo(RightShift)
         inc idx
     else:
       addSingleCharToken(Greater)
@@ -193,7 +207,7 @@ proc getNextToken(
     addSingleOrDoubleCharToken(Equal, EqEqual, '=')
   of '.':
     if idx < line.len - 2 and line[idx+1] == '.' and line[idx+2] == '.':
-      result = newTokenNode(Token.Ellipsis)
+      result = newTokenNodeWithNo(Ellipsis)
       idx += 3
     else:
       addSingleCharToken(Dot)
@@ -238,12 +252,12 @@ proc lex(lexer: Lexer, line: TaintedString) =
   case diff:
     of low(int).. -1:
       for i in diff..<0:
-        lexer.add(Token.Dedent)
+        lexer.add(Token.Dedent, (lexer.indentLevel+i)*4)
     of 0:
       discard
     else:
       for i in 0..<diff:
-        lexer.add(Token.Indent)
+        lexer.add(Token.Indent, (lexer.indentLevel+i)*4)
   lexer.indentLevel = indentLevel
 
   while idx < line.len:
@@ -254,10 +268,10 @@ proc lex(lexer: Lexer, line: TaintedString) =
       break
     else:
       lexer.add(getNextToken(lexer, line, idx))
-  lexer.add(Token.NEWLINE)
+  lexer.add(Token.NEWLINE, idx)
 
 
-proc interactiveShell() {. raises: [] .} = 
+proc interactiveShell() {. raises: [InternalError] .} = 
   let lexer = newLexer()
   while true:
     var input: TaintedString
@@ -282,27 +296,28 @@ proc interactiveShell() {. raises: [] .} =
 
 proc lexString*(input: TaintedString, mode=Mode.File, lexer: Lexer = nil): Lexer  = 
   assert mode != Mode.Eval # eval not tested
-  if lexer == nil:
+  if lexer.isNil:
     result = newLexer()
   else:
     result = lexer
 
   if mode == Mode.Single and input.len == 0:
     result.dedentAll
-    result.add(Token.NEWLINE)
+    result.add(Token.NEWLINE, 0)
     return
 
   for line in input.split("\n"):
+    inc result.lineNo
     result.lex(line)
 
   case mode
   of Mode.File:
     result.dedentAll
-    result.add(Token.Endmarker)
+    result.add(Token.Endmarker, 0)
   of Mode.Single:
     discard
   of Mode.Eval:
-    result.add(Token.Endmarker)
+    result.add(Token.Endmarker, 0)
 
 
 when isMainModule:
@@ -315,4 +330,3 @@ when isMainModule:
     let lexer = lexString(input)
     echo lexer.tokenNodes
   
-

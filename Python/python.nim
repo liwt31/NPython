@@ -46,7 +46,7 @@ proc interactiveShell =
 
     var co: PyCodeObject
     try:
-      co = compile(rootCst)
+      co = compile(rootCst, "<stdin>")
     except SyntaxError:
       echo getCurrentExceptionMsg()
       rootCst = nil
@@ -81,7 +81,7 @@ proc nPython(args: seq[string]) =
     echo fmt"File does not exist ({pyConfig.filepath})"
     quit()
   let input = readFile(pyConfig.filepath)
-  var retObj = input.runString
+  var retObj = runString(input, pyConfig.filepath)
   if retObj.isThrownException:
     echo PyExceptionObject(retObj).excpStrWithContext
 

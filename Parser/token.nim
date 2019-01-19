@@ -68,7 +68,6 @@ const
   ]
 
 
-
 proc readGrammarToken: seq[string] {.compileTime.} = 
   var textLines = slurp(grammarFileName).splitLines()
   for line in textLines:
@@ -80,6 +79,7 @@ proc readGrammarToken: seq[string] {.compileTime.} =
       result.add(tokenString)
       
 
+# everything inside pars
 proc readReserveName: HashSet[string] {.compileTime.} = 
   let text = slurp(grammarFileName)
   result = initSet[string]()
@@ -128,16 +128,11 @@ macro genTokenType(tokenTypeName, boundaryName: untyped): untyped =
 genTokenType(Token, boundary)
 
 
-template genHelperFunc(tokenTypeName, boundaryName: untyped): untyped = 
-  proc isTerminator*(node: tokenTypeName): bool = 
-    node < tokenTypeName.boundaryName
+proc isTerminator*(node: Token): bool = 
+  node < Token.boundary
 
-  proc isNonTerminator*(node: tokenTypeName): bool = 
-    tokenTypeName.boundaryName < node
-
-
-genHelperFunc(Token, boundary)
-
+proc isNonTerminator*(node: Token): bool = 
+  Token.boundary < node
 
 macro genMapTable(tokenTypeName, tableName: untyped): untyped = 
   result = newStmtList()
@@ -156,6 +151,12 @@ macro genMapTable(tokenTypeName, tableName: untyped): untyped =
 
 genMapTable(Token, strTokenMap)
 
+proc genTerminatorSet: set[Token] {. compileTime .} = 
+  for token in Token:
+    if token.isTerminator:
+      result.incl token
+
+const terminatorSet = genTerminatorSet()
 
 # token nodes that should have a content field
 const contentTokenSet* = {Token.Name, Token.Number, Token.String}
@@ -163,8 +164,10 @@ const contentTokenSet* = {Token.Name, Token.Number, Token.String}
 type
   TokenNode* = ref object
     case token*: Token
-    of contentTokenSet:
-      content*: string
+    of terminatorSet:
+      lineNo*: int
+      colNo*: int
+      content*: string # only for name, number and string
     else:
       discard
 

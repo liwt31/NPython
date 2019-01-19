@@ -18,7 +18,7 @@ type
 type
   SymTable* = ref object
     # map ast node address to ste
-    entries: Table[int, SymTableEntry]
+    entries: Table[AstNodeBase, SymTableEntry]
     root: SymTableEntry
 
   SymTableEntry* = ref object
@@ -67,7 +67,7 @@ proc newSymTableEntry(parent: SymTableEntry): SymTableEntry =
 
 {. push inline, cdecl .}
 
-proc getSte*(st: SymTable, key: int): SymTableEntry = 
+proc getSte*(st: SymTable, key: AstNodeBase): SymTableEntry = 
   st.entries[key]
 
 proc isRootSte(ste: SymTableEntry): bool = 
@@ -150,7 +150,7 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
   while toVisit.len != 0:
     let (astNode, parentSte) = toVisit.pop
     let ste = newSymTableEntry(parentSte)
-    st.entries[cast[int](astNode)] = ste
+    st.entries[astNode] = ste
     var toVisitPerSte: seq[AstNodeBase]
     template visit(n) = 
       if not n.isNil:
@@ -428,10 +428,10 @@ proc determineScope(st: SymTable) =
 
 proc newSymTable*(astRoot: AsdlModl): SymTable = 
   new result
-  result.entries = initTable[int, SymTableEntry]()
+  result.entries = initTable[AstNodeBase, SymTableEntry]()
   # traverse ast tree for 2 passes for symbol scopes
   # first pass
   result.collectDeclaration(astRoot)
-  result.root = result.getSte(cast[int](astRoot))
+  result.root = result.getSte(astRoot)
   # second pass
   result.determineScope()

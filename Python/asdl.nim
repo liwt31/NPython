@@ -1,4 +1,5 @@
 import macros
+import hashes
 import sequtils
 import strutils
 import strformat
@@ -16,6 +17,10 @@ type
 
   AsdlConstant* = ref object of AstNodeBase
     value*: PyObject
+
+
+method hash*(node: AstNodeBase): Hash {. base .} = 
+  hash(cast[int](node))
 
 
 proc genMember(member: NimNode): NimNode = 

@@ -165,7 +165,7 @@ method `$`*(obj: PyObject): string {.base, inline.} =
   "Python object"
 
 proc id*(obj: PyObject): int {. inline, cdecl .} = 
-  cast[int](obj[].addr)
+  cast[int](obj)
 
 
 proc idStr*(obj: PyObject): string {. inline .} = 
