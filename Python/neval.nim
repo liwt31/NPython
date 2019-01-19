@@ -102,6 +102,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   template jumpTo(i: int) = 
     lastI = i - 1
 
+  proc setTraceBack(excp: PyExceptionObject) = 
+    let lineNo = f.code.lineNos[lastI]
+    excp.traceBacks.add (f.code.fileName, f.code.codeName, lineNo)
    
   # in future, should get rid of the abstraction of seq and use a dynamically
   # created buffer directly. This can reduce time cost of the core neval function
@@ -134,8 +137,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     valStack.setlen(s)
 
   template cleanUp = 
-    #dealloc(cast[ptr OpCode](opCodes))
-    #dealloc(cast[ptr int](opArgs))
     discard
 
 
@@ -587,6 +588,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         assert (not excpObj.isNil)
         assert excpObj.ofPyExceptionObject
         let excp = PyExceptionObject(excpObj)
+        excp.setTraceBack
         while hasTryBlock():
           let topBlock = getTopBlock()
           case topBlock.status

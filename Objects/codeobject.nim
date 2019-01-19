@@ -9,9 +9,11 @@ type
   OpArg* = int
 
 declarePyType Code(tpToken):
-    code: seq[(OpCode, OpArg)] # for convenient and not performance critical accessing
+    # for convenient and not performance critical accessing
+    code: seq[(OpCode, OpArg)]
     opCodes: ptr OpCode # array of opcodes with `length`, same with `code`
     opArgs: ptr OpArg # array of args with `length`, same with `code`
+    lineNos: seq[int]
     constants: seq[PyObject]
 
     # store the strings for exception and debugging infomation
@@ -60,6 +62,7 @@ proc addOpCode*(code: PyCodeObject,
   code.opCodes[code.len] = instr.opCode
   code.opArgs[code.len] = instr.opArg
   code.code.add((instr.opCode, instr.opArg))
+  code.lineNos.add(instr.lineNo)
 
 implCodeMagic repr:
   let codeName = self.codeName.str

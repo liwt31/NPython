@@ -1,6 +1,3 @@
-import strutils
-import algorithm
-
 import pyobject
 import baseBundle
 import tupleobject
@@ -54,16 +51,6 @@ macro genNewMagic: untyped =
 
 genNewMagic()
 
-
-proc excpStrWithContext*(excp: PyExceptionObject): string = 
-  var cur = excp
-  var excpStrs: seq[string]
-  while not cur.isNil:
-    excpStrs.add PyStrObject(tpMagic(BaseError, repr)(cur)).str
-    cur = cur.context
-  let joinMsg = "\nDuring handling of the above exception, another exception occured\n"
-  excpStrs.reversed.join(joinMsg)
-  
 
 proc matchExcp*(target: PyTypeObject, current: PyExceptionObject): PyBoolObject = 
   var tp = current.pyType

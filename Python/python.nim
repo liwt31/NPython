@@ -7,6 +7,7 @@ import cligen
 import neval
 import compile
 import coreconfig
+import traceback
 import lifecycle
 import ../Parser/[lexer, parser]
 import ../Objects/bundle
@@ -65,7 +66,7 @@ proc interactiveShell =
     let f = newPyFrame(fun)
     var retObj = f.evalFrame
     if retObj.isThrownException:
-      echo PyExceptionObject(retObj).excpStrWithContext
+      PyExceptionObject(retObj).printTb
     else:
       prevF = f
     rootCst = nil
@@ -83,7 +84,7 @@ proc nPython(args: seq[string]) =
   let input = readFile(pyConfig.filepath)
   var retObj = runString(input, pyConfig.filepath)
   if retObj.isThrownException:
-    echo PyExceptionObject(retObj).excpStrWithContext
+    PyExceptionObject(retObj).printTb
 
 
 when isMainModule:

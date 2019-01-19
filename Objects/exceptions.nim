@@ -29,15 +29,19 @@ type ExceptionToken* {. pure .} = enum
   Runtime
 
 
+type TraceBack* = tuple
+  fileName: PyObject # actually string
+  funName: PyObject # actually string
+  lineNo: int
+
+
 declarePyType BaseError(tpToken):
   tk: ExceptionToken
   thrown: bool
   msg: PyObject  # could be nil
   context: PyBaseErrorObject  # if the exception happens during handling another exception
   # used for tracebacks, set in neval.nim
-  fileName: PyObject # actually string
-  funName: PyObject # actually string
-  lineNo: int
+  traceBacks: seq[TraceBack]
 
 
 type
