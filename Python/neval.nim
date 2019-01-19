@@ -83,12 +83,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   # instructions are fetched so frequently that we should build a local cache
   # instead of doing tons of dereference
 
-  let opCodes = cast[int](createU(OpCode, f.code.len))
-  let opArgs = cast[int](createU(int, f.code.len))
-  for idx, instrTuple in f.code.code:
-    cast[ptr OpCode](opCodes + idx * sizeof(OpCode))[] = instrTuple[0]
-    cast[ptr int](opArgs + idx * sizeof(int))[] = instrTuple[1]
-
+  let opCodes = f.code.opCodes
+  let opArgs = f.code.opArgs
 
   var lastI = -1
 
@@ -97,9 +93,11 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   var opArg: int
   template fetchInstr: (OpCode, int) = 
     inc lastI
-    opCode = cast[ptr OpCode](opCodes + lastI * sizeof(OpCode))[]
-    opArg = cast[ptr int](opArgs + lastI * sizeof(int))[]
+    opCode = opCodes[lastI]
+    opArg = opArgs[lastI]
     (opCode, opArg)
+    # the silly way
+    # f.code.code[lastI]
 
   template jumpTo(i: int) = 
     lastI = i - 1
@@ -136,8 +134,10 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     valStack.setlen(s)
 
   template cleanUp = 
-    dealloc(cast[ptr OpCode](opCodes))
-    dealloc(cast[ptr int](opArgs))
+    #dealloc(cast[ptr OpCode](opCodes))
+    #dealloc(cast[ptr int](opArgs))
+    discard
+
 
   # avoid dereference
   let constants = f.code.constants.addr

@@ -100,12 +100,12 @@ proc newCompiler(root: AsdlModl, fileName: PyStrObject): Compiler =
   result.fileName = fileName
 
 
-method toTuple(instr: Instr): (OpCode, int) {.base.} =
-  (instr.opCode, -1)
+method toTuple(instr: Instr): (OpCode, OpArg, int) {.base.} =
+  (instr.opCode, -1, instr.lineNo)
 
 
-method toTuple(instr: ArgInstr): (OpCode, int) =
-  (instr.opCode, instr.opArg)
+method toTuple(instr: ArgInstr): (OpCode, OpArg, int) =
+  (instr.opCode, instr.opArg, instr.lineNo)
 
 {. push inline, cdecl .}
 
@@ -149,6 +149,10 @@ proc lastLineNo(cu: CompilerUnit): int =
 proc lastLineNo(c: Compiler): int = 
   c.tcu.lastLineNo
 
+proc numCodes(cu: CompilerUnit): int =
+  for b in cu.blocks:
+    result += b.len
+
 proc addOp(cu: CompilerUnit, instr: Instr) =
   cu.blocks[^1].instrSeq.add(instr)
 
@@ -169,7 +173,6 @@ proc addLoadConst(cu: CompilerUnit, pyObject: PyObject, lineNo: int) =
   let arg = cu.constantId(pyObject)
   let instr = newArgInstr(OpCode.LoadConst, arg, lineNo)
   cu.addOp(instr)
-
 
 proc addLoadConst(c: Compiler, pyObject: PyObject, lineNo: int) = 
   c.tcu.addLoadConst(pyObject, lineNo)
@@ -254,12 +257,10 @@ proc assemble(cu: CompilerUnit, fileName: PyStrObject): PyCodeObject =
     cu.addLoadConst(pyNone, cu.lastLineNo)
     cu.addOp(newInstr(OpCode.ReturnValue, cu.lastLineNo))
   # convert compiler unit to code object
-  assert (not cu.codeName.isNil)
-  assert (not fileName.isNil)
-  result = newPyCode(cu.codeName, fileName)
+  result = newPyCode(cu.codeName, fileName, cu.numCodes)
   for cb in cu.blocks:
     for instr in cb.instrSeq:
-      result.code.add(instr.toTuple())
+      result.addOpCode(instr.toTuple())
   result.constants = cu.constants
   result.names = cu.ste.namesToSeq()
   result.localVars = cu.ste.localVarsToSeq()

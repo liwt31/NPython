@@ -478,8 +478,9 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       proc `ofPy name Object`*(obj: PyObject): bool {. cdecl, inline .} = 
         obj.pyType.tp == PyTypeToken.`name`
 
-    # base constructor that should be used for any custom constructors
-    # make it public so that impl file can also use
+    # base constructor that should be used for any custom constructors except for 
+    # code object which requires a finalizer. 
+    # make it public so that impl files can also use
     proc `newPy name Simple`*: `Py name Object` {. cdecl .}= 
       # use `result` here seems to be buggy
       let obj = new `Py name Object`
@@ -487,6 +488,17 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       when hasDict:
         obj.dict = newPyDict()
       obj
+
+    # using function argument as a finalizer is buggy in nim 0.19.0,
+    # so use a template as workaround, gh-10376
+    template `newPy name Finalizer`*(
+                              obj: var `Py name Object`,
+                              finalizer: proc (x: `Py name Object`) {. nimcall .}) = 
+      new(obj, finalizer)
+      obj.pyType = `py name ObjectType`
+      when hasDict:
+        obj.dict = newPyDict()
+
 
     # default for __new__ hook, could be overrided at any time
     proc `newPy name Default`(args: seq[PyObject]): PyObject {. cdecl .} = 

@@ -5,9 +5,13 @@ import pyobject
 import stringobject
 import ../Python/[opcode, symtable]
 
+type
+  OpArg* = int
 
 declarePyType Code(tpToken):
-    code: seq[(OpCode, int)]
+    code: seq[(OpCode, OpArg)] # for convenient and not performance critical accessing
+    opCodes: ptr OpCode # array of opcodes with `length`, same with `code`
+    opArgs: ptr OpArg # array of args with `length`, same with `code`
     constants: seq[PyObject]
 
     # store the strings for exception and debugging infomation
@@ -25,14 +29,37 @@ declarePyType Code(tpToken):
 
 
 # most attrs of code objects are set in compile.nim
-proc newPyCode*(codeName, fileName: PyStrObject): PyCodeObject =
-  result = newPyCodeSimple()
+proc newPyCode*(codeName, fileName: PyStrObject, length: int): PyCodeObject =
+  proc finalizer(obj: PyCodeObject) = 
+    dealloc(obj.opCodes)
+    dealloc(obj.opArgs)
+
+  newPyCodeFinalizer(result, finalizer)
+  result.opCodes = createU(OpCode, length)
+  result.opArgs = createU(OpArg, length)
   result.codeName = codeName
   result.fileName = fileName
 
 proc len*(code: PyCodeObject): int {. inline .} = 
   code.code.len
 
+template `[]`*(opCodes: ptr OpCode, idx: int): OpCode = 
+  cast[ptr OpCode](cast[int](opCodes) + idx * sizeof(OpCode))[]
+
+template `[]`*(opArgs: ptr OpArg, idx: int): OpArg = 
+  cast[ptr OpArg](cast[int](opArgs) + idx * sizeof(OpArg))[]
+
+template `[]=`(opCodes: ptr OpCode, idx: int, value: OpCode) = 
+  cast[ptr OpCode](cast[int](opCodes) + idx * sizeof(OpCode))[] = value
+
+template `[]=`(opArgs: ptr OpArg, idx: int, value: OpArg) = 
+  cast[ptr OpArg](cast[int](opArgs) + idx * sizeof(OpArg))[] = value
+
+proc addOpCode*(code: PyCodeObject, 
+               instr: tuple[opCode: OpCode, opArg: OpArg, lineNo: int]) = 
+  code.opCodes[code.len] = instr.opCode
+  code.opArgs[code.len] = instr.opArg
+  code.code.add((instr.opCode, instr.opArg))
 
 implCodeMagic repr:
   let codeName = self.codeName.str
