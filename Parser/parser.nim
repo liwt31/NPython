@@ -31,7 +31,7 @@ proc newParseNode(tokenNode: TokenNode): ParseNode =
 
 
 proc newParseNode(tokenNode, firstToken: TokenNode): ParseNode =
-  assert firstToken.token in grammarSet[tokenNode.token].firstSet
+  assert (firstToken.token in grammarSet[tokenNode.token].firstSet)
   new result
   result.tokenNode = tokenNode
   let gNode = grammarSet[tokenNode.token].rootNode
@@ -129,76 +129,48 @@ proc applyToken(node: ParseNode, token: TokenNode): ParseStatus =
 
 
 proc parseWithState*(input: TaintedString, 
+                     lexer: Lexer,
                      mode=Mode.File, 
                      parseNodeArg: ParseNode = nil,
-                     lexer: Lexer = nil
-                     ): (ParseNode, Lexer) = 
+                     ): ParseNode = 
 
-  # might be the same lexer. The name is just to avoid shadowing the original `lexer`
-  let newLexer = lexString(input, mode, lexer)
-  var tokenSeq = newLexer.tokenNodes
-  var parseNode: ParseNode
-  
-  if parseNodeArg.isNil:
-    let firstToken = tokenSeq.popFirst
-    var rootToken: Token
-    case mode
-    of Mode.Single:
-      rootToken = Token.single_input
-    of Mode.File:
-      rootToken = Token.file_input
-    of Mode.Eval:
-      rootToken = Token.eval_input
-    parseNode = newParseNode(newTokenNode(rootToken), firstToken)
-  else:
-    parseNode = parseNodeArg
-  for token in tokenSeq:
-    let status = parseNode.applyToken(token)
-    when defined(debug):
-      echo fmt"{status}, {token}"
-    case status
-    of ParseStatus.Normal:
-      continue
+  lexer.lexString(input, mode)
+  try:
+    var tokenSeq = lexer.tokenNodes
+    var parseNode: ParseNode
+    var start = 0
+    
+    if parseNodeArg.isNil:
+      # construct a cst using the first token
+      let firstToken = tokenSeq[0]
+      start = 1
+      var rootToken: Token
+      case mode
+      of Mode.Single:
+        rootToken = Token.single_input
+      of Mode.File:
+        rootToken = Token.file_input
+      of Mode.Eval:
+        rootToken = Token.eval_input
+      if not (firstToken.token in grammarSet[rootToken].firstSet):
+        raiseSyntaxError("SyntaxError", "", firstToken.lineNo, firstToken.colNo)
+      parseNode = newParseNode(newTokenNode(rootToken), firstToken)
     else:
-      raiseSyntaxError("SyntaxError")
-  newLexer.tokenNodes.clear
-  result = (parseNode, newLexer)
+      parseNode = parseNodeArg
+    for token in tokenSeq[start..^1]:
+      let status = parseNode.applyToken(token)
+      when defined(debug):
+        echo fmt"{status}, {token}"
+      case status
+      of ParseStatus.Normal:
+        continue
+      else:
+        raiseSyntaxError("SyntaxError", "", token.lineNo, token.colNo)
+    parseNode
+  finally:
+    # so that we won't process the same tokens again
+    lexer.clearTokens()
   
-
-
-proc interactiveShell = 
-  var finished = true
-  var rootCst: ParseNode
-  var lexer: Lexer
-  while true:
-    var input: TaintedString
-    if finished:
-      stdout.write(">>> ")
-    else:
-      stdout.write("... ")
-
-    try:
-      input = stdin.readline()
-    except EOFError:
-      quit(0)
-
-    (rootCst, lexer) = parseWithState(input, Mode.Single, rootCst, lexer)
-    echo rootCst
-    finished = rootCst.finished
-    echo fmt"Finished: {finished}"
-    if finished:
-      rootCst = nil
-
-
-proc parse*(input: TaintedString, mode=Mode.File): ParseNode = 
-  parseWithState(input, mode)[0]
-
-
-when isMainModule:
-  let args = commandLineParams()
-  if len(args) < 1:
-    interactiveShell()
-  let input = readFile(args[0])
-  var parseNode = parse(input)
-  echo parseNode
-  echo parseNode.finished
+proc parse*(input: string, fileName: string, mode=Mode.File): ParseNode = 
+  let lexer = newLexer(fileName)
+  parseWithState(input, lexer, mode)

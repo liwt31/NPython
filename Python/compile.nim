@@ -11,7 +11,7 @@ import asdl
 import symtable
 import opcode
 import ../Parser/parser
-import ../Objects/[pyobject, stringobjectImpl, codeobject, noneobject]
+import ../Objects/[pyobject, stringobjectImpl, exceptionsImpl, codeobject, noneobject]
 import ../Utils/utils
 
 type
@@ -474,8 +474,6 @@ compileMethod For:
   c.addOp(OpCode.GetIter, astNode.iter.lineNo.value)
   c.addBlock(start)
   c.addOp(newJumpInstr(OpCode.ForIter, ending, astNode.lineNo.value))
-  if not (astNode.target of AstName):
-    raiseSyntaxError("only name as loop variable")
   c.compile(astNode.target)
   c.compileSeq(astNode.body)
   c.addOp(newJumpInstr(OpCode.JumpAbsolute, start, c.lastLineNo))
@@ -614,7 +612,7 @@ template findNearestLoop(blockName) =
       blockName = basicBlock
       break
   if blockName.isNil:
-    raiseSyntaxError("'break' outside loop")
+    raiseSyntaxError("'break' outside loop", astNode)
 
 
 compileMethod Break:
@@ -834,13 +832,30 @@ template cmoOpMethod(methodName, TokenName) =
 compileMethod Arguments:
   unreachable()
 
-
-proc compile*(input: TaintedString | ParseNode, fileName: string): PyCodeObject =
-  let astRoot = ast(input)
+proc compile(astRoot: AsdlModl, fileName: string): PyObject = 
   let c = newCompiler(astRoot, newPyStr(fileName))
-  c.compile(astRoot)
+  try:
+    c.compile(astRoot)
+  except SyntaxError:
+    let e = SyntaxError(getCurrentException())
+    return fromBltinSyntaxError(e, newPyStr(fileName))
   c.tcu.assemble(c.fileName)
 
+proc compile*(input, fileName: string): PyObject =
+  try:
+    let astRoot = ast(input, fileName)
+    return compile(astRoot, fileName)
+  except SyntaxError:
+    let e = SyntaxError(getCurrentException())
+    return fromBltinSyntaxError(e, newPyStr(fileName))
+
+proc compile*(input: ParseNode, fileName: string): PyObject =
+  try:
+    let astRoot = ast(input)
+    return compile(astRoot, fileName)
+  except SyntaxError:
+    let e = SyntaxError(getCurrentException())
+    return fromBltinSyntaxError(e, newPyStr(fileName))
 
 when isMainModule:
   let args = commandLineParams()

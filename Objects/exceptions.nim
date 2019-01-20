@@ -26,13 +26,15 @@ type ExceptionToken* {. pure .} = enum
   Key,
   Assertion,
   ZeroDivision,
-  Runtime
+  Runtime,
+  Syntax
 
 
 type TraceBack* = tuple
-  fileName: PyObject # actually string
-  funName: PyObject # actually string
+  fileName: PyObject  # actually string
+  funName: PyObject  # actually string
   lineNo: int
+  colNo: int  # optional, for syntax error
 
 
 declarePyType BaseError(tpToken):

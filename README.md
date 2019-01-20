@@ -15,7 +15,7 @@ Capable of:
 * list comprehension (no set or dict yet).
 * basic import such as `import foo`. No alias, no `from`, etc
 * indexing with `[]` with slice (can not store to slice yet).
-* assert statement. Raise exceptions. Basic `try`...`except XXXError`...
+* assert statement, raise exceptions, basic `try ... except XXXError ... `, with detailed traceback message.
 * very primitive `class` defination. No inheritance, no metatype, etc
 * interactive mode and file mode
 
@@ -32,7 +32,6 @@ nim c ./Python/python
 
 ### Todo
 * more features on user defined class
-* more exception info (line no, col no)
 * decorators
 * yield stmt
 

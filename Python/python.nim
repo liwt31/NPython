@@ -14,19 +14,24 @@ import ../Objects/bundle
 import ../Utils/utils
 
 
+
 proc interactiveShell =
   var finished = true
+  # the root of the concrete syntax tree. Keep this when user input multiple lines
   var rootCst: ParseNode
-  var lexer: Lexer
+  let lexer = newLexer("<stdin>")
   var prevF: PyFrameObject
   echo "NPython 0.1.0"
   while true:
-    var input: TaintedString
+    var input: string
     var prompt: string
     if finished:
       prompt = ">>> "
+      rootCst = nil
+      lexer.clearIndent
     else:
       prompt = "... "
+      assert (not rootCst.isNil)
 
     try:
       input = readLineFromStdin(prompt)
@@ -34,25 +39,23 @@ proc interactiveShell =
       quit(0)
 
     try:
-      (rootCst, lexer) = parseWithState(input, Mode.Single, rootCst, lexer)
+      rootCst = parseWithState(input, lexer, Mode.Single, rootCst)
     except SyntaxError:
-      echo getCurrentExceptionMsg()
-      rootCst = nil
-      lexer = nil
+      let e = SyntaxError(getCurrentException())
+      let excpObj = fromBltinSyntaxError(e, newPyStr("<stdin>"))
+      excpObj.printTb
+      finished = true
       continue
 
     finished = rootCst.finished
     if not finished:
       continue
 
-    var co: PyCodeObject
-    try:
-      co = compile(rootCst, "<stdin>")
-    except SyntaxError:
-      echo getCurrentExceptionMsg()
-      rootCst = nil
-      lexer = nil
+    let compileRes = compile(rootCst, "<stdin>")
+    if compileRes.isThrownException:
+      PyExceptionObject(compileRes).printTb
       continue
+    let co = PyCodeObject(compileRes)
 
     when defined(debug):
       echo co
@@ -69,9 +72,6 @@ proc interactiveShell =
       PyExceptionObject(retObj).printTb
     else:
       prevF = f
-    rootCst = nil
-
-
 
 proc nPython(args: seq[string]) =
   pyInit(args)

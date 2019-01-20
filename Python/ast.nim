@@ -12,6 +12,15 @@ import ../Objects/[pyobject, noneobject, numobjects, boolobjectImpl, stringobjec
 import ../Utils/utils
 
 
+template raiseSyntaxError*(msg: string, astNode: untyped) = 
+  raiseSyntaxError(msg, "", astNode.lineNo.value, astNode.colOffset.value)
+
+template raiseSyntaxError(msg: string, parseNode: ParseNode) = 
+  raiseSyntaxError(msg, "", parseNode.tokenNode.lineNo, parseNode.tokenNode.colNo)
+
+template raiseSyntaxError(msg: string) = 
+  raiseSyntaxError(msg, parseNode)
+
 # in principle only define constructor for ast node that 
 # appears more than once. There are exceptions below,
 # but it should be keeped since now.
@@ -235,8 +244,9 @@ macro childAst(child, astNode: untyped, tokens: varargs[Token]): untyped =
     
 # set context to store. The contexts are load by default
 method setStore(astNode: AstNodeBase) {.base.} = 
-  echo astNode
-  raiseSyntaxError("can't assign")
+  if not (astNode of AsdlExpr):
+    unreachable
+  raiseSyntaxError("can't assign", AsdlExpr(astNode))
 
 method setStore(astNode: AstName) = 
   astnode.ctx = newAstStore()
@@ -289,10 +299,10 @@ ast decorators:
   
 ]#
 ast decorated, [AsdlStmt]:
-  raiseSyntaxError("decorator not implemented")
+  raiseSyntaxError("decorator not implemented", parseNode)
   
 ast async_funcdef, [AsdlStmt]:
-  raiseSyntaxError("async function defination not implemented")
+  raiseSyntaxError("async function defination not implemented", parseNode)
   
 # funcdef  'def' NAME parameters ['->' test] ':' suite
 ast funcdef, [AstFunctionDef]:
@@ -301,7 +311,7 @@ ast funcdef, [AstFunctionDef]:
   result.name = newIdentifier(parseNode.children[1].tokenNode.content)
   result.args = astParameters(parseNode.children[2])
   if not (parseNode.children.len == 5): 
-    raiseSyntaxError("Return type annotation not implemented")
+    raiseSyntaxError("Return type annotation not implemented", parseNode)
   result.body = astSuite(parseNode.children[^1])
   assert result != nil
 
@@ -329,10 +339,10 @@ ast typedargslist, [AstArguments]:
     let child = parseNode.children[i]
     if i mod 2 == 1:
       if not (child.tokenNode.token == Token.Comma):
-        raiseSyntaxError("Only support simple function arguments like foo(a,b)")
+        raiseSyntaxError("Only support simple function arguments like foo(a,b)", child)
     else:
       if not (child.tokenNode.token == Token.tfpdef):
-        raiseSyntaxError("Only support simple function arguments like foo(a,b)")
+        raiseSyntaxError("Only support simple function arguments like foo(a,b)", child)
       result.args.add(astTfpdef(child))
   
 # tfpdef  NAME [':' test]
@@ -397,23 +407,24 @@ ast expr_stmt, [AsdlStmt]:
   if parseNode.children.len == 1:
     return newAstExpr(testlistStarExpr1)
   
-  case parseNode.children[1].tokenNode.token
+  let middleChild = parseNode.children[1]
+  case middleChild.tokenNode.token
   of Token.Equal: # simple cases like `x=1`
     if not (parseNode.children.len == 3):
-      raiseSyntaxError("Only support simple assign like x=1")
+      raiseSyntaxError("Only support simple assign like x=1", middleChild)
     let testlistStarExpr2 = astTestlistStarExpr(parseNode.children[2])
     let node = newAstAssign()
-    copyNo(node, testlistStarExpr1)
+    setNo(node, middleChild)
     testlistStarExpr1.setStore
     node.targets.add(testlistStarExpr1) 
     if not (node.targets.len == 1):
-      raiseSyntaxError("Assign to multiple target not supported")
+      raiseSyntaxError("Assign to multiple target not supported", parseNode)
     node.value = testlistStarExpr2
     result = node
   of Token.augassign: # `x += 1` like
-    raiseSyntaxError("Inplace operation not implemented")
+    raiseSyntaxError("Inplace operation not implemented", middleChild)
   else:
-    raiseSyntaxError("Only support simple assignment like a=1")
+    raiseSyntaxError("Only support simple assignment like a=1", middleChild)
   assert result != nil
 
   
@@ -426,7 +437,7 @@ ast testlist_star_expr, [AsdlExpr]:
   for i in 0..<((parseNode.children.len + 1) div 2):
     let child = parseNode.children[2 * i]
     if not (child.tokenNode.token == Token.test):
-      raiseSyntaxError("Star expression not implemented")
+      raiseSyntaxError("Star expression not implemented", child)
     elms.add astTest(child)
   if parseNode.children.len == 1:
     result = elms[0]
@@ -492,7 +503,7 @@ ast raise_stmt, [AstRaise]:
   of 2:
     result.exc = astTest(parseNode.children[1])
   else:
-    raiseSyntaxError("Fancy raise not implemented")
+    raiseSyntaxError("Fancy raise not implemented", parseNode.children[2])
 
 
 # import_stmt  import_name | import_from
@@ -536,13 +547,14 @@ ast dotted_as_name, [AstAlias]:
 # dotted_as_names  dotted_as_name (',' dotted_as_name)*
 ast dotted_as_names, [seq[AstAlias]]:
   if parseNode.children.len != 1:
-    raiseSyntaxError("import multiple modules in one line not implemented")
+    raiseSyntaxError("import multiple modules in one line not implemented", 
+      parseNode.children[1])
   result.add parseNode.children[0].astDottedAsName
   
 # dotted_name  NAME ('.' NAME)*
 ast dotted_name, [AstAlias]:
   if parseNode.children.len != 1:
-    raiseSyntaxError("dotted import name not supported")
+    raiseSyntaxError("dotted import name not supported", parseNode.children[1])
   result = newAstAlias()
   result.name = newIdentifier(parseNode.children[0].tokenNode.content)
   
@@ -588,7 +600,7 @@ ast if_stmt, [AstIf]:
   if parseNode.children.len == 4:  # simple if no else
     return
   if not (parseNode.children.len == 7):
-    raiseSyntaxError("elif not implemented")
+    raiseSyntaxError("elif not implemented", parseNode.children[4])
   result.orelse = astSuite(parseNode.children[^1])
   
 # while_stmt  'while' test ':' suite ['else' ':' suite]
@@ -598,12 +610,12 @@ ast while_stmt, [AstWhile]:
   result.test = astTest(parseNode.children[1])
   result.body = astSuite(parseNode.children[3])
   if not (parseNode.children.len == 4):
-    raiseSyntaxError("Else clause in while not implemented")
+    raiseSyntaxError("Else clause in while not implemented", parseNode.children[4])
 
 # for_stmt  'for' exprlist 'in' testlist ':' suite ['else' ':' suite]
 ast for_stmt, [AsdlStmt]:
   if not (parseNode.children.len == 6):
-    raiseSyntaxError("for with else not implemented")
+    raiseSyntaxError("for with else not implemented", parseNode.children[6])
   let forNode = newAstFor()
   setNo(forNode, parseNode.children[0])
   forNode.target = astExprList(parseNode.children[1])
@@ -624,7 +636,7 @@ ast try_stmt, [AstTry]:
   for i in 1..((parseNode.children.len-1) div 3):
     let child1 = parseNode.children[i*3]
     if not (child1.tokenNode.token == Token.except_clause):
-      raiseSyntaxError("else/finally in try not implemented")
+      raiseSyntaxError("else/finally in try not implemented", child1)
     let handler = astExceptClause(child1)
     let child3 = parseNode.children[i*3+2]
     handler.body = astSuite(child3)
@@ -649,7 +661,7 @@ ast except_clause, [AstExceptHandler]:
   of 2:
     result.type = astTest(parseNode.children[1])
   else:
-    raiseSyntaxError("'except' with name not implemented")
+    raiseSyntaxError("'except' with name not implemented", parseNode.children[2])
   
 
   
@@ -670,7 +682,7 @@ ast suite, [seq[AsdlStmt]]:
 # test  or_test ['if' or_test 'else' test] | lambdef
 ast test, [AsdlExpr]:
   if not (parseNode.children.len == 1):
-    raiseSyntaxError("Inline if else not implemented")
+    raiseSyntaxError("Inline if else not implemented", parseNode.children[1])
   let child = parseNode.children[0]
   if not (child.tokenNode.token == Token.or_test):
     raiseSyntaxError("lambda not implemented")
@@ -742,7 +754,7 @@ ast comparison, [AsdlExpr]:
     assert result != nil
     return
   if not (parseNode.children.len == 3):  # cases like a<b<c etc are NOT included
-    raiseSyntaxError("Chained comparison not implemented")
+    raiseSyntaxError("Chained comparison not implemented", parseNode.children[2])
   let op = astCompOp(parseNode.children[1])
   let expr2 = astExpr(parseNode.children[2])
   let cmp = newAstCompare()
@@ -851,7 +863,7 @@ ast factor, [AsdlExpr]:
     of Token.Minus:
       result = newUnaryOp(newAstUSub(), factor)
     else:
-      raiseSyntaxError("Unary ~ not implemented")
+      raiseSyntaxError("Unary ~ not implemented", child1)
     setNo(result, parseNode.children[0])
   else:
     unreachable
@@ -871,7 +883,7 @@ proc astPower(parseNode: ParseNode): AsdlExpr =
 proc astAtomExpr(parseNode: ParseNode): AsdlExpr = 
   let child = parseNode.children[0]
   if child.tokenNode.token == Token.await:
-    raiseSyntaxError("Await not implemented")
+    raiseSyntaxError("Await not implemented", child)
   result = astAtom(child)
   if parseNode.children.len == 1:
     return
@@ -893,13 +905,13 @@ ast atom, [AsdlExpr]:
       let child = parseNode.children[1]
       case child.tokenNode.token
       of Token.yield_expr:
-        raiseSyntaxError("Yield expression not implemented")
+        raiseSyntaxError("Yield expression not implemented", child)
       of Token.testlist_comp:
         let testListComp = astTestlistComp(child)
         # no tuple, just things like (1 + 2) * 3
         if testListComp.len == 1:
           if testListComp[0].kind == AsdlExprTk.ListComp:
-            raiseSyntaxError("generator expression not implemented")
+            raiseSyntaxError("generator expression not implemented", child)
           result = testListComp[0]
         else:
           result = newTuple(testListComp)
@@ -975,7 +987,7 @@ ast testlist_comp, [seq[AsdlExpr]]:
   # or a seq with comma separated elements
   let child1 = parseNode.children[0]
   if child1.tokenNode.token == Token.star_expr:
-    raiseSyntaxError("Star expression not implemented")
+    raiseSyntaxError("Star expression not implemented", child1)
   let test1 = astTest(child1)
   # comprehension
   if (parseNode.children.len == 2) and 
@@ -995,7 +1007,7 @@ ast testlist_comp, [seq[AsdlExpr]]:
     of Token.test:
       result.add astTest(child)
     of Token.star_expr:
-      raiseSyntaxError("Star expression not implemented")
+      raiseSyntaxError("Star expression not implemented", child)
     else:
       unreachable
   
@@ -1031,7 +1043,7 @@ ast trailer, [AsdlExpr, leftExpr: AsdlExpr]:
 # subscriptlist: subscript (',' subscript)* [',']
 ast subscriptlist, [AsdlSlice]:
   if not parseNode.children.len == 1:
-    raiseSyntaxError("subscript only support one index")
+    raiseSyntaxError("subscript only support one index", parseNode.children[1])
   parseNode.children[0].astSubscript
   
 # subscript: test | [test] ':' [test] [sliceop]
@@ -1074,10 +1086,10 @@ ast subscript, [AsdlSlice]:
 # currently only used in `for` stmt, so assume only one child
 ast exprlist, [AsdlExpr]:
   if not (parseNode.children.len == 1):
-    raiseSyntaxError("unpacking in for loop not implemented")
+    raiseSyntaxError("unpacking in for loop not implemented", parseNode.children[1])
   let child = parseNode.children[0]
   if not (child.tokenNode.token == Token.expr):
-    raiseSyntaxError("unpacking in for loop not implemented")
+    raiseSyntaxError("unpacking in for loop not implemented", child)
   astExpr(child)
   
 # testlist: test (',' test)* [',']
@@ -1108,20 +1120,20 @@ ast dictorsetmaker, [AsdlExpr]:
       raiseSyntaxError("dict defination too complex (no set, no comprehension)")
     let c1 = children[i]
     if not (c1.tokenNode.token == Token.test):
-      raiseSyntaxError("dict defination too complex (no set, no comprehension)")
+      raiseSyntaxError("dict defination too complex (no set, no comprehension)", c1)
     d.keys.add(astTest(c1))
     if not (children[i+1].tokenNode.token == Token.Colon):
       raiseSyntaxError("dict defination too complex (no set, no comprehension)")
     let c3 = children[i+2]
     if not (c3.tokenNode.token == Token.test):
-      raiseSyntaxError("dict defination too complex (no set, no comprehension)")
+      raiseSyntaxError("dict defination too complex (no set, no comprehension)", c3)
     d.values.add(astTest(c3))
   result = d
   
 # classdef: 'class' NAME ['(' [arglist] ')'] ':' suite
 ast classdef, [AstClassDef]:
   if parseNode.children.len != 4:
-    raiseSyntaxError("inherit not implemented")
+    raiseSyntaxError("inherit not implemented", parseNode.children[4])
   result = newAstClassDef()
   setNo(result, parseNode.children[0])
   result.name = newIdentifier(parseNode.children[1].tokenNode.content)
@@ -1139,7 +1151,8 @@ ast arglist, [AstCall, callNode: AstCall]:
 # argument  ( test [comp_for] | test '=' test | '**' test | '*' test  )
 ast argument, [AsdlExpr]:
   if not (parseNode.children.len == 1):
-    raiseSyntaxError("Only simple identifiers for function argument")
+    raiseSyntaxError("Only simple identifiers for function argument", 
+      parseNode.children[1])
   let child = parseNode.children[0]
   result = astTest(child)
   assert result != nil
@@ -1150,7 +1163,7 @@ ast argument, [AsdlExpr]:
 # sync_comp_for: 'for' exprlist 'in' or_test [comp_iter]
 ast sync_comp_for, [seq[AsdlComprehension]]:
   if parseNode.children.len == 5:
-    raiseSyntaxError("Complex comprehension not implemented")
+    raiseSyntaxError("Complex comprehension not implemented", parseNode.children[5])
   let comp = newAstComprehension()
   comp.target = astExprList(parseNode.children[1])
   comp.target.setStore()
@@ -1161,7 +1174,7 @@ ast sync_comp_for, [seq[AsdlComprehension]]:
 # comp_for: ['async'] sync_comp_for
 ast comp_for, [seq[AsdlComprehension]]:
   if parseNode.children.len == 2:
-    raiseSyntaxError("Async comprehension not implemented")
+    raiseSyntaxError("Async comprehension not implemented", parseNode.children[0])
   return astSyncCompFor(parseNode.children[0])
 
   
@@ -1192,14 +1205,19 @@ proc ast*(root: ParseNode): AsdlModl =
   when defined(debug):
     echo result
 
-proc ast*(input: TaintedString): AsdlModl= 
-  let root = parse(input)
-  result = ast(root)
+proc ast*(input, fileName: string): AsdlModl= 
+  let root = parse(input, fileName)
+  try:
+    result = ast(root)
+  except SyntaxError:
+    let e = getCurrentException()
+    SyntaxError(e).fileName = fileName
+    raise e
 
 when isMainModule:
   let args = commandLineParams()
   if len(args) < 1:
     quit("No arg provided")
   let input = readFile(args[0])
-  echo ast(input)
+  echo ast(input, "<stdin>")
 

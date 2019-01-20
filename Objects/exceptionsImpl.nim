@@ -2,6 +2,7 @@ import pyobject
 import baseBundle
 import tupleobject
 import exceptions
+import ../Utils/utils
 
 export exceptions
 
@@ -67,3 +68,9 @@ proc isExceptionType*(obj: PyObject): bool =
   let objType = PyTypeObject(obj)
   objType.tp == PyTypeToken.BaseError
 
+
+proc fromBltinSyntaxError*(e: SyntaxError, fileName: PyStrObject): PyExceptionObject = 
+  let excpObj = newSyntaxError(e.msg)
+  # don't have code name
+  excpObj.traceBacks.add (fileName, nil, e.lineNo, e.colNo)
+  excpObj

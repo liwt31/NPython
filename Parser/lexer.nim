@@ -12,6 +12,9 @@ import token
 import ../Utils/utils
 
 type
+  # save source file for traceback info
+  Source = ref object
+    lines: seq[string]
 
   Mode* {.pure.} = enum
     Single
@@ -21,7 +24,23 @@ type
   Lexer* = ref object
     indentLevel: int
     lineNo: int
-    tokenNodes*: Deque[TokenNode] # might be consumed by parser
+    tokenNodes*: seq[TokenNode] # might be consumed by parser
+    fileName*: string
+
+var sourceFiles = initTable[string, Source]()
+
+proc addSource*(filePath, content: string) = 
+  if not sourceFiles.hasKey(filePath):
+    sourceFiles[filePath] = new Source
+  let s = sourceFiles[filePath]
+  s.lines.add content.split("\n")
+
+proc getSource*(filePath: string, lineNo: int): string = 
+  # lineNo starts from 1!
+  sourceFiles[filePath].lines[lineNo-1]
+
+proc `$`*(lexer: Lexer): string = 
+  $lexer.tokenNodes
 
 var regexName = re(r"\b[a-zA-Z_]+[a-zA-Z_0-9]*\b")
 var regexNumber = re(r"\b\d*\.?\d+([eE][-+]?\d+)?\b")
@@ -54,13 +73,19 @@ proc newTokenNode*(token: Token,
     assert lineNo < 0 and colNo < 0
 
 
-# call lexString is better than using a Lexer directly
-proc newLexer: Lexer = 
+proc newLexer*(fileName: string): Lexer = 
   new result
-  result.tokenNodes = initDeque[TokenNode]()
+  result.fileName = fileName
+
+# when we need some fresh start in interactive mode
+proc clearTokens*(lexer: Lexer) = 
+  lexer.tokenNodes.setLen 0
+
+proc clearIndent*(lexer: Lexer) = 
+  lexer.indentLevel = 0
 
 proc add(lexer: Lexer, token: TokenNode) = 
-  lexer.tokenNodes.addLast(token)
+  lexer.tokenNodes.add(token)
 
 proc add(lexer: Lexer, token: Token, colNo:int) = 
   assert token.isTerminator
@@ -78,6 +103,11 @@ proc getNextToken(
   lexer: Lexer, 
   line: TaintedString, 
   idx: var int): TokenNode {. raises: [SyntaxError, InternalError] .} = 
+
+  template raiseSyntaxError(msg: string) = 
+    # fileName set elsewhere
+    raiseSyntaxError(msg, "", lexer.lineNo, idx)
+
   template addRegexToken(tokenName:untyped, msg:string) =
     var (first, last) = line.findBounds(`regex tokenName`, start=idx)
     if first == -1:
@@ -234,7 +264,7 @@ proc getNextToken(
   assert result != nil
 
 
-proc lex(lexer: Lexer, line: TaintedString) = 
+proc lexOneLine(lexer: Lexer, line: TaintedString) = 
   # process one line at a time
   assert line.find("\n") == -1
 
@@ -246,7 +276,7 @@ proc lex(lexer: Lexer, line: TaintedString) =
     return
 
   if idx mod 4 != 0:
-    raiseSyntaxError("Indentation must be 4 spaces.")
+    raiseSyntaxError("Indentation must be 4 spaces.", "", lexer.lineNo, 0)
   let indentLevel = idx div 4
   let diff = indentLevel - lexer.indentLevel 
   case diff:
@@ -271,62 +301,32 @@ proc lex(lexer: Lexer, line: TaintedString) =
   lexer.add(Token.NEWLINE, idx)
 
 
-proc interactiveShell() {. raises: [InternalError] .} = 
-  let lexer = newLexer()
-  while true:
-    var input: TaintedString
-    try:
-      stdout.write(">>> ")
-      input = stdin.readline()
-    except EOFError:
-      quit(0)
-    except IOError:
-      echo "IOError"
-      quit(1)
-
-    try:
-      lexer.lex(input)
-    except SyntaxError:
-      echo getCurrentExceptionMsg()
-
-    for node in lexer.tokenNodes:
-      echo node
-    lexer.tokenNodes.clear
-
-
-proc lexString*(input: TaintedString, mode=Mode.File, lexer: Lexer = nil): Lexer  = 
+proc lexString*(lexer: Lexer, input: string, mode=Mode.File) = 
   assert mode != Mode.Eval # eval not tested
-  if lexer.isNil:
-    result = newLexer()
-  else:
-    result = lexer
 
+  # interactive mode and an empty line
   if mode == Mode.Single and input.len == 0:
-    result.dedentAll
-    result.add(Token.NEWLINE, 0)
+    lexer.dedentAll
+    lexer.add(Token.NEWLINE, 0)
+    inc lexer.lineNo
+    addSource(lexer.fileName, input)
     return
 
   for line in input.split("\n"):
-    inc result.lineNo
-    result.lex(line)
+    # lineNo starts from 1
+    inc lexer.lineNo
+    addSource(lexer.fileName, input)
+    lexer.lexOneLine(line)
+
+  when defined(debug):
+    echo lexer.tokenNodes
 
   case mode
   of Mode.File:
-    result.dedentAll
-    result.add(Token.Endmarker, 0)
+    lexer.dedentAll
+    lexer.add(Token.Endmarker, 0)
   of Mode.Single:
     discard
   of Mode.Eval:
-    result.add(Token.Endmarker, 0)
+    lexer.add(Token.Endmarker, 0)
 
-
-when isMainModule:
-  let args = commandLineParams()
-  if len(args) < 1:
-    interactiveShell()
-  else:
-    let fname = args[0]
-    let input = readFile(fname)
-    let lexer = lexString(input)
-    echo lexer.tokenNodes
-  

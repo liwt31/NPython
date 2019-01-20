@@ -104,7 +104,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
   proc setTraceBack(excp: PyExceptionObject) = 
     let lineNo = f.code.lineNos[lastI]
-    excp.traceBacks.add (f.code.fileName, f.code.codeName, lineNo)
+    # for exceptions happened when evaluating the frame no colNo is set
+    excp.traceBacks.add (f.code.fileName, f.code.codeName, lineNo, -1)
    
   # in future, should get rid of the abstraction of seq and use a dynamically
   # created buffer directly. This can reduce time cost of the core neval function
@@ -620,13 +621,12 @@ proc pyImport*(name: PyStrObject): PyObject =
     let msg = fmt"File {filepath} not found"
     return newImportError(msg)
   let input = readFile(filepath)
-  var co: PyCodeObject
-  try:
-    co = compile(input, filepath)
-  except SyntaxError:
-    let msg1 = getCurrentExceptionMsg()
-    let msg2 = "Syntax Error: " & msg1
-    return newImportError(msg2)
+  let compileRes = compile(input, filepath)
+  if compileRes.isThrownException:
+    return compileRes
+
+  let co = PyCodeObject(compileRes)
+
   when defined(debug):
     echo co
   let fun = newPyFunc(name, co, newPyDict())
@@ -712,5 +712,7 @@ proc runCode*(co: PyCodeObject): PyObject =
 
 
 proc runString*(input: TaintedString, fileName: string): PyObject = 
-  let co = compile(input, fileName)
-  runCode(co)
+  let compileRes = compile(input, fileName)
+  if compileRes.isThrownException:
+    return compileRes
+  runCode(PyCodeObject(compileRes))

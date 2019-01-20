@@ -3,14 +3,24 @@ import strutils
 import algorithm
 
 import ../Objects/bundle
+import ../Parser/lexer
 
 
 proc fmtTraceBack(tb: TraceBack): string = 
   assert tb.fileName.ofPyStrObject
+  # lineNo should starts from 1. 0 means not initialized properly
+  assert tb.lineNo != 0
   let fileName = PyStrObject(tb.fileName).str
-  assert tb.funName.ofPyStrObject
-  let funName = PyStrObject(tb.funName).str
-  fmt("  File \"{fileName}\", line {tb.lineNo}, in {funName}")
+  var atWhere: string
+  if tb.funName.isNil:
+    atWhere = ""
+  else:
+    assert tb.funName.ofPyStrObject
+    atWhere = ", in " & PyStrObject(tb.funName).str
+  result &= fmt("  File \"{fileName}\", line {tb.lineNo}{atWhere}\n")
+  result &= "    " & getSource(fileName, tb.lineNo).strip(chars={' '})
+  if tb.colNo != -1:
+    result &= "\n    " & "^".indent(tb.colNo)
 
 
 proc printTb*(excp: PyExceptionObject) = 

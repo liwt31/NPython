@@ -218,6 +218,8 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
 
         of AsdlStmtTk.For:
           let forNode = AstFor(astNode)
+          if not (forNode.target.kind == AsdlExprTk.Name):
+            raiseSyntaxError("only name as loop variable", forNode.target)
           visit forNode.target
           visit forNode.iter
           visitSeq(forNode.body)
