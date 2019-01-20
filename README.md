@@ -10,7 +10,7 @@ Just for fun and practice. Learn both Python and Nim.
 Capable of:
 * basic arithmetic calculations (+ - * / // ** % int float)
 * flow control with `if else`, `while` and `for`
-* basic function (closure) defination and call
+* basic function (closure) defination and call. Decorators.
 * builtin print, dir, len, range, tuple, list, dict, exceptions
 * list comprehension (no set or dict yet).
 * basic import such as `import foo`. No alias, no `from`, etc
@@ -32,7 +32,7 @@ nim c ./Python/python
 
 ### Todo
 * more features on user defined class
-* decorators
+* builtin decorators like `property`
 * yield stmt
 
 ### Performance

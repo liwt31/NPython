@@ -420,17 +420,22 @@ compileMethod Interactive:
 
 
 compileMethod FunctionDef:
-  assert astNode.decorator_list.len == 0
+  for deco in astNode.decorator_list:
+    c.compile(deco)
   assert astNode.returns == nil
   c.units.add(newCompilerUnit(c.st, astNode, astNode.name.value))
   assert (not c.tcu.codeName.isNil)
   #c.compile(astNode.args) # not useful when we don't have default args
   c.compileSeq(astNode.body)
   c.makeFunction(c.units.pop, astNode.name.value, astNode.lineNo.value)
+  for deco in astNode.decorator_list:
+    c.addOp(newArgInstr(OpCode.CallFunction, 1, deco.lineNo.value))
   c.addStoreOp(astNode.name.value, astNode.lineNo.value)
 
 
 compileMethod ClassDef:
+  for deco in astNode.decorator_list:
+    c.compile(deco)
   let lineNo = astNode.lineNo.value
   c.addOp(OpCode.LoadBuildClass, lineNo)
   # class body function. In CPython this is more complicated because of metatype hooks,
@@ -440,7 +445,10 @@ compileMethod ClassDef:
   c.makeFunction(c.units.pop, astNode.name.value, lineNo)
 
   c.addLoadConst(astNode.name.value, astNode.lineNo.value)
-  c.addOp(newArgInstr(OpCode.CallFunction, 2, lineNo)) # first for the code, second for the name
+  # 2 args, first for the code, second for the name
+  c.addOp(newArgInstr(OpCode.CallFunction, 2, lineNo)) 
+  for deco in astNode.decorator_list:
+    c.addOp(newArgInstr(OpCode.CallFunction, 1, deco.lineNo.value))
   c.addStoreOp(astNode.name.value, lineNo)
 
 

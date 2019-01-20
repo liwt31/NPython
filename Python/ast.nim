@@ -291,15 +291,57 @@ ast file_input, [AstModule]:
 ast eval_input, []:
   discard
   
-ast decorator:
-  discard
-  
-ast decorators:
-  discard
-  
 ]#
+
+# decorator: '@' dotted_name [ '(' [arglist] ')' ] NEWLINE
+ast decorator, [AsdlExpr]:
+  let dotted_name = parseNode.children[1]
+  case dotted_name.children.len
+  of 1:
+    let name = dottedName.children[0]
+    result = newAstName(name.tokenNode)
+    setNo(result, name)
+  else:
+    raiseSyntaxError("dotted name in decorators not implemented", dottedName)
+
+  case parseNode.children.len
+  of 3:
+    discard
+  else:
+    var callNode = newAstCall()
+    callNode.fun = result
+    setNo(callNode, dotted_name.children[0])
+    case parseNode.children.len
+    of 5:
+      result = callNode 
+    of 6:
+      result = astArglist(parseNode.children[3], callNode)
+    else:
+      unreachable
+  
+# decorators: decorator+
+ast decorators, [seq[AsdlExpr]]:
+  for child in parseNode.children:
+    result.add astDecorator(child)
+  
+# decorated: decorators (classdef | funcdef | async_funcdef)
 ast decorated, [AsdlStmt]:
-  raiseSyntaxError("decorator not implemented", parseNode)
+  let decorators = astDecorators(parseNode.children[0])
+  let child2 = parseNode.children[1]
+  case child2.tokenNode.token
+  of Token.classdef:
+    let classDef = astClassDef(child2)
+    classDef.decorator_list = decorators
+    return classDef
+  of Token.funcdef:
+    let funcDef = astFuncdef(child2)
+    funcDef.decorator_list = decorators
+    return funcDef
+  of Token.async_funcdef:
+    raiseSyntaxError("async function not implemented", child2)
+  else:
+    unreachable
+
   
 ast async_funcdef, [AsdlStmt]:
   raiseSyntaxError("async function defination not implemented", parseNode)
