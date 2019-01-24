@@ -196,8 +196,10 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
         case AsdlStmt(astNode).kind
 
         of AsdlStmtTk.FunctionDef:
-          ste.addDeclaration(AstFunctionDef(astNode).name)
+          let funcNode = AstFunctionDef(astNode)
+          ste.addDeclaration(funcNode.name)
           toVisit.add((astNode, ste))
+          visitSeq(funcNode.decorator_list)
 
         of AsdlStmtTk.ClassDef:
           let classNode = AstClassDef(astNode)

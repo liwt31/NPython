@@ -50,7 +50,7 @@ type
   PyExceptionObject* = PyBaseErrorObject
 
 
-proc ofPyExceptionObject*(obj: PyObject): bool = 
+proc ofPyExceptionObject*(obj: PyObject): bool {. cdecl, inline .} = 
   obj.ofPyBaseErrorObject
 
 

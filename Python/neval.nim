@@ -123,9 +123,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     valStack[^idx]
 
   template sSetTop(obj: PyObject) = 
+    when defined(debug):
+      assert not obj.pyType.isNil
     valStack[^1] = obj
 
   template sPush(obj: PyObject) = 
+    when defined(debug):
+      assert not obj.pyType.isNil
     valStack.add obj
 
   template sEmpty: bool = 

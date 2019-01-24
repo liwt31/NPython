@@ -38,6 +38,7 @@ proc newBoundMethod*(fun: PyFunctionObject, self: PyObject): PyBoundMethodObject
 implFunctionMagic get:
   newBoundMethod(self, other)
 
+
 implBoundMethodMagic get:
   self
 

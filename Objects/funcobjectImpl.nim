@@ -5,6 +5,7 @@ import funcobject
 
 import ../Python/neval
 
+export funcobject
 
 methodMacroTmpl(Function)
 methodMacroTmpl(BoundMethod)

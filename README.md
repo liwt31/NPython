@@ -32,7 +32,6 @@ nim c ./Python/python
 
 ### Todo
 * more features on user defined class
-* builtin decorators like `property`
 * yield stmt
 
 ### Performance

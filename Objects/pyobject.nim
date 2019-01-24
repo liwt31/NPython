@@ -234,6 +234,9 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): Ni
     tail = "Method"
   # use `toLowerAscii` because we used uppercase in declaration to prevent conflict with
   # Nim keywords. Now it's not necessary as we append lots of things
+  # implListMagic str = strPyListObjectMagic
+  # implListMethod append = appendPyListObjectMethod
+  # use tpMagic and tpMethod to build the name
   let name = ident(($methodName).toLowerAscii & $ObjectType & tail)
   var typeObjName = objName2tpObjName($ObjectType)
   let typeObjNode = ident(typeObjName)

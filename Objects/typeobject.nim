@@ -156,7 +156,7 @@ pyTypeObjectType.typeReady()
 
 implTypeMagic call:
   # quoting CPython: "ugly exception". 
-  # Deal with `type("abc") == str`, what a design failure.
+  # Deal with `type("abc") == str`. What a design failure.
   if (self == pyTypeObjectType) and (args.len == 1):
     return args[0].pyType
 

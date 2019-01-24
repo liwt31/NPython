@@ -1,6 +1,6 @@
 import strformat
 
-import ../Objects/[bundle, typeobject, methodobject]
+import ../Objects/[bundle, typeobject, methodobject, descrobject]
 import ../Utils/utils
 
 let bltinDict* = newPyDict()
@@ -104,6 +104,7 @@ registerBltinObject("dict", pyDictObjectType)
 registerBltinObject("int", pyIntObjectType)
 registerBltinObject("str", pyStrObjectType)
 registerBltinObject("staticmethod", pyStaticMethodObjectType)
+registerBltinObject("property", pyPropertyObjectType)
 
 
 macro registerErrors: untyped = 

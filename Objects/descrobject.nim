@@ -1,10 +1,12 @@
 import strformat
 
 import pyobject
+import noneobject
 import exceptions
 import stringobject
 import methodobject
 import funcobject
+import ../Python/call
 import ../Utils/utils
 
 declarePyType MethodDescr():
@@ -53,3 +55,18 @@ implMethodDescrMagic get:
     return newPyNimFunc(cast[TernaryMethod](self.meth), self.name, owner)
   of NFunc.BltinMethod:
     return newPyNimFunc(cast[BltinMethod](self.meth), self.name, owner)
+
+
+declarePyType Property():
+  getter: PyObject
+  # setter, deleter not implemented
+
+implPropertyMagic init:
+  # again currently only have getter
+  checkArgNum(1)
+  self.getter = args[0]
+  pyNone
+
+implPropertyMagic get:
+  fastCall(self.getter, @[other])
+
