@@ -7,19 +7,11 @@ import compile
 import symtable
 import opcode
 import coreconfig
-import ../Objects/bundle
+import builtindict
+import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
+                   sliceobject, codeobject, frameobject, funcobject, cellobject,
+                   exceptionsImpl, moduleobject, methodobject]
 import ../Utils/utils
-
-# forward declarations to resolve cyclic dependency. Certain function related objects
-# have `call` magics that rely on them
-proc newPyFrame*(fun: PyFunctionObject): PyFrameObject 
-proc newPyFrame*(fun: PyFunctionObject, 
-                 args: seq[PyObject], 
-                 back: PyFrameObject): PyObject
-proc evalFrame*(f: PyFrameObject): PyObject
-
-import ../Objects/typeobject
-import bltinmodule
 
 type
   # the exception model is different from CPython. todo: Need more documentation
@@ -39,7 +31,14 @@ type
     context: PyExceptionObject
     
 
+# forward declarations
+proc newPyFrame*(fun: PyFunctionObject): PyFrameObject 
+proc newPyFrame*(fun: PyFunctionObject, 
+                 args: seq[PyObject], 
+                 back: PyFrameObject): PyObject
+proc evalFrame*(f: PyFrameObject): PyObject
 proc pyImport*(name: PyStrObject): PyObject
+
 
 template doUnary(opName: untyped) = 
   let top = sTop()
@@ -254,7 +253,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             if reprObj.isThrownException:
               handleException(reprObj)
 
-            let retObj = builtinPrint(@[reprObj])
+            # todo: optimization - build a cache
+            let printFunction = PyNimFuncObject(bltinDict[newPyStr("print")])
+            let retObj = tpMagic(NimFunc, call)(printFunction, @[reprObj])
             if retObj.isThrownException:
               handleException(retObj)
 
@@ -693,17 +694,6 @@ proc newPyFrame*(fun: PyFunctionObject,
       assert c.ofPyCellObject
       frame.cellVars[code.cellVars.len + idx] = PyCellObject(c)
   frame
-
-
-implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject), "__build_class__":
-  # may fail because of wrong number of args, etc.
-  let f = newPyFrame(funcObj)
-  if f.isThrownException:
-    unreachable("funcObj shouldn't have any arg issue")
-  let retObj = f.evalFrame
-  if retObj.isThrownException:
-    return retObj
-  tpMagic(Type, new)(@[pyTypeObjectType, name, newPyTuple(@[]), f.toPyDict()])
 
 
 # interfaces to upper level

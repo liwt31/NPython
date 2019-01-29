@@ -2,6 +2,8 @@ import os
 import ospaths
 
 import coreconfig
+# init bltinmodule
+import bltinmodule
 import ../Objects/[pyobject, typeobject]
 
 

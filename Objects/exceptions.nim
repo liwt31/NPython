@@ -81,7 +81,7 @@ macro declareErrors: untyped =
     result.add(typeNode)
 
     template addTpTmpl(name) = 
-      `py name ErrorObjectType`.tp = PyTypeToken.BaseError
+      `py name ErrorObjectType`.kind = PyTypeToken.BaseError
 
     result.add(getAst(addTpTmpl(ident(tokenStr))))
 
@@ -188,3 +188,11 @@ template checkArgNum*(expected: int, name="") =
     return newTypeError(msg)
 
 
+template checkArgNumAtLeast*(expected: int, name="") = 
+  if args.len < expected:
+    var msg: string
+    if name != "":
+      msg = name & " takes at least " & $expected & fmt" argument ({args.len} given)"
+    else:
+      msg = "expected at least " & $expected & fmt" argument ({args.len} given)"
+    return newTypeError(msg)

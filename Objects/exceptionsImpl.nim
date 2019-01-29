@@ -63,10 +63,10 @@ proc matchExcp*(target: PyTypeObject, current: PyExceptionObject): PyBoolObject 
 
 
 proc isExceptionType*(obj: PyObject): bool = 
-  if not (obj.pyType.tp == PyTypeToken.Type):
+  if not (obj.pyType.kind == PyTypeToken.Type):
     return false
   let objType = PyTypeObject(obj)
-  objType.tp == PyTypeToken.BaseError
+  objType.kind == PyTypeToken.BaseError
 
 
 proc fromBltinSyntaxError*(e: SyntaxError, fileName: PyStrObject): PyExceptionObject = 

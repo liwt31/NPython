@@ -167,7 +167,7 @@ implIntMagic hash:
 implIntMagic New:
   checkArgNum(2)
   let arg = args[1]
-  case arg.pyType.tp
+  case arg.pyType.kind
   of PyTypeToken.Int:
     return arg
   of PyTypeToken.Float:

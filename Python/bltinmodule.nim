@@ -1,9 +1,9 @@
 import strformat
 
-import ../Objects/[bundle, typeobject, methodobject, descrobject]
+import neval
+import builtindict
+import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject]
 import ../Utils/utils
-
-let bltinDict* = newPyDict()
 
 
 # make it public so that neval.nim can use it
@@ -94,6 +94,16 @@ implBltinFunc iter(obj: PyObject): obj.callMagic(iter)
 
 implBltinFunc repr(obj: PyObject): obj.callMagic(repr)
 
+implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject), "__build_class__":
+  # may fail because of wrong number of args, etc.
+  let f = newPyFrame(funcObj)
+  if f.isThrownException:
+    unreachable("funcObj shouldn't have any arg issue")
+  let retObj = f.evalFrame
+  if retObj.isThrownException:
+    return retObj
+  tpMagic(Type, new)(@[pyTypeObjectType, name, newPyTuple(@[]), f.toPyDict()])
+
 
 registerBltinObject("None", pyNone)
 registerBltinObject("type", pyTypeObjectType)
@@ -103,7 +113,8 @@ registerBltinObject("tuple", pyTupleObjectType)
 registerBltinObject("dict", pyDictObjectType)
 registerBltinObject("int", pyIntObjectType)
 registerBltinObject("str", pyStrObjectType)
-registerBltinObject("staticmethod", pyStaticMethodObjectType)
+# not ready to use because no setup code is done when init new types
+# registerBltinObject("staticmethod", pyStaticMethodObjectType)
 registerBltinObject("property", pyPropertyObjectType)
 
 

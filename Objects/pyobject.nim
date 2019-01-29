@@ -52,13 +52,12 @@ template callMagic*(obj: PyObject, methodName: untyped,
   fun(obj, arg1, arg2)
 
 
-# get proc name according to type (`Dict`, etc.) and method name (`repr`, etc.)
-template tpMagic*(tp, methodName: untyped): untyped = 
-  `methodName Py tp ObjectMagic`
+# get proc name according to type (e.g. `Dict`) and method name (e.g. `repr`)
+macro tpMagic*(tp, methodName: untyped): untyped = 
+  ident(methodName.strVal.toLowerAscii & "Py" & tp.strVal & "ObjectMagic")
 
-template tpMethod*(tp, methodName: untyped): untyped = 
-  `methodName Py tp ObjectMethod`
-
+macro tpMethod*(tp, methodName: untyped): untyped = 
+  ident(methodName.strVal.toLowerAscii & "Py" & tp.strVal & "ObjectMethod")
 
 proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) = 
   if t.bltinMethods.hasKey(name):
@@ -164,16 +163,34 @@ template checkTypeTmpl(obj, tp, tpObj, methodName) =
 
 macro checkArgTypes*(nameAndArg, code: untyped): untyped = 
   let methodName = nameAndArg[0]
-  let argTypes = nameAndArg[1]
+  var argTypes = nameAndArg[1]
   let body = newStmtList()
+  var varargName: string
+  if (argTypes.len != 0) and (argTypes[^1].kind == nnkPrefix):
+    let varargs = argTypes[^1]
+    assert varargs[0].strVal == "*"
+    varargName = varargs[1].strVal
   let argNum = argTypes.len
-  #  return `checkArgNum(1, "append")` like
-  body.add newCall(ident("checkArgNum"), 
-             newIntLitNode(argNum), 
-             newStrLitNode(methodName.strVal)
-           )
+  if varargName == "":
+    #  return `checkArgNum(1, "append")` like
+    body.add newCall(ident("checkArgNum"), 
+               newIntLitNode(argNum), 
+               newStrLitNode(methodName.strVal)
+             )
+  else:
+    body.add newCall(ident("checkArgNumAtLeast"), 
+               newIntLitNode(argNum - 1), 
+               newStrLitNode(methodName.strVal)
+             )
+    let remainingArgNode = ident(varargname)
+    body.add(quote do:
+      let `remainingArgNode` = args[`argNum`-1..^1]
+    )
+
 
   for idx, child in argTypes:
+    if child.kind == nnkPrefix:
+      continue
     let obj = nnkBracketExpr.newTree(
       ident("args"),
       newIntLitNode(idx),
@@ -236,7 +253,7 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): Ni
   # Nim keywords. Now it's not necessary as we append lots of things
   # implListMagic str = strPyListObjectMagic
   # implListMethod append = appendPyListObjectMethod
-  # use tpMagic and tpMethod to build the name
+  # use tpMagic and tpMethod to build the name for internal use
   let name = ident(($methodName).toLowerAscii & $ObjectType & tail)
   var typeObjName = objName2tpObjName($ObjectType)
   let typeObjNode = ident(typeObjName)
@@ -477,9 +494,9 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       `py name ObjectType`.magicMethods.dict = getDict
 
     when hasTpToken:
-      `py name ObjectType`.tp = PyTypeToken.`name`
+      `py name ObjectType`.kind = PyTypeToken.`name`
       proc `ofPy name Object`*(obj: PyObject): bool {. cdecl, inline .} = 
-        obj.pyType.tp == PyTypeToken.`name`
+        obj.pyType.kind == PyTypeToken.`name`
 
     # base constructor that should be used for any custom constructors except for 
     # code object which requires a finalizer. 
@@ -515,4 +532,3 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     ident(baseTypeStr[2..^7]))))
 
   result.add(getAst(methodMacroTmpl(nameIdent)))
-

@@ -21,4 +21,12 @@ def foo():
 
 
 assert foo()().x == 1
+
+
+class C:
+    def __init__(self, x):
+        self.x = x
+
+c = C(True)
+assert c.x
 print("ok")

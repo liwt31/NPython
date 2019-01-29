@@ -1,4 +1,3 @@
-# everything that does not rely on neval.nim
 import baseBundle
 import codeobject, dictobject, frameobject, boolobjectImpl,
   listobject, moduleobject, methodobject, funcobject,

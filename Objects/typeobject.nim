@@ -10,7 +10,12 @@ import funcobjectImpl
 import descrobject
 
 import ../Utils/utils
-import ../Python/neval
+import ../Python/call
+
+
+var magicNameStrs: seq[PyStrObject]
+for name in magicNames:
+  magicNameStrs.add newPyStr(name)
 
 # PyTypeObject is manually declared in pyobjectBase.nim
 # here we need to do some initialization
@@ -19,7 +24,7 @@ methodMacroTmpl(Type)
 
 let pyTypeObjectType* = newPyType("type")
 setDictOffset(Type)
-pyTypeObjectType.tp = PyTypeToken.Type
+pyTypeObjectType.kind = PyTypeToken.Type
 
 
 implTypeMagic repr:
@@ -106,20 +111,20 @@ proc addGeneric(t: PyTypeObject) =
   template nilMagic(magicName): bool = 
     t.magicMethods.magicName.isNil
 
-  template updateSlot(magicName, defaultMethod) = 
+  template trySetSlot(magicName, defaultMethod) = 
     if nilMagic(magicName):
       t.magicMethods.magicName = defaultMethod
 
   if (not nilMagic(lt)) and (not nilMagic(eq)):
-    updateSlot(le, defaultLe)
+    trySetSlot(le, defaultLe)
   if (not nilMagic(eq)):
-    updateSlot(ne, defaultNe)
+    trySetSlot(ne, defaultNe)
   if (not nilMagic(ge)) and (not nilMagic(eq)):
-    updateSlot(ge, defaultGe)
-  updateSlot(getattr, getAttr)
-  updateSlot(setattr, setAttr)
-  updateSlot(repr, reprDefault)
-  updateSlot(str, t.magicMethods.repr)
+    trySetSlot(ge, defaultGe)
+  trySetSlot(getattr, getAttr)
+  trySetSlot(setattr, setAttr)
+  trySetSlot(repr, reprDefault)
+  trySetSlot(str, t.magicMethods.repr)
 
 
 # for internal objects
@@ -128,15 +133,15 @@ proc initTypeDict(tp: PyTypeObject) =
   let d = newPyDict()
   # magic methods. field loop syntax is pretty weird
   # no continue, no enumerate
-  var i = 0
+  var i = -1
   for meth in tp.magicMethods.fields:
+    inc i
     if not meth.isNil:
-      let namePyStr = newPyString(magicNames[i])
+      let namePyStr = magicNameStrs[i]
       if meth is BltinFunc:
         d[namePyStr] = newPyStaticMethod(newPyNimFunc(meth, namePyStr))
       else:
         d[namePyStr] = newPyMethodDescr(tp, meth, namePyStr)
-    inc i
    
   # bltin methods
   for name, meth in tp.bltinMethods.pairs:
@@ -179,37 +184,95 @@ implTypeMagic call:
 # create user defined class
 # As long as relying on Nim GC it's hard to do something like variable length object
 # in CPython, so we have to use a somewhat traditional and clumsy way
+# The type declared here is never used, it's needed as a placeholder to declare magic
+# methods.
 declarePyType Instance(dict):
   discard
 
+
 # todo: should move to the base object when inheritance and mro is ready
 # todo: should support more complicated arg declaration
-implInstanceMagic New(tp: PyTypeObject):
+implInstanceMagic New(tp: PyTypeObject, *actualArgs):
   result = newPyInstanceSimple()
   result.pyType = tp
 
-implInstanceMagic init:
-  let fun = self.getTypeDict[newPyStr("__init__")]
-  if not fun.ofPyFunctionObject:
-    return newTypeError("should use a function")
-  # todo: setup the nil here, need a global state
-  # or eliminate the nil and setup directly in `newPyFrame`?
-  let newF = newPyFrame(PyFunctionObject(fun), @[PyObject(self)] & args, nil)
-  PyFrameObject(newF).evalFrame
+template instanceUnaryMethodTmpl(idx: int, nameIdent: untyped) = 
+  implInstanceMagic nameIdent:
+    let magicNameStr = magicNameStrs[idx]
+    let fun = self.getTypeDict[magicNameStr]
+    return fun.fastCall(@[PyObject(self)])
+
+template instanceBinaryMethodTmpl(idx: int, nameIdent: untyped) = 
+  implInstanceMagic nameIdent:
+    let magicNameStr = magicNameStrs[idx]
+    let fun = self.getTypeDict[magicNameStr]
+    return fun.fastCall(@[PyObject(self), other])
+
+template instanceTernaryMethodTmpl(idx: int, nameIdent: untyped) = 
+  implInstanceMagic nameIdent:
+    let magicNameStr = magicNameStrs[idx]
+    let fun = self.getTypeDict[magicNameStr]
+    return fun.fastCall(@[PyObject(self), arg1, arg2])
+
+template instanceBltinFuncTmpl(idx: int, nameIdent: untyped) = 
+  implInstanceMagic nameIdent:
+    let magicNameStr = magicNameStrs[idx]
+    let fun = self.getTypeDict[magicNameStr]
+    return fun.fastCall(args)
+
+template instanceBltinMethodTmpl(idx: int, nameIdent: untyped) = 
+  implInstanceMagic nameIdent:
+    let magicNameStr = magicNameStrs[idx]
+    let fun = self.getTypeDict[magicNameStr]
+    return fun.fastCall(@[PyObject(self)] & args)
+
+macro implInstanceMagics: untyped = 
+  result = newStmtList()
+  var idx = -1
+  var m: MagicMethods
+  for name, v in m.fieldpairs:
+    inc idx
+    # no `continue` can be used...
+    if name != "New":
+      if v is UnaryMethod:
+        result.add getAst(instanceUnaryMethodTmpl(idx, ident(name)))
+      elif v is BinaryMethod:
+        result.add getAst(instanceBinaryMethodTmpl(idx, ident(name)))
+      elif v is TernaryMethod:
+        result.add getAst(instanceTernaryMethodTmpl(idx, ident(name)))
+      elif v is BltinFunc:
+        result.add getAst(instanceBltinFuncTmpl(idx, ident(name)))
+      elif v is BltinMethod:
+        result.add getAst(instanceBltinMethodTmpl(idx, ident(name)))
+      else:
+        assert false
+
+implInstanceMagics
+
+template updateSlotTmpl(idx: int, slotName: untyped) = 
+  let magicNameStr = magicNameStrs[idx]
+  if dict.hasKey(magicnameStr):
+    tp.magicMethods.`slotName` = tpMagic(Instance, slotname)
+
+macro updateSlots(tp: PyTypeObject, dict: PyDictObject): untyped = 
+  result = newStmtList()
+  var idx = -1
+  var m: MagicMethods
+  for name, v in m.fieldpairs:
+    inc idx
+    result.add getAst(updateSlotTmpl(idx, ident(name)))
 
 implTypeMagic New(metaType: PyTypeObject, name: PyStrObject, 
                   bases: PyTupleObject, dict: PyDictObject):
   assert metaType == pyTypeObjectType
   assert bases.len == 0
   let tp = newPyType(name.str)
-  tp.tp = PyTypeToken.Type
+  tp.kind = PyTypeToken.Type
   tp.dictOffset = pyInstanceObjectType.dictOffset
   tp.magicMethods.New = tpMagic(Instance, new)
   if dict.hasKey(newPyStr("__init__")):
     tp.magicMethods.init = tpMagic(Instance, init)
+  updateSlots(tp, dict)
   tp.dict = PyDictObject(dict.copyPyDictObjectMethod())
   tp.typeReady
   tp
-
-proc isClass*(obj: PyObject): bool {. cdecl .} = 
-  obj.pyType.tp == PyTypeToken.Type

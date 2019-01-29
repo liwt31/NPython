@@ -125,7 +125,7 @@ type
     base*: PyTypeObject
     # corresponds to `tp_flag` in CPython. Why not use bit operations? I don't know.
     # Both are okay I suppose
-    tp*: PyTypeToken
+    kind*: PyTypeToken
     magicMethods*: MagicMethods
     bltinMethods*: Table[string, BltinMethod]
 
@@ -172,6 +172,7 @@ proc idStr*(obj: PyObject): string {. inline .} =
   fmt"{obj.id:#x}"
 
 
+# record builtin types defined. Make them ready for Python level usage in typeReady
 var bltinTypes*: seq[PyTypeObject]
 
 
@@ -206,3 +207,6 @@ proc getDict*(obj: PyObject): PyObject {. cdecl .} =
     unreachable("obj has no dict. Use hasDict before getDict")
   let dictPtr = cast[ptr PyObject](cast[int](obj) + tp.dictOffset)
   dictPtr[]
+
+proc isClass*(obj: PyObject): bool {. cdecl .} = 
+  obj.pyType.kind == PyTypeToken.Type
