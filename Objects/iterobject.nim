@@ -6,14 +6,14 @@ declarePyType SeqIter():
     items: seq[PyObject]
     idx: int
 
-proc iterNextFunc(selfNoCast: PyObject): PyObject {. cdecl .}=
-  let self = PySeqIterObject(selfNoCast)
+implSeqIterMagic iter:
+  self
+
+implSeqIterMagic iternext:
   if self.idx == self.items.len:
     return newStopIterError()
   result = self.items[self.idx]
   inc self.idx
-
-pySeqIterObjectType.magicMethods.iternext = iterNextFunc
 
 proc newPySeqIter*(items: seq[PyObject]): PySeqIterObject = 
   new result

@@ -270,8 +270,6 @@ implTypeMagic New(metaType: PyTypeObject, name: PyStrObject,
   tp.kind = PyTypeToken.Type
   tp.dictOffset = pyInstanceObjectType.dictOffset
   tp.magicMethods.New = tpMagic(Instance, new)
-  if dict.hasKey(newPyStr("__init__")):
-    tp.magicMethods.init = tpMagic(Instance, init)
   updateSlots(tp, dict)
   tp.dict = PyDictObject(dict.copyPyDictObjectMethod())
   tp.typeReady

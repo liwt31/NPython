@@ -9,7 +9,7 @@ import stringobject
 type
   NFunc* {. pure .} = enum
     BltinFunc,  # general function, no self
-    # method has a `self` attribute
+    # methods with a `self` attribute
     UnaryMethod,   # method with 1 arg
     BinaryMethod,  # method with 2 args
     TernaryMethod, # method with 3 args
@@ -66,13 +66,3 @@ newMethodTmpl(UnaryMethod)
 newMethodTmpl(BinaryMethod)
 newMethodTmpl(TernaryMethod)
 newMethodTmpl(BltinMethod)
-
-
-#[ have to figure out how to define arg list as something like 
-#  call(args: seq[PyObject]) in macro
-# the same problem with the builtin print function
-implNimFuncMethod call, ():
-  discard
-]#
-
-
