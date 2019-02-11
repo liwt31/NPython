@@ -36,7 +36,7 @@ template getFun*(obj: PyObject, methodName: untyped, handleExcp=false):untyped =
 
 # some helper templates for internal object magics or methods call
 
-#XXX: `obj` is used twice so it better be a simple identity
+# XXX: `obj` is used twice so it better be a simple identity
 # if it's a function then the function is called twice!
 template callMagic*(obj: PyObject, methodName: untyped, handleExcp=false): PyObject = 
   let fun = obj.getFun(methodName, handleExcp)
@@ -58,6 +58,12 @@ macro tpMagic*(tp, methodName: untyped): untyped =
 
 macro tpMethod*(tp, methodName: untyped): untyped = 
   ident(methodName.strVal.toLowerAscii & "Py" & tp.strVal & "ObjectMethod")
+
+macro tpGetter*(tp, methodName: untyped): untyped = 
+  ident(methodName.strVal.toLowerAscii & "Py" & tp.strVal & "ObjectGetter")
+
+macro tpSetter*(tp, methodName: untyped): untyped = 
+  ident(methodName.strVal.toLowerAscii & "Py" & tp.strVal & "ObjectSetter")
 
 proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) = 
   if t.bltinMethods.hasKey(name):
@@ -232,8 +238,15 @@ proc getNameAndArgTypes*(prototype: NimNode): (NimNode, NimNode) =
 
   (methodName, argTypes)
 
+# kinds of methods for python objects.
+type
+  MethodKind {. pure .} = enum
+    Common,
+    Magic,
+    Getter,
+    Setter
 
-proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): NimNode = 
+proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind): NimNode = 
   # transforms user implementation code
   # prototype: function defination, contains argumetns to check
   # ObjectType: the code belongs to which object
@@ -245,10 +258,15 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): Ni
   body.expectKind(nnkStmtList)
   pragmas.expectKind(nnkBracket)
   var tail: string
-  if magic:
-    tail = "Magic"
-  else:
+  case kind
+  of MethodKind.Common:
     tail = "Method"
+  of MethodKind.Magic:
+    tail = "Magic"
+  of MethodKind.Getter:
+    tail = "Getter"
+  of MethodKind.Setter:
+    tail = "Setter"
   # use `toLowerAscii` because we used uppercase in declaration to prevent conflict with
   # Nim keywords. Now it's not necessary as we append lots of things
   # implListMagic str = strPyListObjectMagic
@@ -259,10 +277,15 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): Ni
   let typeObjNode = ident(typeObjName)
 
   var params: seq[NimNode]
-  if magic:
-    params = getParams(methodName)
-  else:
+  case kind
+  of MethodKind.Common:
     params = bltinMethodParams
+  of MethodKind.Magic:
+    params = getParams(methodName)
+  of MethodKind.Getter:
+    params = unaryMethodParams
+  of MethodKind.Setter:
+    params = binaryMethodParams
 
   let procNode = newProc(
     nnkPostFix.newTree(
@@ -303,7 +326,17 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): Ni
   result = newStmtList()
   result.add procNode
 
-  if magic:
+  case kind
+  of MethodKind.Common:
+    result.add nnkCall.newTree(
+        nnkDotExpr.newTree(
+          typeObjNode,
+          newIdentNode("registerBltinMethod")
+        ),
+        newLit(methodName.strVal),
+        name
+      )
+  of MethodKind.Magic:
     result.add newAssignment(
         newDotExpr(
           newDotExpr(
@@ -314,15 +347,8 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, magic: bool): Ni
         ),
         name
       )
-  else:
-    result.add nnkCall.newTree(
-        nnkDotExpr.newTree(
-          typeObjNode,
-          newIdentNode("registerBltinMethod")
-        ),
-        newLit(methodName.strVal),
-        name
-      )
+  else: # registered manually
+    discard
 
 
 macro reprLock*(code: untyped): untyped = 
@@ -385,20 +411,32 @@ macro mutable*(kind, code: untyped): untyped =
 template methodMacroTmpl(name: untyped, nameStr: string) = 
   const objNameStr = "Py" & nameStr & "Object"
 
-  # default args won't work here, so use overload
+  # default args won't work here, so use overloading
   macro `impl name Magic`(methodName, pragmas, code:untyped): untyped {. used .} = 
-    implMethod(methodName, ident(objNameStr), pragmas, code, true)
+    implMethod(methodName, ident(objNameStr), pragmas, code, MethodKind.Magic)
 
   macro `impl name Magic`(methodName, code:untyped): untyped {. used .} = 
     getAst(`impl name Magic`(methodName, nnkBracket.newTree(), code))
 
   macro `impl name Method`(prototype, pragmas, code:untyped): untyped {. used .}= 
-    implMethod(prototype, ident(objNameStr), pragmas, code, false)
+    implMethod(prototype, ident(objNameStr), pragmas, code, MethodKind.Common)
 
   macro `impl name Method`(prototype, code:untyped): untyped {. used .}= 
     getAst(`impl name Method`(prototype, nnkBracket.newTree(), code))
 
-# further reduce args needed
+  macro `impl name Getter`(prototype, pragmas, code:untyped): untyped {. used .}= 
+    implMethod(prototype, ident(objNameStr), pragmas, code, MethodKind.Getter)
+
+  macro `impl name Getter`(prototype, code:untyped): untyped {. used .}= 
+    getAst(`impl name Getter`(prototype, nnkBracket.newTree(), code))
+
+  macro `impl name Setter`(prototype, pragmas, code:untyped): untyped {. used .}= 
+    implMethod(prototype, ident(objNameStr), pragmas, code, MethodKind.Setter)
+
+  macro `impl name Setter`(prototype, code:untyped): untyped {. used .}= 
+    getAst(`impl name Setter`(prototype, nnkBracket.newTree(), code))
+
+# further reduce number of required args
 macro methodMacroTmpl*(name: untyped): untyped = 
   getAst(methodMacroTmpl(name, name.strVal))
 

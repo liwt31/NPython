@@ -6,8 +6,7 @@ import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject]
 import ../Utils/utils
 
 
-# make it public so that neval.nim can use it
-proc registerBltinFunction*(name: string, fun: BltinFunc) = 
+proc registerBltinFunction(name: string, fun: BltinFunc) = 
   let nameStr = newPyString(name)
   assert (not bltinDict.hasKey(nameStr))
   bltinDict[nameStr] = newPyNimFunc(fun, nameStr)
@@ -113,9 +112,9 @@ registerBltinObject("tuple", pyTupleObjectType)
 registerBltinObject("dict", pyDictObjectType)
 registerBltinObject("int", pyIntObjectType)
 registerBltinObject("str", pyStrObjectType)
+registerBltinObject("property", pyPropertyObjectType)
 # not ready to use because no setup code is done when init new types
 # registerBltinObject("staticmethod", pyStaticMethodObjectType)
-registerBltinObject("property", pyPropertyObjectType)
 
 
 macro registerErrors: untyped = 

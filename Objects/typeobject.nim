@@ -8,6 +8,7 @@ import bundle
 import methodobject
 import funcobjectImpl
 import descrobject
+import dictproxyobject
 
 import ../Utils/utils
 import ../Python/call
@@ -33,6 +34,13 @@ implTypeMagic repr:
 implTypeMagic str:
   newPyString(fmt"<class '{self.name}'>")
 
+implTypeGetter dict:
+  newPyDictProxy(self.dict)
+
+implTypeSetter dict:
+  newTypeError(fmt"can't set attributes of built-in/extension type {self.name}")
+
+pyTypeObjectType.getsetDescr["__dict__"] = (tpGetter(Type, dict), tpSetter(Type, dict))
 
 proc getTypeDict*(obj: PyObject): PyDictObject = 
   PyDictObject(obj.pyType.dict)
@@ -142,6 +150,13 @@ proc initTypeDict(tp: PyTypeObject) =
         d[namePyStr] = newPyStaticMethod(newPyNimFunc(meth, namePyStr))
       else:
         d[namePyStr] = newPyMethodDescr(tp, meth, namePyStr)
+  # getset descriptors.
+  for key, value in tp.getsetDescr.pairs:
+    let getter = value[0]
+    let setter = value[1]
+    let descr = newPyGetSetDescr(getter, setter)
+    let namePyStr = newPyStr(key)
+    d[namePyStr] = descr
    
   # bltin methods
   for name, meth in tp.bltinMethods.pairs:
@@ -183,7 +198,7 @@ implTypeMagic call:
 
 # create user defined class
 # As long as relying on Nim GC it's hard to do something like variable length object
-# in CPython, so we have to use a somewhat traditional and clumsy way
+# as in CPython, so we have to use a somewhat traditional and clumsy way
 # The type declared here is never used, it's needed as a placeholder to declare magic
 # methods.
 declarePyType Instance(dict):
@@ -271,6 +286,6 @@ implTypeMagic New(metaType: PyTypeObject, name: PyStrObject,
   tp.dictOffset = pyInstanceObjectType.dictOffset
   tp.magicMethods.New = tpMagic(Instance, new)
   updateSlots(tp, dict)
-  tp.dict = PyDictObject(dict.copyPyDictObjectMethod())
+  tp.dict = PyDictObject(tpMethod(Dict, copy)(dict))
   tp.typeReady
   tp

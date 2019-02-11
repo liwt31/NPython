@@ -1,14 +1,13 @@
 # NPython
 
-(Subset of) Python programming language implemented in Nim, from compiler to the VM.
+(Subset of) Python programming language implemented in Nim, from the compiler to the VM.
 
 ### Purpose
-Just for fun and practice. Learn both Python and Nim.
+Fun and practice. Learn both Python and Nim.
 
 
 ### Status
 Capable of:
-* basic arithmetic calculations (+ - * / // ** % int float)
 * flow control with `if else`, `while` and `for`
 * basic function (closure) defination and call. Decorators.
 * builtin print, dir, len, range, tuple, list, dict, exceptions and bunch of other simple helper functions
@@ -35,14 +34,14 @@ nim c ./Python/python
 * yield stmt
 
 ### Performance
-Nim is claimed to be as fast as C, and indeed it is. According to some really primitive benchmarks (`spin.py` and `f_spin.py`), although NPython is currently 5x-10x slower than CPython 3.7, it is at least in some cases faster than CPython < 2.4. This is already a huge achievement considering the numerous optimizations out there in the CPython codebase and NPython is focused on quick prototyping and lefts many rooms for optimization. For comparison, [RustPython0.0.1](https://github.com/RustPython/RustPython) is 100x slower than CPython3.7 and uses 10x more memory.
+Nim is claimed to be as fast as C, and indeed it is. According to some primitive micro benchmarks (`spin.py` and `f_spin.py` in `tests/benchmark/`), although NPython is currently 5x-10x slower than CPython 3.7, it is at least in some cases faster than CPython < 2.4. This is already a huge achievement considering the numerous optimizations out there in the CPython codebase and NPython is focused on quick prototyping and lefts many rooms for optimization. For comparison, [RustPython0.0.1](https://github.com/RustPython/RustPython) is 100x slower than CPython3.7 and uses 10x more memory.
 
 Currently, the performance bottlenecks are object allocation, seq accessing (compared with CPython direct memory accessing), along with the slow big int library. The object allocation and seq accessing issue are basically impossible to solve unless we do GC on our own just like CPython. 
 
 
 ### Drawbacks
-NPython currently relies on GC of Nim. Frankly speaking it's not satisfactory. 
-* The GC uses thread-local heap, makes threading impossible (for Python).
+NPython currently relies on Nim GC. Frankly speaking it's not satisfactory. 
+* The GC uses thread-local heap, makes threading nearly impossible (for Python).
 * The GC does not play well with manually managed memory, making certain optimizations difficult or impossible.
 * The GC can not be shared between different dynamic libs, which means NPython can not import Nim extension.
 

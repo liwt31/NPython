@@ -52,8 +52,8 @@ proc newPyNimFunc*(fun: BltinFunc, name: PyStrObject): PyNimFuncObject =
 
 template newMethodTmpl(FunType) = 
   proc newPyNimFunc*(fun: FunType, name: PyStrObject, self:PyObject=nil): PyNimFuncObject = 
-    # `self` should never be nil. The default arg here is to fool the 
-    # compiler when init type dict
+    # `self` should never be nil. The default arg here is to fool the compiler 
+    # when initializing type dict
     assert (not self.isNil)
     result = newPyNimFuncSimple()
     result.name = name

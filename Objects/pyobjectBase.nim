@@ -42,7 +42,6 @@ type
   BltinMethod* = proc (self: PyObject, args: seq[PyObject]): PyObject {. cdecl .}
 
 
-  # modify their names in typeobject.nim when modify the magic methods
   MagicMethods* = tuple
     add: BinaryMethod
     sub: BinaryMethod
@@ -95,7 +94,7 @@ type
     get: BinaryMethod
     set: TernaryMethod
     
-    # what to do when iter, next is operating on its instances
+    # what to do when `iter` or `next` are operating on its instances
     iter: UnaryMethod
     iternext: UnaryMethod
 
@@ -103,7 +102,7 @@ type
   PyObject* = ref object of RootObj
     pyType*: PyTypeObject
     # the following fields are possible for a PyObject
-    # depending on how you declare it (mutable, dict, etc)
+    # depending on how it's declared (mutable, dict, etc)
     
     # prevent infinite recursion evaluating repr
     # reprLock*: bool
@@ -128,6 +127,7 @@ type
     kind*: PyTypeToken
     magicMethods*: MagicMethods
     bltinMethods*: Table[string, BltinMethod]
+    getsetDescr*: Table[string, (UnaryMethod, BinaryMethod)]
 
     # this is actually a PyDictObject. but we haven't defined dict yet.
     # the values are set in typeobject.nim when the type is ready
@@ -180,6 +180,7 @@ proc newPyTypePrivate(name: string):PyTypeObject =
   new result
   result.name = name
   result.bltinMethods = initTable[string, BltinMethod]()
+  result.getsetDescr = initTable[string, (UnaryMethod, BinaryMethod)]()
   result.dictOffset = -1
   bltinTypes.add(result)
 
@@ -193,10 +194,11 @@ proc newPyType*(name: string): PyTypeObject =
 
 # why use this ugly, unreliable hack? because when getting attribute of an 
 # object whose type is unknown to compiler, the compiler should have some way to 
-# (dynamically) find out where to get its dict, and below is the most intuitive solution.
+# (dynamically) find out where to get its dict, and below is the most intuitive solution,
+# which is also used in CPython.
 template setDictOffset*(name) = 
   var t: `Py name Object`
-  `py name ObjectType`.dictOffset = cast[int](t.dict.addr) - cast[int](t[].addr)
+  `py name ObjectType`.dictOffset = cast[int](t.dict.addr) - cast[int](t)
 
 proc hasDict*(obj: PyObject): bool {. inline .} = 
   0 < obj.pyType.dictOffset
