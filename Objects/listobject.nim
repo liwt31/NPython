@@ -2,13 +2,13 @@ import sequtils
 import strformat
 import strutils
 
-import bigints
+#import bigints
 
 import pyobject
 import baseBundle
 import sliceobject
 import iterobject
-import ../Utils/utils
+import ../Utils/[utils, compat]
 
 declarePyType List(reprLock, mutable, tpToken):
   items: seq[PyObject]
@@ -121,7 +121,7 @@ when not defined(release):
 
   # for macro pragma testing
   macro hello(code: untyped): untyped = 
-    code.body.insert(0, nnkCommand.newTree(ident("echo"), newStrLitNode("hello")))
+    code.body.insert(0, nnkCommand.newTree(ident("echoCompat"), newStrLitNode("hello")))
     code
 
   implListMethod hello(), [hello]:
@@ -147,9 +147,7 @@ implListMethod insert(idx: PyIntObject, item: PyObject), [mutable: write]:
   var intIdx: int
   if 0 < idx.v:
     intIdx = 0
-  # len is of type `int` while the bigint lib only support comparison with `int32`
-  # fix this while dealing with the many problems with bigint lib
-  elif self.items.len.initBigInt < idx.v:
+  elif self.items.len < idx.v:
     intIdx = self.items.len
   else:
     intIdx = idx.toInt

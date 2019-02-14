@@ -26,5 +26,3 @@ template unreachable*(msg = "Shouldn't be here") =
   # let optimizer to eliminate related branch
   when not defined(release):
     raise newException(InternalError, msg)
-
-

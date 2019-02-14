@@ -1,6 +1,6 @@
 import strformat
 
-import bigints
+# import bigints
 
 import pyobject
 import baseBundle
@@ -48,7 +48,7 @@ implRangeMagic init:
   else:
     let msg = "range() expected 1-3 arguments"
     return newTypeError(msg)
-  var length: BigInt
+  var length: int 
   # might need to refine this if duck typing is used
   # range(0, 2, 3): l = 1
   # range(0, 3, 3): l = 1
@@ -59,7 +59,7 @@ implRangeMagic init:
   elif step.v < 0:
     length = (-ending.v + start.v - step.v - 1) div -step.v
   if length < 0:
-    length = initBigInt(0)
+    length = 0
   self.start = start
   self.ending = ending
   self.step = step

@@ -4,6 +4,7 @@ import algorithm
 
 import ../Objects/bundle
 import ../Parser/lexer
+import ../Utils/compat
 
 
 proc fmtTraceBack(tb: TraceBack): string = 
@@ -35,4 +36,4 @@ proc printTb*(excp: PyExceptionObject) =
     excpStrs.add singleExcpStrs.join("\n")
     cur = cur.context
   let joinMsg = "\n\nDuring handling of the above exception, another exception occured\n\n"
-  echo excpStrs.reversed.join(joinMsg)
+  echoCompat excpStrs.reversed.join(joinMsg)

@@ -3,4 +3,4 @@ author        = "Weitang Li"
 description   = "(Subset of) Python programming language implemented in Nim"
 license       = "CPython license"
 
-requires  "cligen", "bigints"
+requires  "cligen", "nim-regex"

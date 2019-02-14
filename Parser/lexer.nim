@@ -1,15 +1,14 @@
-import re
+import regex
 import deques
 import sets
 import strformat
 import strutils
-import os
 import typetraits
 import tables
 import parseutils
 
 import token
-import ../Utils/utils
+import ../Utils/[utils, compat]
 
 type
   # save source file for traceback info
@@ -33,7 +32,8 @@ proc addSource*(filePath, content: string) =
   if not sourceFiles.hasKey(filePath):
     sourceFiles[filePath] = new Source
   let s = sourceFiles[filePath]
-  s.lines.add content.split("\n")
+  # s.lines.add content.split("\n")
+  s.lines.addCompat content.split("\n")
 
 proc getSource*(filePath: string, lineNo: int): string = 
   # lineNo starts from 1!
@@ -77,9 +77,11 @@ proc newLexer*(fileName: string): Lexer =
   new result
   result.fileName = fileName
 
-# when we need some fresh start in interactive mode
+# when we need a fresh start in interactive mode
 proc clearTokens*(lexer: Lexer) = 
-  lexer.tokenNodes.setLen 0
+  # notnull checking issue for the compiler. gh-10651
+  if lexer.tokenNodes.len != 0:
+    lexer.tokenNodes.setLen 0
 
 proc clearIndent*(lexer: Lexer) = 
   lexer.indentLevel = 0
@@ -109,9 +111,11 @@ proc getNextToken(
     raiseSyntaxError(msg, "", lexer.lineNo, idx)
 
   template addRegexToken(tokenName:untyped, msg:string) =
-    var (first, last) = line.findBounds(`regex tokenName`, start=idx)
-    if first == -1:
+    var m: RegexMatch
+    if not line.find(`regex tokenName`, m, start=idx):
       raiseSyntaxError(msg)
+    let first = m.boundaries.a
+    let last = m.boundaries.b
     idx = last + 1
     result = newTokenNode(Token.tokenName, lexer.lineNo, first, line[first..last])
 
@@ -133,7 +137,7 @@ proc getNextToken(
       newTokenNode(Token.Tk, lexer.lineNo, idx)
 
   case line[idx]
-  of 'a'..'z', 'A'..'Z', '_': # possibly a name
+  of 'a'..'z', 'A'..'Z', '_':
     addRegexToken(Name, "Invalid identifier")
   of '0'..'9':
     addRegexToken(Number, "Invalid number")
@@ -279,15 +283,12 @@ proc lexOneLine(lexer: Lexer, line: TaintedString) =
     raiseSyntaxError("Indentation must be 4 spaces.", "", lexer.lineNo, 0)
   let indentLevel = idx div 4
   let diff = indentLevel - lexer.indentLevel 
-  case diff:
-    of low(int).. -1:
-      for i in diff..<0:
-        lexer.add(Token.Dedent, (lexer.indentLevel+i)*4)
-    of 0:
-      discard
-    else:
-      for i in 0..<diff:
-        lexer.add(Token.Indent, (lexer.indentLevel+i)*4)
+  if diff < 0:
+    for i in diff..<0:
+      lexer.add(Token.Dedent, (lexer.indentLevel+i)*4)
+  else:
+    for i in 0..<diff:
+      lexer.add(Token.Indent, (lexer.indentLevel+i)*4)
   lexer.indentLevel = indentLevel
 
   while idx < line.len:

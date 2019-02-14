@@ -32,13 +32,16 @@ declarePyType Code(tpToken):
 
 # most attrs of code objects are set in compile.nim
 proc newPyCode*(codeName, fileName: PyStrObject, length: int): PyCodeObject =
-  proc finalizer(obj: PyCodeObject) = 
-    dealloc(obj.opCodes)
-    dealloc(obj.opArgs)
+  when defined(js):
+    result = newPyCodeSimple()
+  else:
+    proc finalizer(obj: PyCodeObject) = 
+      dealloc(obj.opCodes)
+      dealloc(obj.opArgs)
 
-  newPyCodeFinalizer(result, finalizer)
-  result.opCodes = createU(OpCode, length)
-  result.opArgs = createU(OpArg, length)
+    newPyCodeFinalizer(result, finalizer)
+    result.opCodes = createU(OpCode, length)
+    result.opArgs = createU(OpArg, length)
   result.codeName = codeName
   result.fileName = fileName
 

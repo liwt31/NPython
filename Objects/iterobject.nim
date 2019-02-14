@@ -16,7 +16,5 @@ implSeqIterMagic iternext:
   inc self.idx
 
 proc newPySeqIter*(items: seq[PyObject]): PySeqIterObject = 
-  new result
+  result = newPySeqIterSimple()
   result.items = items
-  result.pyType = pySeqIterObjectType
-  

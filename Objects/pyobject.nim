@@ -16,10 +16,12 @@ export macros except name
 export pyobjectBase
 
 
+# some helper templates for internal object magics or methods call
+
 template getMagic*(obj: PyObject, methodName): untyped = 
   obj.pyType.magicMethods.methodName
 
-template getFun*(obj: PyObject, methodName: untyped, handleExcp=false):untyped = 
+template getFun*(obj: PyObject, methodName: untyped, handleExcp=false): untyped = 
   if obj.pyType.isNil:
     unreachable("Py type not set")
   let fun = getMagic(obj, methodName)
@@ -34,22 +36,42 @@ template getFun*(obj: PyObject, methodName: untyped, handleExcp=false):untyped =
       return excp
   fun
 
-# some helper templates for internal object magics or methods call
 
 # XXX: `obj` is used twice so it better be a simple identity
 # if it's a function then the function is called twice!
+
+# is there any ways to reduce the repetition? simple template won't work
 template callMagic*(obj: PyObject, methodName: untyped, handleExcp=false): PyObject = 
   let fun = obj.getFun(methodName, handleExcp)
-  fun(obj)
+  let res = fun(obj)
+  when handleExcp:
+    if res.isThrownException:
+      handleException(res)
+    res
+  else:
+    res
+
   
 template callMagic*(obj: PyObject, methodName: untyped, arg1: PyObject, handleExcp=false): PyObject = 
   let fun = obj.getFun(methodName, handleExcp)
-  fun(obj, arg1)
+  let res = fun(obj, arg1)
+  when handleExcp:
+    if res.isThrownException:
+      handleException(res)
+    res
+  else:
+    res
 
 template callMagic*(obj: PyObject, methodName: untyped, 
                     arg1, arg2: PyObject, handleExcp=false): PyObject = 
   let fun = obj.getFun(methodName, handleExcp)
-  fun(obj, arg1, arg2)
+  let res = fun(obj, arg1, arg2)
+  when handleExcp:
+    if res.isThrownException:
+      handleException(res)
+    res
+  else:
+    res
 
 
 # get proc name according to type (e.g. `Dict`) and method name (e.g. `repr`)
@@ -464,6 +486,8 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       reprLock = true
     else:
       error("unexpected property: " & property)
+  if (baseTypeStr == "PyObject") and dict:
+    baseTypeStr &= "WithDict"
 
   let nameIdent = prototype[0]
   let fullNameIdent = ident("Py" & nameIdent.strVal & "Object")
@@ -494,8 +518,6 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   # add fields related to options
   if reprLock:
     reclist.addField(ident("reprLock"), ident("bool"))
-  if dict:
-    reclist.addField(ident("dict"), ident("PyDictObject"))
   if mutable:
     reclist.addField(ident("readNum"), ident("int"))
     reclist.addField(ident("writeLock"), ident("bool"))
@@ -522,14 +544,8 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   result.add(decObjNode)
 
   # boilerplates for pyobject type
-  template initTypeTmpl(name, nameStr, hasTpToken, hasDict, baseType) = 
+  template initTypeTmpl(name, nameStr, hasTpToken, hasDict) = 
     let `py name ObjectType`* {. inject .} = newPyType(nameStr)
-    `py name ObjectType`.base = `py baseType ObjectType`
-    when hasDict:
-      setDictOffset(name)
-      # this isn't quite right... should be a descriptor
-      # move it to typeReady
-      `py name ObjectType`.magicMethods.dict = getDict
 
     when hasTpToken:
       `py name ObjectType`.kind = PyTypeToken.`name`
@@ -537,12 +553,14 @@ macro declarePyType*(prototype, fields: untyped): untyped =
         obj.pyType.kind == PyTypeToken.`name`
 
     # base constructor that should be used for any custom constructors except for 
-    # code object which requires a finalizer. 
+    # code objects which require finalizers. 
     # make it public so that impl files can also use
     proc `newPy name Simple`*: `Py name Object` {. cdecl .}= 
       # use `result` here seems to be buggy
       let obj = new `Py name Object`
       obj.pyType = `py name ObjectType`
+      when defined(js):
+        obj.giveId
       when hasDict:
         obj.dict = newPyDict()
       obj
@@ -566,7 +584,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   result.add(getAst(initTypeTmpl(nameIdent, 
     nameIdent.strVal, 
     newLit(tpToken), 
-    newLit(dict),
-    ident(baseTypeStr[2..^7]))))
+    newLit(dict)
+    )))
 
   result.add(getAst(methodMacroTmpl(nameIdent)))

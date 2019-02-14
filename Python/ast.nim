@@ -1,4 +1,3 @@
-import os
 import macros
 import tables
 import sequtils
@@ -9,7 +8,7 @@ import strformat
 import asdl
 import ../Parser/[token, parser]
 import ../Objects/[pyobject, noneobject, numobjects, boolobjectImpl, stringobjectImpl]
-import ../Utils/utils
+import ../Utils/[utils, compat]
 
 
 template raiseSyntaxError*(msg: string, astNode: untyped) = 
@@ -285,7 +284,7 @@ ast file_input, [AstModule]:
   result = newAstModule()
   for child in parseNode.children:
     if child.tokenNode.token == Token.stmt:
-      result.body &= astStmt(child)
+      result.body.addCompat astStmt(child)
 
 #[
 ast eval_input, []:
@@ -716,7 +715,7 @@ ast suite, [seq[AsdlStmt]]:
     result = astSimpleStmt(child)
   else:
     for child in parseNode.children[2..^2]:
-      result.add(astStmt(child))
+      result.addCompat(astStmt(child))
   assert result.len != 0
   for child in result:
     assert child != nil
@@ -1255,11 +1254,3 @@ proc ast*(input, fileName: string): AsdlModl=
     let e = getCurrentException()
     SyntaxError(e).fileName = fileName
     raise e
-
-when isMainModule:
-  let args = commandLineParams()
-  if len(args) < 1:
-    quit("No arg provided")
-  let input = readFile(args[0])
-  echo ast(input, "<stdin>")
-

@@ -2,6 +2,8 @@
 
 (Subset of) Python programming language implemented in Nim, from the compiler to the VM.
 
+[Online interactive demo by compiling Nim to Javascript](https://liwt31.github.io/NPython-demo/).
+
 ### Purpose
 Fun and practice. Learn both Python and Nim.
 
@@ -36,7 +38,7 @@ nim c ./Python/python
 ### Performance
 Nim is claimed to be as fast as C, and indeed it is. According to some primitive micro benchmarks (`spin.py` and `f_spin.py` in `tests/benchmark/`), although NPython is currently 5x-10x slower than CPython 3.7, it is at least in some cases faster than CPython < 2.4. This is already a huge achievement considering the numerous optimizations out there in the CPython codebase and NPython is focused on quick prototyping and lefts many rooms for optimization. For comparison, [RustPython0.0.1](https://github.com/RustPython/RustPython) is 100x slower than CPython3.7 and uses 10x more memory.
 
-Currently, the performance bottlenecks are object allocation, seq accessing (compared with CPython direct memory accessing), along with the slow big int library. The object allocation and seq accessing issue are basically impossible to solve unless we do GC on our own just like CPython. 
+Currently, the performance bottlenecks are object allocation, seq accessing (compared with CPython direct memory accessing). The object allocation and seq accessing issue are basically impossible to solve unless we do GC on our own just like CPython. 
 
 
 ### Drawbacks

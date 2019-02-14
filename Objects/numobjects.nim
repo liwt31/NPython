@@ -6,7 +6,7 @@ import strformat
 import strutils
 import math
 
-import bigints
+#import bigints
 
 import pyobject
 import exceptions
@@ -16,7 +16,8 @@ import ../Utils/utils
 
 
 declarePyType Int(tpToken):
-  v: BigInt
+  #v: BigInt
+  v: int
 
 declarePyType Float(tpToken):
   v: float
@@ -38,19 +39,14 @@ proc toFloat*(pyInt: PyIntObject): float =
   parseFloat($pyInt)
 
 
-proc newPyInt*(n: BigInt): PyIntObject = 
-  result = newPyIntSimple()
-  result.v = n
-
-
 proc newPyInt*(str: string): PyIntObject = 
   result = newPyIntSimple()
-  result.v = str.initBigInt
+  result.v = parseInt(str)
 
 
 proc newPyInt*(i: int): PyIntObject = 
   result = newPyIntSimple()
-  result.v = i.initBigInt
+  result.v = i
 
 
 proc newPyFloat*(pyInt: PyIntObject): PyFloatObject = 
@@ -65,6 +61,7 @@ proc newPyFloat*(v: float): PyFloatObject =
 
 template intBinaryTemplate(op, methodName: untyped, methodNameStr:string) = 
   if other.ofPyIntObject:
+    #result = newPyInt(self.v.op PyIntObject(other).v)
     result = newPyInt(self.v.op PyIntObject(other).v)
   elif other.ofPyFloatObject:
     let newFloat = newPyFloat(self)
@@ -103,10 +100,11 @@ implIntMagic floorDiv:
  else:
    result = newTypeError(fmt"floor divide not supported by int and {other.pyType.name}")
 
-
+# easy overflow. Wait until bigint
+#[
 implIntMagic pow:
   intBinaryTemplate(pow, pow, "**")
-
+]#
 
 implIntMagic positive:
   self

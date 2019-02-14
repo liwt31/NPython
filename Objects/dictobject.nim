@@ -141,10 +141,3 @@ proc keys*(d: PyDictObject): PyListObject =
 proc update*(d1, d2: PyDictObject) = 
   for k, v in d2.table.pairs:
     d1[k] = v
-
-when isMainModule:
-  let s1 = newPyString("1")
-  let s2 = newPyString("1")
-  let d = newPyDict()
-  d[s1] = newPyString("kk")
-  echo d.hasKey(s2)

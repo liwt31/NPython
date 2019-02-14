@@ -25,6 +25,8 @@ type
     Slice,
     Cell,
 
+when defined(js):
+  var objectId = 0
 
 type 
   # function prototypes, magic methods tuple, PyObject and PyTypeObject
@@ -49,6 +51,7 @@ type
     trueDiv: BinaryMethod
     floorDiv: BinaryMethod
     # use uppercase to avoid conflict with nim keywords
+    # backquoting is a less clear solution
     Mod: BinaryMethod
     pow: BinaryMethod
     
@@ -82,7 +85,6 @@ type
     getattr: BinaryMethod
     setattr: TernaryMethod
     hash: UnaryMethod
-    dict: UnaryMethod
     call: BltinMethod 
 
     # subscription
@@ -100,6 +102,8 @@ type
 
 
   PyObject* = ref object of RootObj
+    when defined(js):
+      id: int
     pyType*: PyTypeObject
     # the following fields are possible for a PyObject
     # depending on how it's declared (mutable, dict, etc)
@@ -115,11 +119,14 @@ type
     # or both?
     # readNum*: int
     # writeLock*: bool
-    #
-    # dict*: PyDictObject
 
+  # todo: document
+  PyObjectWithDict* = ref object of PyObject
+    # this is actually a PyDictObject. but we haven't defined dict yet.
+    # the values are set in typeobject.nim when the type is ready
+    dict*: PyObject
 
-  PyTypeObject* = ref object of PyObject
+  PyTypeObject* = ref object of PyObjectWithDict
     name*: string
     base*: PyTypeObject
     # corresponds to `tp_flag` in CPython. Why not use bit operations? I don't know.
@@ -128,15 +135,6 @@ type
     magicMethods*: MagicMethods
     bltinMethods*: Table[string, BltinMethod]
     getsetDescr*: Table[string, (UnaryMethod, BinaryMethod)]
-
-    # this is actually a PyDictObject. but we haven't defined dict yet.
-    # the values are set in typeobject.nim when the type is ready
-    dict*: PyObject
-
-    # not offset of `dict` in `PyTypeObject` itself 
-    # but instances of this type 
-    dictOffset*: int
-
 
 # add underscores
 macro genMagicNames: untyped = 
@@ -165,7 +163,16 @@ method `$`*(obj: PyObject): string {.base, inline.} =
   "Python object"
 
 proc id*(obj: PyObject): int {. inline, cdecl .} = 
-  cast[int](obj)
+  when defined(js):
+    obj.id
+  else:
+    cast[int](obj)
+
+when defined(js):
+  proc giveId*(obj: PyObject) {. inline, cdecl .} =
+    obj.id = objectId
+    # id depleted? not likely
+    inc objectId
 
 
 proc idStr*(obj: PyObject): string {. inline .} = 
@@ -176,12 +183,13 @@ proc idStr*(obj: PyObject): string {. inline .} =
 var bltinTypes*: seq[PyTypeObject]
 
 
-proc newPyTypePrivate(name: string):PyTypeObject = 
+proc newPyTypePrivate(name: string): PyTypeObject = 
   new result
+  when defined(js):
+    result.giveId
   result.name = name
   result.bltinMethods = initTable[string, BltinMethod]()
   result.getsetDescr = initTable[string, (UnaryMethod, BinaryMethod)]()
-  result.dictOffset = -1
   bltinTypes.add(result)
 
 
@@ -192,23 +200,13 @@ proc newPyType*(name: string): PyTypeObject =
   result = newPyTypePrivate(name)
   result.base = pyObjectType
 
-# why use this ugly, unreliable hack? because when getting attribute of an 
-# object whose type is unknown to compiler, the compiler should have some way to 
-# (dynamically) find out where to get its dict, and below is the most intuitive solution,
-# which is also used in CPython.
-template setDictOffset*(name) = 
-  var t: `Py name Object`
-  `py name ObjectType`.dictOffset = cast[int](t.dict.addr) - cast[int](t)
-
 proc hasDict*(obj: PyObject): bool {. inline .} = 
-  0 < obj.pyType.dictOffset
+  obj of PyObjectWithDict
 
 proc getDict*(obj: PyObject): PyObject {. cdecl .} = 
-  let tp = obj.pyType
-  if tp.dictOffset < 0:
+  if not obj.hasDict:
     unreachable("obj has no dict. Use hasDict before getDict")
-  let dictPtr = cast[ptr PyObject](cast[int](obj) + tp.dictOffset)
-  dictPtr[]
+  PyObjectWithDict(obj).dict
 
 proc isClass*(obj: PyObject): bool {. cdecl .} = 
   obj.pyType.kind == PyTypeToken.Type

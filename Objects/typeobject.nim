@@ -24,7 +24,6 @@ methodMacroTmpl(Type)
 
 
 let pyTypeObjectType* = newPyType("type")
-setDictOffset(Type)
 pyTypeObjectType.kind = PyTypeToken.Type
 
 
@@ -283,7 +282,6 @@ implTypeMagic New(metaType: PyTypeObject, name: PyStrObject,
   assert bases.len == 0
   let tp = newPyType(name.str)
   tp.kind = PyTypeToken.Type
-  tp.dictOffset = pyInstanceObjectType.dictOffset
   tp.magicMethods.New = tpMagic(Instance, new)
   updateSlots(tp, dict)
   tp.dict = PyDictObject(tpMethod(Dict, copy)(dict))

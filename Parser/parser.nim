@@ -1,6 +1,5 @@
 import strformat
 import deques
-import os
 import strutils
 import sequtils
 import sets
@@ -137,6 +136,8 @@ proc parseWithState*(input: TaintedString,
   lexer.lexString(input, mode)
   try:
     var tokenSeq = lexer.tokenNodes
+    if tokenSeq.len == 0:
+      return
     var parseNode: ParseNode
     var start = 0
     

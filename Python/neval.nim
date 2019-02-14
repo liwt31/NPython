@@ -1,4 +1,3 @@
-import os
 import algorithm
 import strformat
 import tables
@@ -43,16 +42,12 @@ proc pyImport*(name: PyStrObject): PyObject
 template doUnary(opName: untyped) = 
   let top = sTop()
   let res = top.callMagic(opName, handleExcp=true)
-  if res.isThrownException:
-    handleException(res)
   sSetTop res
 
 template doBinary(opName: untyped) =
   let op2 = sPop()
   let op1 = sTop()
   let res = op1.callMagic(opName, op2, handleExcp=true)
-  if res.isThrownException:
-    handleException(res)
   sSetTop res
 
 # the same as doBinary, but need to rotate!
@@ -60,43 +55,42 @@ template doBinaryContain: PyObject =
   let op1 = sPop()
   let op2 = sTop()
   let res = op1.callMagic(contains, op2, handleExcp=true)
-  if res.isThrownException:
-    handleException(res)
   res
 
-# "fast" because check of it's a bool object first and save the callMagic(bool)
+# "fast" because check if it's a bool object first and save the callMagic(bool)
 template getBoolFast(obj: PyObject): bool = 
   var ret: bool
   if obj.ofPyBoolObject:
     ret = PyBoolObject(obj).b
   # if user defined class tried to return non bool, 
   # the magic method will return an exception
-  let boolObj = top.callMagic(bool)
-  if boolObj.isThrownException:
-    handleException(boolObj)
-  else:
-    ret = PyBoolObject(boolObj).b
-  ret
+  let boolObj = top.callMagic(bool, handleExcp=true)
+  PyBoolObject(boolObj).b
+
+# if declared as a local variable, js target will fail. See gh-10651
+var valStack: seq[PyObject]
 
 proc evalFrame*(f: PyFrameObject): PyObject = 
   # instructions are fetched so frequently that we should build a local cache
   # instead of doing tons of dereference
 
-  let opCodes = f.code.opCodes
-  let opArgs = f.code.opArgs
+  when not defined(js):
+    let opCodes = f.code.opCodes
+    let opArgs = f.code.opArgs
 
   var lastI = -1
 
   # instruction helpers
   var opCode: OpCode
-  var opArg: int
-  template fetchInstr: (OpCode, int) = 
+  var opArg: OpArg
+  template fetchInstr: (OpCode, OpArg) = 
     inc lastI
-    opCode = opCodes[lastI]
-    opArg = opArgs[lastI]
-    (opCode, opArg)
-    # the silly way
-    # f.code.code[lastI]
+    when defined(js):
+      f.code.code[lastI]
+    else:
+      opCode = opCodes[lastI]
+      opArg = opArgs[lastI]
+      (opCode, opArg)
 
   template jumpTo(i: int) = 
     lastI = i - 1
@@ -109,7 +103,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   # in future, should get rid of the abstraction of seq and use a dynamically
   # created buffer directly. This can reduce time cost of the core neval function
   # by 25%
-  var valStack: seq[PyObject]
+  # todo: document
+  # var valStack: seq[PyObject]
 
   # retain these templates for future optimization
   template sTop: PyObject = 
@@ -123,12 +118,12 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
   template sSetTop(obj: PyObject) = 
     when defined(debug):
-      assert not obj.pyType.isNil
+      assert(not obj.pyType.isNil)
     valStack[^1] = obj
 
   template sPush(obj: PyObject) = 
     when defined(debug):
-      assert not obj.pyType.isNil
+      assert(not obj.pyType.isNil)
     valStack.add obj
 
   template sEmpty: bool = 
@@ -219,9 +214,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           let idx = sPop()
           let obj = sPop()
           let value = sPop()
-          let retObj = obj.callMagic(setitem, idx, value)
-          if retObj.isThrownException:
-            handleException(retObj)
+          discard obj.callMagic(setitem, idx, value, handleExcp=true)
 
         of OpCode.BinaryAdd:
           doBinary(add)
@@ -275,7 +268,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             # previous `except` clause failed to handle the exception
             if top.isThrownException:
               handleException(top)
-
 
         of OpCode.StoreName:
           unreachable("locals() scope not implemented")
@@ -337,9 +329,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           let name = names[opArg]
           let owner = sPop()
           let v = sPop()
-          let retObj = owner.callMagic(setattr, name, v)
-          if retObj.isThrownException:
-            handleException(retObj)
+          discard owner.callMagic(setattr, name, v, handleExcp=true)
 
         of OpCode.StoreGlobal:
           let name = names[opArg]
@@ -379,11 +369,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         of OpCode.LoadAttr:
           let name = names[opArg]
           let obj = sTop()
-          let retObj = obj.callMagic(getattr, name)
-          if retObj.isThrownException:
-            handleException(retObj)
-          else:
-            sSetTop retObj
+          sSetTop obj.callMagic(getattr, name, handleExcp=true)
 
         of OpCode.CompareOp:
           let cmpOp = CmpOp(opArg)
@@ -405,14 +391,12 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           of CmpOp.NotIn:
             let obj = doBinaryContain
             if obj.ofPyBoolObject:
-              sPush obj.callMagic(Not)
+              sPush obj.callMagic(Not, handleExcp=true)
             else:
-              let boolObj = obj.callMagic(bool)
-              if boolObj.isThrownException:
-                handleException(boolObj)
+              let boolObj = obj.callMagic(bool, handleExcp=true)
               if not boolObj.ofPyBoolObject:
                 unreachable
-              sPush boolObj.callMagic(Not)
+              sPush boolObj.callMagic(Not, handleExcp=true)
           of CmpOp.ExcpMatch:
             let targetExcp = sPop()
             if not targetExcp.isExceptionType:
@@ -620,28 +604,33 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     cleanUp()
 
 
-proc pyImport*(name: PyStrObject): PyObject =
-  let filepath = pyConfig.path.joinPath(name.str).addFileExt("py")
-  if not filepath.existsFile:
-    let msg = fmt"File {filepath} not found"
-    return newImportError(msg)
-  let input = readFile(filepath)
-  let compileRes = compile(input, filepath)
-  if compileRes.isThrownException:
-    return compileRes
+when defined(js):
+  proc pyImport*(name: PyStrObject): PyObject =
+    newRunTimeError("Can't import in js mode")
+else:
+  import os
+  proc pyImport*(name: PyStrObject): PyObject =
+    let filepath = pyConfig.path.joinPath(name.str).addFileExt("py")
+    if not filepath.existsFile:
+      let msg = fmt"File {filepath} not found"
+      return newImportError(msg)
+    let input = readFile(filepath)
+    let compileRes = compile(input, filepath)
+    if compileRes.isThrownException:
+      return compileRes
 
-  let co = PyCodeObject(compileRes)
+    let co = PyCodeObject(compileRes)
 
-  when defined(debug):
-    echo co
-  let fun = newPyFunc(name, co, newPyDict())
-  let f = newPyFrame(fun)
-  let retObj = f.evalFrame
-  if retObj.isThrownException:
-    return retObj
-  let module = newPyModule(name)
-  module.dict = f.globals
-  module
+    when defined(debug):
+      echo co
+    let fun = newPyFunc(name, co, newPyDict())
+    let f = newPyFrame(fun)
+    let retObj = f.evalFrame
+    if retObj.isThrownException:
+      return retObj
+    let module = newPyModule(name)
+    module.dict = f.globals
+    module
 
 proc newPyFrame*(fun: PyFunctionObject): PyFrameObject = 
   let obj = newPyFrame(fun, @[], nil)

@@ -9,7 +9,7 @@ import tables
 import deques
 
 import token
-import ../Utils/utils
+import ../Utils/[utils, compat]
 
 
 type
@@ -243,7 +243,8 @@ proc genNextSet(root: GrammarNode) =
   var toVisit: seq[GrammarNode]
   # root.nextSet.incl(successGrammarNode)
   if not root.isGrammarTerminator:
-    tovisit &= root.children
+    # toVisit &= root.children
+    toVisit.addCompat root.children
   while 0 < toVisit.len:
     let curNode = toVisit.pop
     if not curNode.isGrammarTerminator:

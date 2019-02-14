@@ -82,9 +82,9 @@ macro declareErrors: untyped =
 
     template addTpTmpl(name) = 
       `py name ErrorObjectType`.kind = PyTypeToken.BaseError
+      `py name ErrorObjectType`.base = pyBaseErrorObjectType
 
     result.add(getAst(addTpTmpl(ident(tokenStr))))
-
 
 
 declareErrors

@@ -3,7 +3,7 @@ import strformat
 import neval
 import builtindict
 import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject]
-import ../Utils/utils
+import ../Utils/[utils, compat]
 
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
@@ -68,7 +68,7 @@ proc builtinPrint*(args: seq[PyObject]): PyObject {. cdecl .} =
   for obj in args:
     let objStr = obj.callMagic(str)
     errorIfNotString(objStr, "__str__")
-    echo PyStrObject(objStr).str
+    echoCompat PyStrObject(objStr).str
   pyNone
 registerBltinFunction("print", builtinPrint)
 

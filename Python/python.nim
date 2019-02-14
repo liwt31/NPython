@@ -1,8 +1,11 @@
-import strformat
-import rdstdin
-import os
+when defined(js):
+  {.error: "python.nim is for c target. Compile jspython.nim as js target" .}
 
-import cligen
+import strformat
+import strutils
+import os # file existence
+
+import cligen # parse opt
 
 import neval
 import compile
@@ -11,8 +14,7 @@ import traceback
 import lifecycle
 import ../Parser/[lexer, parser]
 import ../Objects/bundle
-import ../Utils/utils
-
+import ../Utils/[utils, compat]
 
 
 proc interactiveShell =
@@ -21,7 +23,7 @@ proc interactiveShell =
   var rootCst: ParseNode
   let lexer = newLexer("<stdin>")
   var prevF: PyFrameObject
-  echo "NPython 0.1.0"
+  echoCompat "NPython 0.1.0"
   while true:
     var input: string
     var prompt: string
@@ -34,7 +36,7 @@ proc interactiveShell =
       assert (not rootCst.isNil)
 
     try:
-      input = readLineFromStdin(prompt)
+      input = readLineCompat(prompt)
     except EOFError, IOError:
       quit(0)
 
@@ -47,6 +49,8 @@ proc interactiveShell =
       finished = true
       continue
 
+    if rootCst.isNil:
+      continue
     finished = rootCst.finished
     if not finished:
       continue
@@ -82,10 +86,9 @@ proc nPython(args: seq[string]) =
     echo fmt"File does not exist ({pyConfig.filepath})"
     quit()
   let input = readFile(pyConfig.filepath)
-  var retObj = runString(input, pyConfig.filepath)
+  let retObj = runString(input, pyConfig.filepath)
   if retObj.isThrownException:
     PyExceptionObject(retObj).printTb
-
 
 when isMainModule:
   dispatch(nPython)

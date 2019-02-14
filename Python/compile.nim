@@ -1,4 +1,3 @@
-import os
 import algorithm
 import sequtils
 import strutils
@@ -864,11 +863,3 @@ proc compile*(input: ParseNode, fileName: string): PyObject =
   except SyntaxError:
     let e = SyntaxError(getCurrentException())
     return fromBltinSyntaxError(e, newPyStr(fileName))
-
-when isMainModule:
-  let args = commandLineParams()
-  if len(args) < 1:
-    quit("No arg provided")
-  let input = readFile(args[0])
-  echo compile(input, "<stdin>")
-
