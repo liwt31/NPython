@@ -26,13 +26,14 @@ Check out `./tests` to see more examples.
 ```
 git clone https://github.com/liwt31/NPython.git
 cd NPython
-nim c ./Python/python
+nimble c ./Python/python
 ./Python/python
 ```
 
 ### Todo
 * more features on user defined class
-* web interface
+* builtin bigint
+* builtin compat dict
 * yield stmt
 
 ### Performance

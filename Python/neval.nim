@@ -68,7 +68,9 @@ template getBoolFast(obj: PyObject): bool =
   PyBoolObject(boolObj).b
 
 # if declared as a local variable, js target will fail. See gh-10651
-var valStack: seq[PyObject]
+when defined(js):
+  var valStack: seq[PyObject]
+  var blockStack: seq[TryBlock]
 
 proc evalFrame*(f: PyFrameObject): PyObject = 
   # instructions are fetched so frequently that we should build a local cache
@@ -103,8 +105,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   # in future, should get rid of the abstraction of seq and use a dynamically
   # created buffer directly. This can reduce time cost of the core neval function
   # by 25%
-  # todo: document
-  # var valStack: seq[PyObject]
+  when not defined(js):
+    var valStack: seq[PyObject]
 
   # retain these templates for future optimization
   template sTop: PyObject = 
@@ -133,7 +135,11 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     valStack.len
 
   template setStackLen(s: int) = 
-    valStack.setlen(s)
+    # gh-10651
+    if valStack.len == 0:
+      assert s == 0
+    else:
+      valStack.setlen(s)
 
   template cleanUp = 
     discard
@@ -147,7 +153,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
   # in CPython this is a finite (20, CO_MAXBLOCKS) sized array as a member of 
   # frameobject. Safety is ensured by the compiler
-  var blockStack: seq[TryBlock]
+  when not defined(js):
+    var blockStack: seq[TryBlock]
 
   template hasTryBlock: bool = 
     0 < blockStack.len
