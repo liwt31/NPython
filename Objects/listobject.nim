@@ -2,8 +2,6 @@ import sequtils
 import strformat
 import strutils
 
-#import bigints
-
 import pyobject
 import baseBundle
 import sliceobject
@@ -145,9 +143,9 @@ implListMethod index(target: PyObject), [mutable: read]:
 
 implListMethod insert(idx: PyIntObject, item: PyObject), [mutable: write]:
   var intIdx: int
-  if 0 < idx.v:
+  if idx.negative:
     intIdx = 0
-  elif self.items.len < idx.v:
+  elif self.items.len < idx:
     intIdx = self.items.len
   else:
     intIdx = idx.toInt

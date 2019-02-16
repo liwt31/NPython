@@ -13,7 +13,7 @@ import ../Utils/utils
 # hash functions for py objects
 # raises an exception to indicate type error. Should fix this
 # when implementing custom dict
-proc hash*(obj: PyObject): Hash {. inline, cdecl .} = 
+proc hash*(obj: PyObject): Hash = 
   let fun = obj.pyType.magicMethods.hash
   if fun.isNil:
     return hash(addr(obj[]))
@@ -21,7 +21,7 @@ proc hash*(obj: PyObject): Hash {. inline, cdecl .} =
     let retObj = fun(obj)
     if not retObj.ofPyIntObject:
       raise newException(DictError, retObj.pyType.name)
-    return hash(PyIntObject(retObj).v)
+    return hash(PyIntObject(retObj))
 
 
 proc `==`*(obj1, obj2: PyObject): bool {. inline, cdecl .} =

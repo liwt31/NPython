@@ -32,9 +32,9 @@ nimble c ./Python/python
 
 ### Todo
 * more features on user defined class
-* builtin bigint
 * builtin compat dict
 * yield stmt
+* better bigint lib
 
 ### Performance
 Nim is claimed to be as fast as C, and indeed it is. According to some primitive micro benchmarks (`spin.py` and `f_spin.py` in `tests/benchmark/`), although NPython is currently 5x-10x slower than CPython 3.7, it is at least in some cases faster than CPython < 2.4. This is already a huge achievement considering the numerous optimizations out there in the CPython codebase and NPython is focused on quick prototyping and lefts many rooms for optimization. For comparison, [RustPython0.0.1](https://github.com/RustPython/RustPython) is 100x slower than CPython3.7 and uses 10x more memory.

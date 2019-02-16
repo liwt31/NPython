@@ -10,6 +10,9 @@ type
   # internal error for wrong type of dict function (`hash` and `eq`) return value
   DictError* = object of Exception
 
+  # internal error for not implemented bigint lib
+  IntError* = object of Exception
+
 proc newSyntaxError(msg, fileName: string, lineNo, colNo: int): SyntaxError = 
   new result
   result.msg = msg
