@@ -1,3 +1,5 @@
+# todo: split the file into 4:
+#   intobject, floatobject, intobjectImpl, floatobjectImpl
 import tables
 import algorithm
 import hashes
@@ -7,8 +9,6 @@ import strformat
 import strutils
 import math
 
-#import bigints
-
 import pyobject
 import exceptions
 import boolobject
@@ -17,10 +17,42 @@ import ../Utils/utils
 
 # this is a **very slow** bigint lib, div support is not complete.
 # Why reinvent such a bad wheel?
-# because we really need some low level control on our modules
+# because we seriously need low level control on our modules
 # todo: make it a decent bigint module
-const maxDigit = high(uint32)
-const mask = uint64(high(uint32))
+#
+# js can't process 64-bit int although nim has this type for js
+when defined(js):
+  type
+    Digit = uint16
+    TwoDigits = uint32
+
+  const digitBits = 16
+    
+  proc `$`(i: uint16|uint32): string = 
+    $int(i)
+
+  template truncate(x: TwoDigits): Digit =
+    const mask = 0x0000FFFF
+    Digit(x and mask)
+
+else:
+  type
+    Digit = uint32
+    TwoDigits = uint64
+
+  const digitBits = 32
+
+  template truncate(x: TwoDigits): Digit =
+    Digit(x)
+
+const maxValue = TwoDigits(high(Digit)) + 1
+
+template promote(x: Digit): TwoDigits =
+  TwoDigits(x) shl digitBits
+
+template demote(x: TwoDigits): Digit =
+  Digit(x shr digitBits)
+
 
 type IntSign = enum
   Negative = -1
@@ -31,22 +63,22 @@ declarePyType Int(tpToken):
   #v: BigInt
   #v: int
   sign: IntSign
-  digits: seq[uint32]
+  digits: seq[Digit]
 
-proc newPyInt(i: uint32): PyIntObject
+#proc newPyInt(i: Digit): PyIntObject
 proc newPyInt*(i: int): PyIntObject
 
 # currently avoid using setLen because of gh-10651
 proc setXLen(intObj: PyIntObject, l: int) =
   if intObj.digits.len == 0:
-    intObj.digits = newSeq[uint32](l)
+    intObj.digits = newSeq[Digit](l)
   else:
     intObj.digits.setLen(l)
 
-let pyIntZero* = newPyInt(0'u32)
-let pyIntOne* = newPyInt(1'u32)
-let pyIntTwo = newPyInt(2'u32)
-let pyIntTen* = newPyInt(10'u32)
+let pyIntZero* = newPyInt(0)
+let pyIntOne* = newPyInt(1)
+let pyIntTwo = newPyInt(2)
+let pyIntTen* = newPyInt(10)
 
 proc negative*(intObj: PyIntObject): bool {. inline .} =
   intObj.sign == Negative
@@ -87,31 +119,32 @@ proc doCompare(a, b: PyIntObject): IntSign {. cdecl .} =
   return Zero
 
 
-proc inplaceAdd(a: PyIntObject, b: uint32) =
-  var carry = uint64(b)
+proc inplaceAdd(a: PyIntObject, b: Digit) =
+  var carry = TwoDigits(b)
   for i in 0..<a.digits.len:
     if carry == 0:
       return
-    carry += uint64(a.digits[i])
-    a.digits[i] = uint32(carry)
-    carry = carry shr 32
-  if 0'u64 < carry:
-    a.digits.add uint32(carry)
+    carry += TwoDigits(a.digits[i])
+    a.digits[i] = truncate(carry)
+    carry = carry.demote
+  if TwoDigits(0) < carry:
+    a.digits.add truncate(carry)
 
 
 proc doAdd(a, b: PyIntObject): PyIntObject =
   if a.digits.len < b.digits.len:
     return doAdd(b, a)
-  var carry = 0'u64
+  var carry = TwoDigits(0)
   result = newPyIntSimple()
   for i in 0..<a.digits.len:
     if i < b.digits.len:
-      carry += uint64(b.digits[i])
-    carry += uint64(a.digits[i])
-    result.digits.add uint32(carry)
-    carry = carry shr 32
-  if 0'u64 < carry:
-    result.digits.add uint32(carry)
+      # can't use inplace-add, gh-10697
+      carry = carry + TwoDigits(b.digits[i])
+    carry += TwoDigits(a.digits[i])
+    result.digits.add truncate(carry)
+    carry = carry.demote
+  if TwoDigits(0) < carry:
+    result.digits.add truncate(carry)
 
 # assuming all positive, return a - b
 proc doSub(a, b: PyIntObject): PyIntObject =
@@ -119,20 +152,21 @@ proc doSub(a, b: PyIntObject): PyIntObject =
     let c = doSub(b, a)
     c.sign = Negative
     return c
-  var carry: int64 = 0
+  var carry = Digit(0)
   result = newPyIntSimple()
   for i in 0..<a.digits.len:
+    let aa = TwoDigits(a.digits[i])
+    var bb = TwoDigits(carry)
     if i < b.digits.len:
-      carry -= int64(b.digits[i])
-    carry += int64(a.digits[i])
-    if 0 <= carry:
-      result.digits.add uint32(carry)
+      bb = bb + TwoDigits(b.digits[i])
+    if bb <= aa:
+      result.digits.add truncate(aa - bb)
       carry = 0
     else:
-      result.digits.add uint32(int64(maxDigit) + carry + 1)
-      carry = -1
+      result.digits.add(Digit(maxValue - truncate(bb - aa)))
+      carry = 1
   if carry != 0:
-    result.digits.add uint32(int64(maxDigit) + carry + 1)
+    result.digits.add carry
     result.sign = Negative
   result.normalize()
   if result.digits.len == 0:
@@ -142,21 +176,23 @@ proc doSub(a, b: PyIntObject): PyIntObject =
 
 
 # assuming all positive, return a * b
-proc doMul(a: PyIntObject, b: uint32): PyIntObject =
+proc doMul(a: PyIntObject, b: Digit): PyIntObject =
   result = newPyIntSimple()
-  var carry: uint64 = 0
+  var carry = TwoDigits(0)
   for i in 0..<a.digits.len:
-    carry += uint64(a.digits[i]) * uint64(b)
-    result.digits.add uint32(carry)
-    carry = carry shr 32
+    carry += TwoDigits(a.digits[i]) * TwoDigits(b)
+    result.digits.add truncate(carry)
+    carry = carry.demote
   if 0'u64 < carry:
-    result.digits.add uint32(carry)
+    result.digits.add truncate(carry)
   
 proc doMul(a, b: PyIntObject): PyIntObject =
+  if a.digits.len < b.digits.len:
+    return doMul(b, a)
   var ints: seq[PyIntObject]
   for i, db in b.digits:
     let c = a.doMul(db)
-    let zeros = newSeq[uint32](i)
+    let zeros = newSeq[Digit](i)
     c.digits = zeros & c.digits
     ints.add c
   result = ints[0]
@@ -273,13 +309,13 @@ proc `*`*(a, b: PyIntObject): PyIntObject =
   of Negative:
     case b.sign
     of Negative:
-      let c = doMul(b, a)
+      let c = doMul(a, b)
       c.sign = Positive
       return c
     of Zero:
       return pyIntZero
     of Positive:
-      let c = doMul(b, a)
+      let c = doMul(a, b)
       c.sign = Negative
       return c
   of Zero:
@@ -287,13 +323,13 @@ proc `*`*(a, b: PyIntObject): PyIntObject =
   of Positive:
     case b.sign
     of Negative:
-      let c = doMul(b, a)
+      let c = doMul(a, b)
       c.sign = Negative
       return c
     of Zero:
       return pyIntZero
     of Positive:
-      let c = doMul(b, a)
+      let c = doMul(a, b)
       c.sign = Positive
       return c
 
@@ -309,13 +345,13 @@ proc doDiv(n, d: PyIntObject): (PyIntObject, PyIntObject) =
   elif dn == 1:
     let dd = d.digits[0]
     let q = newPyIntSimple()
-    var rr: uint32
+    var rr: Digit
     q.setXLen(n.digits.len)
 
     for i in countdown(n.digits.high, 0):
-      let tmp: uint64 = uint64(n.digits[i]) + uint64(rr) shl 32
-      q.digits[i] = uint32(tmp div dd)
-      rr = uint32(tmp mod dd)
+      let tmp = TwoDigits(n.digits[i]) + rr.promote
+      q.digits[i] = truncate(tmp div TwoDigits(dd))
+      rr = truncate(tmp mod Twodigits(dd))
 
     q.normalize()
     let r = newPyIntSimple()
@@ -379,16 +415,17 @@ proc pow(a, b: PyIntObject): PyIntObject =
   else:
     return half_c * half_c
 
-proc newPyInt(i: uint32): PyIntObject =
+#[
+proc newPyInt(i: Digit): PyIntObject =
   result = newPyIntSimple()
   if i != 0:
     result.digits.add i
+  # can't be negative
   if i == 0:
     result.sign = Zero
   else:
     result.sign = Positive
 
-#[
 proc newPyInt(i: int): PyIntObject =
   var ii: int
   if i < 0:
@@ -416,7 +453,7 @@ proc fromStr(s: string): PyIntObject =
   for i in start..<s.len:
     result = result.doMul(10)
     let c = s[i]
-    result.inplaceAdd uint32(ord(c) - ord('0'))
+    result.inplaceAdd Digit(ord(c) - ord('0'))
   result.normalize
   if s[0] == '-':
     result.sign = Negative
@@ -431,10 +468,10 @@ method `$`*(i: PyIntObject): string =
   if i.zero:
     return "0"
   var ii = i.copy()
-  var q: PyIntObject
+  var r: PyIntObject
   while true:
-    (ii, q) = ii.doDiv pyIntTen
-    strSeq.add($q.digits[0])
+    (ii, r) = ii.doDiv pyIntTen
+    strSeq.add($int(r.digits[0]))
     if ii.digits.len == 0:
       break
   #strSeq.add($i.digits)
@@ -455,17 +492,9 @@ method `$`*(f: PyFloatObject): string =
 
 proc toInt*(pyInt: PyIntObject): int = 
   # XXX: the caller should take care of overflow
-  case pyInt.digits.len
-  of 0:
-    assert pyInt.zero
-    return 0
-  of 1:
-    result = int(pyInt.digits[0])
-  of 2:
-    result = int(pyInt.digits[1]) shl 32
-    result += int(pyInt.digits[0])
-  else:
-    unreachable
+  for i in countdown(pyInt.digits.len-1, 0):
+    result = result shl digitBits
+    result += int(pyInt.digits[i])
   if pyInt.sign == Negative:
     result *= -1
 
@@ -479,16 +508,15 @@ proc newPyInt*(str: string): PyIntObject =
 
 proc newPyInt*(i: int): PyIntObject = 
   result = newPyIntSimple()
-  if i == 0:
-    result.sign = Zero
-    return
-  let ui = abs(i)
-  result.digits.add uint32(ui mod int(maxDigit))
-  let h = ui div int(maxDigit)
-  if h != 0:
-    result.digits.add uint32(h)
+  var ui = abs(i)
+  while ui != 0:
+    result.digits.add Digit(ui mod int(maxValue))
+    ui = ui shr digitBits
+
   if i < 0:
     result.sign = Negative
+  elif i == 0:
+    result.sign = Zero
   else:
     result.sign = Positive
 
