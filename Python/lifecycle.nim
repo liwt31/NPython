@@ -8,6 +8,12 @@ when not defined(js):
   import os
   import ospaths
 
+proc outOfMemHandler =
+  let e = new OutOfMemError
+  raise e
+
+system.outOfMemHook = outOfMemHandler
+
 proc pyInit*(args: seq[string]) = 
   for t in bltinTypes:
     t.typeReady

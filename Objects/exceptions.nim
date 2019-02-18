@@ -27,7 +27,8 @@ type ExceptionToken* {. pure .} = enum
   Assertion,
   ZeroDivision,
   Runtime,
-  Syntax
+  Syntax,
+  Memory
 
 
 type TraceBack* = tuple

@@ -43,10 +43,10 @@ Currently, the performance bottlenecks are object allocation, seq accessing (com
 
 
 ### Drawbacks
+NPython aims for both C and JavaScript targets, so it's hard (if not impossible) to perform low-level address based optimization.
 NPython currently relies on Nim GC. Frankly speaking it's not satisfactory. 
 * The GC uses thread-local heap, makes threading nearly impossible (for Python).
-* The GC does not play well with manually managed memory, making certain optimizations difficult or impossible.
-* The GC can not be shared between different dynamic libs, which means NPython can not import Nim extension.
+* The GC can hardly be shared between different dynamic libs, which means NPython can not import extensions written in Nim.
 
 If memory is managed manually, hopefully these drawbacks can be overcomed. Of course that's a huge sacrifice.
 
