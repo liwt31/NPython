@@ -28,7 +28,8 @@ type ExceptionToken* {. pure .} = enum
   ZeroDivision,
   Runtime,
   Syntax,
-  Memory
+  Memory,
+  KeyboardInterrupt,
 
 
 type TraceBack* = tuple
@@ -166,17 +167,22 @@ template errorIfNotBool*(pyObj: untyped, methodName: string) =
       return newTypeError(msg)
 
 
-template getIterableWithCheck*(obj: PyObject): PyObject = 
-  # return exception, or a iterable with `iternext` method
-  let iterFunc = obj.getMagic(iter)
-  if iterFunc.isNil:
-    let msg = obj.pyType.name & " object is not iterable"
-    return newTypeError(msg)
-  let iterObj = iterFunc(obj)
-  if iterObj.getMagic(iternext).isNil:
-    let msg = fmt"iter() returned non-iterator of type " & iterObj.pyType.name
-    return newTypeError(msg)
-  iterobj
+template getIterableWithCheck*(obj: PyObject): (PyObject, UnaryMethod) = 
+  var retTuple: (PyObject, UnaryMethod)
+  block body:
+    let iterFunc = obj.getMagic(iter)
+    if iterFunc.isNil:
+      let msg = obj.pyType.name & " object is not iterable"
+      retTuple = (newTypeError(msg), nil)
+      break body
+    let iterObj = iterFunc(obj)
+    let iternextFunc = iterObj.getMagic(iternext)
+    if iternextFunc.isNil:
+      let msg = fmt"iter() returned non-iterator of type " & iterObj.pyType.name
+      retTuple = (newTypeError(msg), nil)
+      break body
+    retTuple = (iterobj, iternextFunc)
+  retTuple
 
 
 template checkArgNum*(expected: int, name="") = 

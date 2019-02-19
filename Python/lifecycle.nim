@@ -2,7 +2,7 @@ import coreconfig
 # init bltinmodule
 import bltinmodule
 import ../Objects/[pyobject, typeobject]
-import ../Utils/compat
+import ../Utils/utils
 
 when not defined(js):
   import os
@@ -13,6 +13,12 @@ proc outOfMemHandler =
   raise e
 
 system.outOfMemHook = outOfMemHandler
+
+when not defined(js):
+  proc controlCHandler {. noconv .} =
+    raise newException(InterruptError, "")
+
+  system.setControlCHook(controlCHandler)
 
 proc pyInit*(args: seq[string]) = 
   for t in bltinTypes:

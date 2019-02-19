@@ -76,19 +76,23 @@ implTupleMagic getitem:
   return newIndexTypeError("tuple", other)
 
 
-implTupleMagic init(mayBeIterable: PyObject):
-  let iterable = getIterableWithCheck(mayBeIterable)
-  if iterable.isThrownException:
-    return iterable
-  let nextMethod = iterable.getMagic(iternext)
-  let newTuple = newPyTupleSimple()
-  while true:
-    let nextObj = nextMethod(iterable)
-    if nextObj.isStopIter:
-      break
-    if nextObj.isThrownException:
-      return nextObj
-    self.items.add nextObj
+implTupleMagic init:
+  if 1 < args.len:
+    let msg = fmt"tuple expected at most 1 args, got {args.len}"
+    return newTypeError(msg)
+  if self.items.len != 0:
+    self.items.setLen(0)
+  if args.len == 1:
+    let (iterable, nextMethod) = getIterableWithCheck(args[0])
+    if iterable.isThrownException:
+      return iterable
+    while true:
+      let nextObj = nextMethod(iterable)
+      if nextObj.isStopIter:
+        break
+      if nextObj.isThrownException:
+        return nextObj
+      self.items.add nextObj
   pyNone
 
 

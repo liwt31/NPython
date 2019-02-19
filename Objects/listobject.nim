@@ -169,17 +169,15 @@ implListMethod remove(target: PyObject), [mutable: write]:
 
 
 implListMagic init:
-  # todo: use macro, add iterable to checkArgTypes
-  # now ugly as we have to pop out the first argument which is the type
-  case args.len:
-  of 0:
-    discard
-  of 1:
-    let iterable = getIterableWithCheck(args[0])
+  if 1 < args.len:
+    let msg = fmt"list expected at most 1 args, got {args.len}"
+    return newTypeError(msg)
+  if self.items.len != 0:
+    self.items.setLen(0)
+  if args.len == 1:
+    let (iterable, nextMethod) = getIterableWithCheck(args[0])
     if iterable.isThrownException:
       return iterable
-    let nextMethod = iterable.getMagic(iternext)
-    let newList = newPyListSimple()
     while true:
       let nextObj = nextMethod(iterable)
       if nextObj.isStopIter:
@@ -187,7 +185,4 @@ implListMagic init:
       if nextObj.isThrownException:
         return nextObj
       self.items.add nextObj
-  else:
-    let msg = fmt"list expected at most 1 args, got {args.len}"
-    return newTypeError(msg)
   pyNone

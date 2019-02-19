@@ -185,7 +185,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       var excpObj: PyObject
       # normal execution loop
       block normalExecution:
-        # out of memory handler
+        # out of memory and keyboard interrupt handler
         try:
           while true:
             {. computedGoto .}
@@ -243,7 +243,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
             of OpCode.GetIter:
               let top = sTop()
-              let iterObj = getIterableWithCheck(top)
+              let (iterObj, _) = getIterableWithCheck(top)
               if iterObj.isThrownException:
                 handleException(iterObj)
               sSetTop(iterObj)
@@ -302,15 +302,14 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                 for i in 1..opArg: 
                   sPush l.items[^i]
               else:
-                let iterable = getIterableWithCheck(s)
+                let (iterable, nextMethod) = getIterableWithCheck(s)
                 if iterable.isThrownException:
                   handleException(iterable)
-                let nextFunc = iterable.getMagic(iternext)
                 # there is a much clever approach in CPython
                 # because of the power of low level memory accessing
                 var items = newseq[PyObject](opArg)
                 for i in 0..<opArg:
-                  let retObj = iterable.nextFunc
+                  let retObj = iterable.nextMethod
                   if retObj.isStopIter:
                     incompatibleLengthError(i)
                   elif retObj.isThrownException:
@@ -584,6 +583,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               return newNotImplementedError(msg) # no need to handle
         except OutOfMemError:
           excpObj = newMemoryError("Out of Memory")
+          handleException(excpObj)
+        except InterruptError:
+          excpObj = newKeyboardInterruptError("")
           handleException(excpObj)
 
       # exception handler, return exception or re-enter the loop with new instruction index

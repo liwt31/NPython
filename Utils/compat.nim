@@ -36,3 +36,4 @@ else:
   template addCompat*[T](a, b: seq[T]) = 
     a.add b
     
+

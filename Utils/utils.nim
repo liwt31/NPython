@@ -13,6 +13,9 @@ type
   # internal error for not implemented bigint lib
   IntError* = object of Exception
 
+  # internal error for keyboard interruption
+  InterruptError* = object of Exception
+
 proc newSyntaxError(msg, fileName: string, lineNo, colNo: int): SyntaxError = 
   new result
   result.msg = msg

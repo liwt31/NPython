@@ -158,7 +158,7 @@ proc astSyncCompFor(parseNode: ParseNode): seq[AsdlComprehension]
 proc astCompFor(parseNode: ParseNode): seq[AsdlComprehension]
 
 
-# DSL to simplify function defination
+# DSL to simplify function definition
 # should use a pragma instead?
 proc genParamsSeq(paramSeq: NimNode): seq[NimNode] = 
   expectKind(paramSeq, nnkBracket)
@@ -343,7 +343,7 @@ ast decorated, [AsdlStmt]:
 
   
 ast async_funcdef, [AsdlStmt]:
-  raiseSyntaxError("async function defination not implemented", parseNode)
+  raiseSyntaxError("async function definition not implemented", parseNode)
   
 # funcdef  'def' NAME parameters ['->' test] ':' suite
 ast funcdef, [AstFunctionDef]:
@@ -1158,16 +1158,16 @@ ast dictorsetmaker, [AsdlExpr]:
   for idx in 0..<((children.len+1) div 4):
     let i = idx * 4
     if children.len < i + 3:
-      raiseSyntaxError("dict defination too complex (no set, no comprehension)")
+      raiseSyntaxError("dict definition too complex (no set, no comprehension)")
     let c1 = children[i]
     if not (c1.tokenNode.token == Token.test):
-      raiseSyntaxError("dict defination too complex (no set, no comprehension)", c1)
+      raiseSyntaxError("dict definition too complex (no set, no comprehension)", c1)
     d.keys.add(astTest(c1))
     if not (children[i+1].tokenNode.token == Token.Colon):
-      raiseSyntaxError("dict defination too complex (no set, no comprehension)")
+      raiseSyntaxError("dict definition too complex (no set, no comprehension)")
     let c3 = children[i+2]
     if not (c3.tokenNode.token == Token.test):
-      raiseSyntaxError("dict defination too complex (no set, no comprehension)", c3)
+      raiseSyntaxError("dict definition too complex (no set, no comprehension)", c3)
     d.values.add(astTest(c3))
   result = d
   
